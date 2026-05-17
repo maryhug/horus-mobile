@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../services/api';
@@ -127,6 +127,19 @@ function makeStyles(c: AppColors) {
     signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     signupText: { color: c.textSecondary, fontSize: 14 },
     signupLink: { color: c.accent, fontSize: 14, fontWeight: '600' },
+    successBox: {
+      backgroundColor: 'rgba(76,175,80,0.10)',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(76,175,80,0.25)',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 18,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    successText: { color: '#4CAF50', fontSize: 13, flex: 1, lineHeight: 18 },
   });
 }
 
@@ -134,6 +147,7 @@ export default function LoginScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { login } = useAuth();
+  const { registered } = useLocalSearchParams<{ registered?: string }>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -180,6 +194,13 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>
               Inicia sesión para conectar con tu manilla inteligente
             </Text>
+
+            {registered === '1' && (
+              <View style={styles.successBox}>
+                <Ionicons name="checkmark-circle-outline" size={16} color="#4CAF50" />
+                <Text style={styles.successText}>¡Cuenta creada! Ya puedes iniciar sesión.</Text>
+              </View>
+            )}
 
             {errorMsg && (
               <View style={styles.errorBox}>

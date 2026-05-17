@@ -14,12 +14,7 @@ import { AppColors } from '../../constants/colors';
 
 type FileItem = { name: string; type: string; size: string; iconColor: string; icon: string };
 
-const INITIAL_FILES: FileItem[] = [
-  { name: 'reporte-actividad-octubre.pdf', type: 'PDF', size: '1.2 MB', iconColor: '#D90429', icon: 'document-text' },
-  { name: 'configuracion-dispositivo.json', type: 'JSON', size: '12 KB', iconColor: '#EF233C', icon: 'code-slash' },
-  { name: 'historial-signos-vitales.csv', type: 'CSV', size: '342 KB', iconColor: '#388E3C', icon: 'grid' },
-  { name: 'captura-ruta-paseo.png', type: 'IMAGE', size: '2.4 MB', iconColor: '#7B61FF', icon: 'image' },
-];
+const INITIAL_FILES: FileItem[] = [];
 
 const FILE_TYPES = ['PDF', 'CSV', 'JSON', 'PNG'];
 
@@ -239,11 +234,11 @@ export default function FilesScreen() {
             <Text style={styles.storageTitle}>Almacenamiento</Text>
           </View>
           <View style={styles.storageBarTrack}>
-            <View style={styles.storageBarFill} />
+            <View style={[styles.storageBarFill, { width: '0%' }]} />
           </View>
           <View style={styles.storageStats}>
-            <Text style={styles.storageUsed}>4.1 MB usados</Text>
-            <Text style={styles.storageTotal}>25 MB disponibles</Text>
+            <Text style={styles.storageUsed}>0 MB usados</Text>
+            <Text style={styles.storageTotal}>Sin límite configurado</Text>
           </View>
         </View>
       </ScrollView>

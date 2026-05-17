@@ -392,29 +392,30 @@ export default function ProfileScreen() {
               <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
             </View>
             <View>
-              <Text style={styles.deviceName}>Horus Pro · Negro</Text>
+              <Text style={styles.deviceName}>Manilla Horus</Text>
               <Text style={styles.deviceId}>
-                {displayUser?.nfcTagId ? `NFC: ${displayUser.nfcTagId}` : 'ID: No registrada'}
+                {displayUser?.nfcTagId ? `NFC: ${displayUser.nfcTagId}` : 'Sin NFC registrado'}
               </Text>
             </View>
           </View>
-          {/* TODO: ajustar según la respuesta real de la API — estos datos deben venir del dispositivo */}
           <View style={styles.statsGrid}>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>NFC</Text>
-              <Text style={styles.statValueGreen}>Activo</Text>
+              <Text style={displayUser?.nfcTagId ? styles.statValueGreen : styles.statValue}>
+                {displayUser?.nfcTagId ? 'Activo' : '—'}
+              </Text>
             </View>
             <View style={[styles.statCell, styles.statCellNoRight]}>
               <Text style={styles.statLabel}>GPS</Text>
-              <Text style={styles.statValueGreen}>Activo</Text>
+              <Text style={styles.statValue}>—</Text>
             </View>
             <View style={[styles.statCell, styles.statCellNoBorder]}>
               <Text style={styles.statLabel}>Batería</Text>
-              <Text style={styles.statValue}>85%</Text>
+              <Text style={styles.statValue}>—</Text>
             </View>
             <View style={[styles.statCell, styles.statCellNoRight, styles.statCellNoBorder]}>
               <Text style={styles.statLabel}>Firmware</Text>
-              <Text style={styles.statValue}>v2.4.1</Text>
+              <Text style={styles.statValue}>—</Text>
             </View>
           </View>
         </View>

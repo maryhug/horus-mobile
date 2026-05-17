@@ -216,13 +216,6 @@ function makeStyles(c: AppColors) {
   });
 }
 
-// TODO: ajustar según la respuesta real de la API — reemplazar con datos reales de ubicación del dispositivo
-const STATIC_ALERTS = [
-  { id: '1', icon: 'warning-outline', color: '#FFA726', title: 'Geocerca traspasada', time: 'Hace 12 min', read: false },
-  { id: '2', icon: 'heart-outline', color: '#EF233C', title: 'Ritmo cardíaco elevado', time: 'Hace 1 h', read: false },
-  { id: '3', icon: 'sync-outline', color: '#4CAF50', title: 'Sincronización completada', time: 'Hace 2 h', read: true },
-  { id: '4', icon: 'location-outline', color: '#8D99AE', title: 'Nueva ubicación registrada', time: 'Hace 3 h', read: true },
-];
 
 export default function MonitorScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -255,7 +248,6 @@ export default function MonitorScreen() {
     animate(pulse2, 700);
   }, []);
 
-  const unreadCount = STATIC_ALERTS.filter(a => !a.read).length;
   const G = GLOBE_SIZE;
 
   // Display location from profile if available
@@ -330,7 +322,7 @@ export default function MonitorScreen() {
                 <Text style={[styles.locationName, isDark && styles.locationNameDark]}>
                   {locationDisplay}
                 </Text>
-                <Text style={styles.locationCoords}>6.21189° N, 75.57737° W</Text>
+                <Text style={styles.locationCoords}>Sin coordenadas GPS</Text>
               </View>
               <View style={styles.gpsBadge}>
                 <Text style={styles.gpsBadgeText}>GPS</Text>
@@ -395,28 +387,14 @@ export default function MonitorScreen() {
         </View>
 
         {/* ── Recent alerts ── */}
-        {/* TODO: ajustar según la respuesta real de la API — reemplazar con alertas reales del servidor */}
         <View style={styles.alertsCard}>
           <View style={styles.alertsHeader}>
             <Text style={styles.alertsTitle}>Últimas notificaciones</Text>
-            {unreadCount > 0 && (
-              <View style={styles.alertsBadge}>
-                <Text style={styles.alertsBadgeText}>{unreadCount}</Text>
-              </View>
-            )}
           </View>
-          {STATIC_ALERTS.map((alert, i) => (
-            <View key={alert.id} style={[styles.alertRow, i === STATIC_ALERTS.length - 1 && { borderBottomWidth: 0 }]}>
-              <View style={[styles.alertIconWrap, { backgroundColor: alert.color + '20' }]}>
-                <Ionicons name={alert.icon as any} size={19} color={alert.color} />
-              </View>
-              <View style={styles.alertText}>
-                <Text style={styles.alertTitle}>{alert.title}</Text>
-                <Text style={styles.alertTime}>{alert.time}</Text>
-              </View>
-              {!alert.read && <View style={styles.unreadDot} />}
-            </View>
-          ))}
+          <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
+            <Ionicons name="notifications-off-outline" size={32} color="#8D99AE" />
+            <Text style={{ fontSize: 13, color: '#8D99AE' }}>Sin notificaciones recientes</Text>
+          </View>
         </View>
 
         {/* ── Active product ── */}

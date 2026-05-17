@@ -88,17 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [persistUser]);
 
   const register = useCallback(async (payload: RegisterPayload) => {
-    const { data } = await apiClient.post<RegisterResponse>('/auth/register', payload);
-    let profile: User;
-    if (data.user) {
-      profile = data.user;
-    } else {
-      const { data: profileData } = await apiClient.get<ProfileData>('/profile');
-      profile = profileData;
-    }
-    await persistUser(profile);
-    router.replace('/(tabs)/dashboard');
-  }, [persistUser]);
+    await apiClient.post<RegisterResponse>('/auth/register', payload);
+    // Backend doesn't establish a session on register — redirect to login
+    router.replace('/login?registered=1');
+  }, []);
 
   const logout = useCallback(async () => {
     try {

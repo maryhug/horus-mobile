@@ -24,8 +24,6 @@ const CARD_GAP = 12;
 const METRIC_W = (SCREEN_WIDTH - H_PAD * 2 - CARD_GAP) / 2;
 const CHART_H = 140;
 
-// Static bar data — TODO: reemplazar con datos reales de sensor si el API los expone
-const BAR_DATA = [30, 52, 44, 68, 38, 76, 58, 88, 72, 84, 62, 92, 68, 85, 70, 90, 66, 83, 75, 94, 78, 91, 86, 95];
 const BAR_HOURS = ['00:00', '06:00', '12:00', '18:00', '24:00'];
 
 function makeStyles(c: AppColors) {
@@ -245,14 +243,13 @@ function makeStyles(c: AppColors) {
   });
 }
 
-type MetricProps = { icon: string; iconColor: string; label: string; value: string; unit: string; change: string };
+type MetricProps = { icon: string; iconColor: string; label: string; value: string; unit: string };
 type AlertProps = { dotColor: string; title: string; time: string; isLocation?: boolean };
 
 export default function DashboardScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
-  const maxBar = Math.max(...BAR_DATA);
 
   const { data, loading, error, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
@@ -266,16 +263,12 @@ export default function DashboardScreen() {
     ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
     : '—';
 
-  function MetricCard({ icon, iconColor, label, value, unit, change }: MetricProps) {
+  function MetricCard({ icon, iconColor, label, value, unit }: MetricProps) {
     return (
       <View style={styles.metricCard}>
         <View style={styles.metricTop}>
           <View style={[styles.metricIcon, { backgroundColor: iconColor + '28' }]}>
             <Ionicons name={icon as any} size={20} color={iconColor} />
-          </View>
-          <View style={styles.changeBadge}>
-            <Ionicons name="trending-up" size={11} color={colors.success} />
-            <Text style={styles.changeText}>{change}</Text>
           </View>
         </View>
         <Text style={styles.metricLabel}>{label}</Text>
@@ -390,12 +383,11 @@ export default function DashboardScreen() {
                 <Ionicons name="battery-charging" size={14} color={colors.accent} />
               </View>
             </View>
-            {/* TODO: ajustar según la respuesta real de la API — reemplazar con dato real */}
-            <Text style={styles.statusValue}>82%</Text>
+            <Text style={[styles.statusValue, { color: colors.textMuted }]}>—</Text>
             <View style={styles.batteryTrack}>
-              <View style={[styles.batteryFill, { width: '82%' }]} />
+              <View style={[styles.batteryFill, { width: '0%' }]} />
             </View>
-            <Text style={styles.statusSub}>~18 h restantes</Text>
+            <Text style={styles.statusSub}>Sin datos del dispositivo</Text>
           </View>
         </View>
 
@@ -424,55 +416,43 @@ export default function DashboardScreen() {
           </Text>
         </View>
 
-        {/* TODO: ajustar según la respuesta real de la API — estas métricas deben venir de sensores */}
         <Text style={styles.sectionTitle}>Métricas de salud</Text>
         <View style={styles.metricsGrid}>
-          <MetricCard icon="heart" iconColor={colors.strawberryRed} label="Frecuencia cardíaca" value="78" unit="bpm" change="+2%" />
-          <MetricCard icon="footsteps" iconColor={colors.lavenderGrey} label="Pasos hoy" value="8,432" unit="pasos" change="+12%" />
-          <MetricCard icon="flame" iconColor="#FF9800" label="Calorías" value="412" unit="kcal" change="+8%" />
-          <MetricCard icon="pulse" iconColor={colors.spaceIndigo} label="Actividad" value="92" unit="min" change="+5%" />
+          <MetricCard icon="heart" iconColor={colors.strawberryRed} label="Frecuencia cardíaca" value="—" unit="bpm" />
+          <MetricCard icon="footsteps" iconColor={colors.lavenderGrey} label="Pasos hoy" value="—" unit="pasos" />
+          <MetricCard icon="flame" iconColor="#FF9800" label="Calorías" value="—" unit="kcal" />
+          <MetricCard icon="pulse" iconColor={colors.spaceIndigo} label="Actividad" value="—" unit="min" />
         </View>
 
         <View style={styles.chartCard}>
           <View style={styles.chartHead}>
             <View>
               <Text style={styles.chartTitle}>Actividad de las últimas 24h</Text>
-              <Text style={styles.chartSub}>Datos capturados por sensores</Text>
-            </View>
-            <View style={styles.livePill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveLabel}>En vivo</Text>
+              <Text style={styles.chartSub}>Sin datos del sensor aún</Text>
             </View>
           </View>
-          <View style={{ height: CHART_H }}>
-            <View style={styles.barsRow}>
-              {BAR_DATA.map((v, i) => (
-                <View key={i} style={styles.barCol}>
-                  <View style={[styles.bar, { height: (v / maxBar) * CHART_H * 0.9 }]} />
-                </View>
-              ))}
-            </View>
+          <View style={{ height: CHART_H, justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="analytics-outline" size={36} color={colors.textMuted} />
+            <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8 }}>
+              Conecta tu manilla para ver datos
+            </Text>
           </View>
           <View style={styles.xLabels}>
             {BAR_HOURS.map((h, i) => <Text key={i} style={styles.xLabel}>{h}</Text>)}
           </View>
         </View>
 
-        {/* TODO: ajustar según la respuesta real de la API — reemplazar con alertas reales */}
         <View style={styles.alertsCard}>
           <View style={styles.alertsHead}>
             <View style={styles.alertsTitleRow}>
               <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
               <Text style={styles.alertsTitle}>Alertas recientes</Text>
             </View>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>Ver todas</Text>
-            </TouchableOpacity>
           </View>
-          <AlertRow dotColor={colors.warning} title="Geocerca traspasada" time="Hace 12 min" />
-          <AlertRow dotColor={colors.strawberryRed} title="Ritmo cardíaco elevado detectado" time="Hace 1 h" />
-          <AlertRow dotColor={colors.success} title="Sincronización completada" time="Hace 2 h" />
-          <AlertRow dotColor={colors.lavenderGrey} title="Última ubicación registrada" time="Av. Reforma 247, CDMX" isLocation />
+          <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
+            <Ionicons name="notifications-off-outline" size={32} color={colors.textMuted} />
+            <Text style={styles.errorText}>Sin alertas recientes</Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
