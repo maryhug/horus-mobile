@@ -1,23 +1,31 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
+  Modal,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useApi } from '../../hooks/useApi';
+import { apiClient, getErrorMessage } from '../../services/api';
 import { AppColors } from '../../constants/colors';
+import type { ProfileData, ProfileUpdatePayload } from '../../types/api';
 
 function makeStyles(c: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     scroll: { paddingBottom: 32 },
 
-    // Profile card
     profileCard: {
       backgroundColor: c.surface,
       marginHorizontal: 16,
@@ -27,14 +35,8 @@ function makeStyles(c: AppColors) {
       borderWidth: 1,
       borderColor: c.border,
     },
-    banner: {
-      height: 110,
-      backgroundColor: c.accent,
-    },
-    profileBottom: {
-      paddingHorizontal: 16,
-      paddingBottom: 20,
-    },
+    banner: { height: 110, backgroundColor: c.accent },
+    profileBottom: { paddingHorizontal: 16, paddingBottom: 20 },
     avatarWrap: {
       marginTop: -38,
       marginBottom: 10,
@@ -83,7 +85,6 @@ function makeStyles(c: AppColors) {
     userName: { fontSize: 22, fontWeight: '800', color: c.textPrimary, marginBottom: 4 },
     userHandle: { fontSize: 13, color: c.textSecondary },
 
-    // Section
     sectionCard: {
       backgroundColor: c.surface,
       marginHorizontal: 16,
@@ -100,14 +101,8 @@ function makeStyles(c: AppColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.border,
     },
-    sectionTitle: {
-      fontSize: 11,
-      fontWeight: '800',
-      color: c.textMuted,
-      letterSpacing: 1.2,
-    },
+    sectionTitle: { fontSize: 11, fontWeight: '800', color: c.textMuted, letterSpacing: 1.2 },
 
-    // Info rows
     infoRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -130,7 +125,6 @@ function makeStyles(c: AppColors) {
     infoValue: { fontSize: 14, color: c.textPrimary, fontWeight: '500' },
     infoValueMuted: { fontSize: 14, color: c.textMuted },
 
-    // Device section
     deviceRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -149,10 +143,7 @@ function makeStyles(c: AppColors) {
     },
     deviceName: { fontSize: 15, fontWeight: '700', color: c.textPrimary },
     deviceId: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-    statsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-    },
+    statsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
     statCell: {
       width: '50%',
       padding: 14,
@@ -161,17 +152,12 @@ function makeStyles(c: AppColors) {
       borderRightWidth: 1,
       borderRightColor: c.border,
     },
-    statCellNoRight: {
-      borderRightWidth: 0,
-    },
-    statCellNoBorder: {
-      borderBottomWidth: 0,
-    },
+    statCellNoRight: { borderRightWidth: 0 },
+    statCellNoBorder: { borderBottomWidth: 0 },
     statLabel: { fontSize: 11, color: c.textMuted, marginBottom: 4 },
     statValue: { fontSize: 16, fontWeight: '700', color: c.textPrimary },
     statValueGreen: { fontSize: 16, fontWeight: '700', color: c.success },
 
-    // Settings button
     settingsBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -196,7 +182,6 @@ function makeStyles(c: AppColors) {
     settingsBtnText: { fontSize: 15, fontWeight: '600', color: c.textPrimary },
     settingsBtnSub: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
 
-    // Logout
     logoutBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -210,16 +195,110 @@ function makeStyles(c: AppColors) {
       padding: 14,
     },
     logoutText: { fontSize: 15, fontWeight: '700', color: c.accent },
+
+    // Edit modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: c.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 24,
+      paddingBottom: 40,
+    },
+    modalTitle: { fontSize: 18, fontWeight: '800', color: c.textPrimary, marginBottom: 20 },
+    fieldGroup: { marginBottom: 16 },
+    fieldLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '500', marginBottom: 6 },
+    fieldInput: {
+      backgroundColor: c.surfaceElevated,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      color: c.textPrimary,
+      fontSize: 14,
+    },
+    modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    cancelBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      alignItems: 'center',
+    },
+    cancelBtnText: { color: c.textSecondary, fontWeight: '700', fontSize: 14 },
+    saveBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 14,
+      backgroundColor: c.accent,
+      alignItems: 'center',
+    },
+    saveBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   });
 }
 
 export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { user, logout, updateUser } = useAuth();
+
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editFields, setEditFields] = useState<ProfileUpdatePayload>({});
+
+  const { data: profile, loading, refetch } = useApi<ProfileData>(
+    () => apiClient.get<ProfileData>('/profile').then(r => r.data)
+  );
+
+  const displayUser = profile ?? user;
+
+  const fullName = displayUser
+    ? `${displayUser.firstName ?? ''} ${displayUser.lastName ?? ''}`.trim() || displayUser.email
+    : 'Cargando...';
+
+  const handleOpenEdit = () => {
+    setEditFields({
+      firstName: displayUser?.firstName ?? '',
+      lastName: displayUser?.lastName ?? '',
+      phone: displayUser?.phone ?? '',
+      location: displayUser?.location ?? '',
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      await apiClient.put('/profile', editFields);
+      updateUser(editFields);
+      setEditModalVisible(false);
+      refetch();
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro que deseas cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cerrar sesión', style: 'destructive', onPress: logout },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={{
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -244,7 +323,13 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.accent} />
+        }
+      >
         {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.banner} />
@@ -252,19 +337,23 @@ export default function ProfileScreen() {
             <View style={styles.avatarWrap}>
               <View>
                 <View style={styles.avatarBox}>
-                  <Ionicons name="person" size={36} color={colors.lavenderGrey} />
+                  {loading
+                    ? <ActivityIndicator color={colors.accent} />
+                    : <Ionicons name="person" size={36} color={colors.lavenderGrey} />}
                 </View>
                 <View style={styles.cameraBtn}>
                   <Ionicons name="camera" size={12} color="#FFFFFF" />
                 </View>
               </View>
-              <TouchableOpacity style={styles.editBtn}>
+              <TouchableOpacity style={styles.editBtn} onPress={handleOpenEdit}>
                 <Ionicons name="pencil" size={14} color="#FFFFFF" />
                 <Text style={styles.editBtnText}>Editar perfil</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.userName}>Maryhug Durán</Text>
-            <Text style={styles.userHandle}>@maryhug · Miembro desde 2026</Text>
+            <Text style={styles.userName}>{fullName}</Text>
+            <Text style={styles.userHandle}>
+              {displayUser?.email ?? '—'} · Miembro Horus
+            </Text>
           </View>
         </View>
 
@@ -274,16 +363,21 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>INFORMACIÓN PERSONAL</Text>
           </View>
 
-          <InfoRow icon="mail-outline" label="Email" value="maryhug@horus.com" colors={colors} styles={styles} />
-          <InfoRow icon="call-outline" label="Teléfono" value="—" muted styles={styles} colors={colors} />
-          <InfoRow icon="location-outline" label="Ubicación" value="—" muted styles={styles} colors={colors} />
+          <InfoRow icon="mail-outline" label="Email" value={displayUser?.email ?? '—'} colors={colors} styles={styles} />
+          <InfoRow icon="call-outline" label="Teléfono" value={displayUser?.phone ?? '—'} muted={!displayUser?.phone} styles={styles} colors={colors} />
+          <InfoRow icon="location-outline" label="Ubicación" value={displayUser?.location ?? '—'} muted={!displayUser?.location} styles={styles} colors={colors} />
+          <InfoRow icon="water-outline" label="Tipo de sangre" value={displayUser?.bloodType ?? '—'} muted={!displayUser?.bloodType} styles={styles} colors={colors} />
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
             <View style={styles.infoIconWrap}>
               <Ionicons name="calendar-outline" size={17} color={colors.accent} />
             </View>
             <View style={styles.infoTextWrap}>
               <Text style={styles.infoLabel}>Fecha de nacimiento</Text>
-              <Text style={styles.infoValueMuted}>—</Text>
+              <Text style={displayUser?.dateOfBirth ? styles.infoValue : styles.infoValueMuted}>
+                {displayUser?.dateOfBirth
+                  ? new Date(displayUser.dateOfBirth).toLocaleDateString('es-MX')
+                  : '—'}
+              </Text>
             </View>
           </View>
         </View>
@@ -299,9 +393,12 @@ export default function ProfileScreen() {
             </View>
             <View>
               <Text style={styles.deviceName}>Horus Pro · Negro</Text>
-              <Text style={styles.deviceId}>ID: No registrada</Text>
+              <Text style={styles.deviceId}>
+                {displayUser?.nfcTagId ? `NFC: ${displayUser.nfcTagId}` : 'ID: No registrada'}
+              </Text>
             </View>
           </View>
+          {/* TODO: ajustar según la respuesta real de la API — estos datos deben venir del dispositivo */}
           <View style={styles.statsGrid}>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>NFC</Text>
@@ -322,7 +419,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Settings link */}
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')}>
           <View style={styles.settingsBtnLeft}>
             <View style={styles.settingsBtnIconWrap}>
@@ -336,12 +432,73 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/login')}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={19} color={colors.accent} />
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Edit profile modal */}
+      <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Editar perfil</Text>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Nombre</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={editFields.firstName}
+                onChangeText={v => setEditFields(p => ({ ...p, firstName: v }))}
+                placeholder="Nombre"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Apellido</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={editFields.lastName}
+                onChangeText={v => setEditFields(p => ({ ...p, lastName: v }))}
+                placeholder="Apellido"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Teléfono</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={editFields.phone}
+                onChangeText={v => setEditFields(p => ({ ...p, phone: v }))}
+                placeholder="+57 300 000 0000"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="phone-pad"
+              />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Ubicación</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={editFields.location}
+                onChangeText={v => setEditFields(p => ({ ...p, location: v }))}
+                placeholder="Ciudad, País"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile} disabled={isSaving}>
+                {isSaving
+                  ? <ActivityIndicator color="#FFFFFF" size="small" />
+                  : <Text style={styles.saveBtnText}>Guardar</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

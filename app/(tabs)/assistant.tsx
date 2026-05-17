@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { apiClient, getErrorMessage } from '../../services/api';
 import { AppColors } from '../../constants/colors';
+import type { ChatResponse } from '../../types/api';
 
-type Message = { id: string; role: 'bot' | 'user'; text: string };
+type Message = { id: string; role: 'bot' | 'user'; text: string; error?: boolean };
 
 const INITIAL_MESSAGES: Message[] = [
   { id: '1', role: 'bot', text: 'Hola 👋 Soy tu asistente Horus. Pregúntame sobre tu actividad, sensores o alertas recientes.' },
@@ -26,17 +28,6 @@ const SUGGESTIONS = [
   'Resumen de alertas de seguridad',
   'Estado de la batería y sincronización',
 ];
-
-function getBotResponse(input: string): string {
-  const lower = input.toLowerCase();
-  if (lower.includes('actividad') || lower.includes('semana'))
-    return 'Esta semana has dado un promedio de 7,820 pasos diarios, con un pico de 10,240 el miércoles. Tu actividad está un 12% por encima de la semana anterior. ¡Sigue así!';
-  if (lower.includes('alerta') || lower.includes('seguridad'))
-    return 'Tienes 2 alertas activas: una geocerca traspasada hace 12 min en Av. Reforma y un episodio de ritmo cardíaco elevado hace 1 hora. ¿Quieres más detalles?';
-  if (lower.includes('batería') || lower.includes('sincron'))
-    return 'Tu manilla tiene 82% de batería, estimado para 18 horas. La última sincronización fue hace 3 minutos a las 10:42 AM y fue exitosa.';
-  return 'Recibí tu mensaje. Estoy procesando la información de tu manilla Horus. ¿Hay algo específico sobre tu actividad, sensores o alertas en lo que pueda ayudarte?';
-}
 
 function makeStyles(c: AppColors) {
   return StyleSheet.create({
@@ -102,9 +93,11 @@ function makeStyles(c: AppColors) {
       borderColor: c.border,
     },
     bubbleUser: { backgroundColor: c.accent, borderTopRightRadius: 4 },
+    bubbleError: { borderColor: 'rgba(239,35,60,0.35)', backgroundColor: 'rgba(239,35,60,0.08)' },
     bubbleText: { fontSize: 14, lineHeight: 20 },
     bubbleTextBot: { color: c.textPrimary },
     bubbleTextUser: { color: '#FFFFFF', fontWeight: '500' },
+    bubbleTextError: { color: '#EF233C' },
     typingBubble: { paddingVertical: 14, paddingHorizontal: 16 },
     typingDots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
     typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.textSecondary },
@@ -129,7 +122,6 @@ function makeStyles(c: AppColors) {
       gap: 10,
       backgroundColor: c.background,
     },
-    attachBtn: { padding: 4 },
     input: {
       flex: 1,
       backgroundColor: c.surface,
@@ -161,6 +153,11 @@ function makeStyles(c: AppColors) {
   });
 }
 
+// TODO: ajustar según la respuesta real de la API — extraer el texto del mensaje de la respuesta del chat
+function extractResponseText(data: ChatResponse): string {
+  return data.message ?? data.response ?? data.content ?? 'Respuesta recibida.';
+}
+
 export default function AssistantScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -170,17 +167,34 @@ export default function AssistantScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const flatListRef = useRef<FlatList<Message>>(null);
 
-  const sendMessage = (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text: trimmed }]);
+    if (!trimmed || isTyping) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: trimmed };
+    setMessages(prev => [...prev, userMsg]);
     setInputText('');
     setIsTyping(true);
-    setTimeout(() => {
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'bot', text: getBotResponse(trimmed) }]);
+
+    try {
+      const { data } = await apiClient.post<ChatResponse>('/chat', { message: trimmed });
+      const botText = extractResponseText(data);
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'bot',
+        text: botText,
+      }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'bot',
+        text: getErrorMessage(err),
+        error: true,
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 900);
-  };
+    }
+  }, [isTyping]);
 
   const renderMessage: ListRenderItem<Message> = ({ item }) => {
     const isUser = item.role === 'user';
@@ -191,8 +205,16 @@ export default function AssistantScreen() {
             <Ionicons name="sparkles" size={13} color={colors.accent} />
           </View>
         )}
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
-          <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextBot]}>
+        <View style={[
+          styles.bubble,
+          isUser ? styles.bubbleUser : styles.bubbleBot,
+          item.error && styles.bubbleError,
+        ]}>
+          <Text style={[
+            styles.bubbleText,
+            isUser ? styles.bubbleTextUser : styles.bubbleTextBot,
+            item.error && styles.bubbleTextError,
+          ]}>
             {item.text}
           </Text>
         </View>
@@ -271,9 +293,6 @@ export default function AssistantScreen() {
         )}
 
         <View style={styles.inputBar}>
-          <TouchableOpacity style={styles.attachBtn}>
-            <Ionicons name="attach" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Pregunta sobre los datos de tu manilla..."
@@ -282,13 +301,14 @@ export default function AssistantScreen() {
             onChangeText={setInputText}
             multiline
             maxLength={500}
+            editable={!isTyping}
           />
           <TouchableOpacity
-            style={[styles.sendBtn, inputText.trim() ? styles.sendBtnActive : null]}
+            style={[styles.sendBtn, (inputText.trim() && !isTyping) ? styles.sendBtnActive : null]}
             onPress={() => sendMessage(inputText)}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || isTyping}
           >
-            <Ionicons name="send" size={15} color={inputText.trim() ? '#FFFFFF' : colors.textMuted} />
+            <Ionicons name="send" size={15} color={(inputText.trim() && !isTyping) ? '#FFFFFF' : colors.textMuted} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

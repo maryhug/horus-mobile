@@ -7,11 +7,16 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useApi } from '../../hooks/useApi';
+import { apiClient } from '../../services/api';
 import { AppColors } from '../../constants/colors';
+import type { DashboardData, ProfileData } from '../../types/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAP_HEIGHT = 220;
@@ -21,13 +26,6 @@ const PRODUCTS = [
   { id: 'bracelet', label: 'Brazalete', icon: 'watch-outline', desc: 'Horus Pro · Negro' },
   { id: 'smartwatch', label: 'Smartwatch', icon: 'time-outline', desc: 'Horus Watch X' },
   { id: 'card', label: 'Tarjeta NFC', icon: 'card-outline', desc: 'Horus Card v2' },
-];
-
-const ALERTS = [
-  { id: '1', icon: 'warning-outline', color: '#FFA726', title: 'Geocerca traspasada', time: 'Hace 12 min', read: false },
-  { id: '2', icon: 'heart-outline', color: '#EF233C', title: 'Ritmo cardíaco elevado', time: 'Hace 1 h', read: false },
-  { id: '3', icon: 'sync-outline', color: '#4CAF50', title: 'Sincronización completada', time: 'Hace 2 h', read: true },
-  { id: '4', icon: 'location-outline', color: '#8D99AE', title: 'Nueva ubicación registrada', time: 'Hace 3 h', read: true },
 ];
 
 function makeStyles(c: AppColors) {
@@ -52,7 +50,6 @@ function makeStyles(c: AppColors) {
     },
     scroll: { paddingBottom: 32 },
 
-    // ── Location card ──
     locationCard: {
       backgroundColor: c.surface,
       marginHorizontal: 16,
@@ -76,86 +73,55 @@ function makeStyles(c: AppColors) {
     locationHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     locationHeaderTime: { fontSize: 12, color: c.textMuted },
 
-    // Globe visual
     globeWrap: {
       height: MAP_HEIGHT,
       backgroundColor: '#050508',
       justifyContent: 'center',
       alignItems: 'center',
     },
-    ring: {
-      position: 'absolute',
-      borderRadius: 999,
-      borderWidth: 1,
-    },
+    ring: { position: 'absolute', borderRadius: 999, borderWidth: 1 },
     pin: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 36, height: 36, borderRadius: 18,
       backgroundColor: c.accent,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: 'center', alignItems: 'center',
       shadowColor: c.accent,
       shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.9,
-      shadowRadius: 18,
-      elevation: 12,
+      shadowOpacity: 0.9, shadowRadius: 18, elevation: 12,
     },
     locationInfoCard: {
-      position: 'absolute',
-      bottom: 16,
-      left: 20,
-      right: 20,
+      position: 'absolute', bottom: 16, left: 20, right: 20,
       backgroundColor: 'rgba(255,255,255,0.95)',
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     },
-    locationInfoCardDark: {
-      backgroundColor: 'rgba(30,32,50,0.95)',
-    },
+    locationInfoCardDark: { backgroundColor: 'rgba(30,32,50,0.95)' },
     locationName: { fontSize: 14, fontWeight: '700', color: '#2B2D42' },
     locationNameDark: { color: '#EDF2F4' },
     locationCoords: { fontSize: 11, color: '#8D99AE', marginTop: 2 },
     gpsBadge: {
       backgroundColor: 'rgba(76, 175, 80, 0.15)',
-      borderRadius: 8,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
+      borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
     },
     gpsBadgeText: { fontSize: 11, fontWeight: '700', color: '#4CAF50' },
 
-    // ── Cards row ──
     cardsRow: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginTop: 14 },
     infoCard: {
-      flex: 1,
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: c.border,
+      flex: 1, backgroundColor: c.surface,
+      borderRadius: 18, padding: 16,
+      borderWidth: 1, borderColor: c.border,
     },
     infoCardLabel: { fontSize: 11, color: c.textMuted, marginBottom: 6 },
     infoCardValue: { fontSize: 18, fontWeight: '800', color: c.textPrimary },
     infoCardSub: { fontSize: 11, color: c.textSecondary, marginTop: 3 },
     infoCardIcon: {
       width: 32, height: 32, borderRadius: 9,
-      justifyContent: 'center', alignItems: 'center',
-      marginBottom: 10,
+      justifyContent: 'center', alignItems: 'center', marginBottom: 10,
     },
-    statusDot: { width: 8, height: 8, borderRadius: 4 },
 
-    // ── NFC status ──
     nfcCard: {
       backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
+      marginHorizontal: 16, marginTop: 14,
+      borderRadius: 20, borderWidth: 1, borderColor: c.border,
       padding: 16,
     },
     nfcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
@@ -176,14 +142,10 @@ function makeStyles(c: AppColors) {
     nfcCellLabel: { fontSize: 10, color: c.textMuted, marginBottom: 4 },
     nfcCellValue: { fontSize: 14, fontWeight: '700', color: c.textPrimary },
 
-    // ── Alerts ──
     alertsCard: {
       backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
+      marginHorizontal: 16, marginTop: 14,
+      borderRadius: 20, borderWidth: 1, borderColor: c.border,
       overflow: 'hidden',
     },
     alertsHeader: {
@@ -210,19 +172,12 @@ function makeStyles(c: AppColors) {
     alertText: { flex: 1 },
     alertTitle: { fontSize: 13, fontWeight: '500', color: c.textPrimary, lineHeight: 18 },
     alertTime: { fontSize: 11, color: c.textMuted, marginTop: 2 },
-    unreadDot: {
-      width: 8, height: 8, borderRadius: 4,
-      backgroundColor: c.accent,
-    },
+    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent },
 
-    // ── Active product ──
     productCard: {
       backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
+      marginHorizontal: 16, marginTop: 14,
+      borderRadius: 20, borderWidth: 1, borderColor: c.border,
       overflow: 'hidden',
     },
     productHeader: {
@@ -234,8 +189,7 @@ function makeStyles(c: AppColors) {
     productList: { paddingHorizontal: 16 },
     productRow: {
       flexDirection: 'row', alignItems: 'center', gap: 14,
-      paddingVertical: 14,
-      borderBottomWidth: 1, borderBottomColor: c.border,
+      paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: c.border,
     },
     productRowLast: { borderBottomWidth: 0 },
     productIconWrap: {
@@ -252,13 +206,37 @@ function makeStyles(c: AppColors) {
     },
     radioOuterActive: { borderColor: c.accent },
     radioInner: { width: 11, height: 11, borderRadius: 5.5, backgroundColor: c.accent },
+
+    userInfoBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: c.accent10, borderRadius: 8,
+      paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 4,
+    },
+    userInfoBadgeText: { fontSize: 11, color: c.accent, fontWeight: '600' },
   });
 }
+
+// TODO: ajustar según la respuesta real de la API — reemplazar con datos reales de ubicación del dispositivo
+const STATIC_ALERTS = [
+  { id: '1', icon: 'warning-outline', color: '#FFA726', title: 'Geocerca traspasada', time: 'Hace 12 min', read: false },
+  { id: '2', icon: 'heart-outline', color: '#EF233C', title: 'Ritmo cardíaco elevado', time: 'Hace 1 h', read: false },
+  { id: '3', icon: 'sync-outline', color: '#4CAF50', title: 'Sincronización completada', time: 'Hace 2 h', read: true },
+  { id: '4', icon: 'location-outline', color: '#8D99AE', title: 'Nueva ubicación registrada', time: 'Hace 3 h', read: true },
+];
 
 export default function MonitorScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { user } = useAuth();
   const [activeProduct, setActiveProduct] = React.useState('bracelet');
+
+  const { data: dashboardData, loading, refetch } = useApi<DashboardData>(
+    () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
+  );
+
+  const lastSyncTime = dashboardData?.timestamp
+    ? new Date(dashboardData.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    : '—';
 
   // Pulse animation
   const pulse1 = useRef(new Animated.Value(1)).current;
@@ -277,8 +255,12 @@ export default function MonitorScreen() {
     animate(pulse2, 700);
   }, []);
 
-  const unreadCount = ALERTS.filter(a => !a.read).length;
+  const unreadCount = STATIC_ALERTS.filter(a => !a.read).length;
   const G = GLOBE_SIZE;
+
+  // Display location from profile if available
+  // TODO: ajustar según la respuesta real de la API — usar coordenadas GPS reales del dispositivo
+  const locationDisplay = user?.location ?? 'Comuna 14 - El Poblado, Colombia';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -289,8 +271,13 @@ export default function MonitorScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.accent} />
+        }
+      >
         {/* ── Live Location ── */}
         <View style={styles.locationCard}>
           <View style={styles.locationHeader}>
@@ -300,13 +287,11 @@ export default function MonitorScreen() {
             </View>
             <View style={styles.locationHeaderRight}>
               <Ionicons name="time-outline" size={13} color={colors.textMuted} />
-              <Text style={styles.locationHeaderTime}>Ubicacion</Text>
+              <Text style={styles.locationHeaderTime}>{lastSyncTime}</Text>
             </View>
           </View>
 
-          {/* Globe visual */}
           <View style={styles.globeWrap}>
-            {/* Outer static rings */}
             {[G * 1.35, G * 1.1, G * 0.88, G * 0.66].map((size, i) => (
               <View
                 key={i}
@@ -320,7 +305,6 @@ export default function MonitorScreen() {
                 ]}
               />
             ))}
-            {/* Animated pulse rings */}
             <Animated.View
               style={[styles.ring, {
                 width: G * 0.5, height: G * 0.5,
@@ -337,16 +321,14 @@ export default function MonitorScreen() {
                 transform: [{ scale: pulse2 }],
               }]}
             />
-            {/* Pin */}
             <View style={styles.pin}>
               <Ionicons name="location" size={18} color="#FFFFFF" />
             </View>
 
-            {/* Info card */}
             <View style={[styles.locationInfoCard, isDark && styles.locationInfoCardDark]}>
               <View>
                 <Text style={[styles.locationName, isDark && styles.locationNameDark]}>
-                  Comuna 14 - El Poblado, Colombia
+                  {locationDisplay}
                 </Text>
                 <Text style={styles.locationCoords}>6.21189° N, 75.57737° W</Text>
               </View>
@@ -364,16 +346,24 @@ export default function MonitorScreen() {
               <Ionicons name="scan-outline" size={18} color={colors.accent} />
             </View>
             <Text style={styles.infoCardLabel}>Último escaneo</Text>
-            <Text style={styles.infoCardValue}>10:39 AM</Text>
-            <Text style={styles.infoCardSub}>Hace 6 min</Text>
+            <Text style={styles.infoCardValue}>{lastSyncTime}</Text>
+            {dashboardData?.timestamp && (
+              <Text style={styles.infoCardSub}>
+                {new Date(dashboardData.timestamp).toLocaleDateString('es-MX')}
+              </Text>
+            )}
           </View>
           <View style={styles.infoCard}>
             <View style={[styles.infoCardIcon, { backgroundColor: 'rgba(76,175,80,0.12)' }]}>
               <Ionicons name="wifi-outline" size={18} color={colors.success} />
             </View>
             <Text style={styles.infoCardLabel}>Estado NFC</Text>
-            <Text style={[styles.infoCardValue, { color: colors.success }]}>Activo</Text>
-            <Text style={styles.infoCardSub}>Lectura OK</Text>
+            <Text style={[styles.infoCardValue, { color: colors.success }]}>
+              {user?.nfcTagId ? 'Activo' : 'Sin NFC'}
+            </Text>
+            <Text style={styles.infoCardSub}>
+              {user?.nfcTagId ? 'Lectura OK' : 'No registrado'}
+            </Text>
           </View>
         </View>
 
@@ -383,15 +373,18 @@ export default function MonitorScreen() {
             <Text style={styles.nfcTitle}>Detalles NFC</Text>
             <View style={styles.nfcActiveBadge}>
               <View style={styles.nfcActiveDot} />
-              <Text style={styles.nfcActiveText}>Conectado</Text>
+              <Text style={styles.nfcActiveText}>
+                {user?.nfcTagId ? 'Conectado' : 'Sin registrar'}
+              </Text>
             </View>
           </View>
+          {/* TODO: ajustar según la respuesta real de la API — estos datos deben venir del dispositivo NFC */}
           <View style={styles.nfcGrid}>
             {[
               { label: 'Protocolo', value: 'ISO 14443' },
               { label: 'Frecuencia', value: '13.56 MHz' },
               { label: 'Rango', value: '≤ 10 cm' },
-              { label: 'Lecturas hoy', value: '24' },
+              { label: 'ID Tag', value: user?.nfcTagId ? user.nfcTagId.slice(0, 8) + '…' : '—' },
             ].map((item, i) => (
               <View key={i} style={styles.nfcCell}>
                 <Text style={styles.nfcCellLabel}>{item.label}</Text>
@@ -402,6 +395,7 @@ export default function MonitorScreen() {
         </View>
 
         {/* ── Recent alerts ── */}
+        {/* TODO: ajustar según la respuesta real de la API — reemplazar con alertas reales del servidor */}
         <View style={styles.alertsCard}>
           <View style={styles.alertsHeader}>
             <Text style={styles.alertsTitle}>Últimas notificaciones</Text>
@@ -411,8 +405,8 @@ export default function MonitorScreen() {
               </View>
             )}
           </View>
-          {ALERTS.map((alert, i) => (
-            <View key={alert.id} style={[styles.alertRow, i === ALERTS.length - 1 && { borderBottomWidth: 0 }]}>
+          {STATIC_ALERTS.map((alert, i) => (
+            <View key={alert.id} style={[styles.alertRow, i === STATIC_ALERTS.length - 1 && { borderBottomWidth: 0 }]}>
               <View style={[styles.alertIconWrap, { backgroundColor: alert.color + '20' }]}>
                 <Ionicons name={alert.icon as any} size={19} color={alert.color} />
               </View>

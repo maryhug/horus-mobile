@@ -6,11 +6,17 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useApi } from '../../hooks/useApi';
+import { apiClient } from '../../services/api';
 import { AppColors } from '../../constants/colors';
+import type { DashboardData } from '../../types/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const H_PAD = 20;
@@ -18,6 +24,7 @@ const CARD_GAP = 12;
 const METRIC_W = (SCREEN_WIDTH - H_PAD * 2 - CARD_GAP) / 2;
 const CHART_H = 140;
 
+// Static bar data — TODO: reemplazar con datos reales de sensor si el API los expone
 const BAR_DATA = [30, 52, 44, 68, 38, 76, 58, 88, 72, 84, 62, 92, 68, 85, 70, 90, 66, 83, 75, 94, 78, 91, 86, 95];
 const BAR_HOURS = ['00:00', '06:00', '12:00', '18:00', '24:00'];
 
@@ -118,7 +125,7 @@ function makeStyles(c: AppColors) {
     statusValueLg: { fontSize: 26, fontWeight: '800', color: c.textPrimary },
     statusSub: { fontSize: 11, color: c.textSecondary, marginTop: 4 },
     batteryTrack: { height: 5, backgroundColor: c.border, borderRadius: 3, marginVertical: 10, overflow: 'hidden' },
-    batteryFill: { width: '82%', height: '100%', backgroundColor: c.accent, borderRadius: 3 },
+    batteryFill: { height: '100%', backgroundColor: c.accent, borderRadius: 3 },
     syncRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
     syncOkBadge: {
       flexDirection: 'row',
@@ -221,6 +228,20 @@ function makeStyles(c: AppColors) {
     alertTitle: { fontSize: 14, color: c.textPrimary, fontWeight: '500', lineHeight: 20, marginBottom: 3 },
     alertTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     alertTime: { fontSize: 12, color: c.textMuted },
+
+    // Loading skeleton
+    skeletonBlock: { backgroundColor: c.surfaceElevated, borderRadius: 8 },
+    errorCard: {
+      backgroundColor: c.surface,
+      borderRadius: 18,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: CARD_GAP,
+    },
+    errorText: { color: c.textSecondary, fontSize: 14, textAlign: 'center' },
   });
 }
 
@@ -230,7 +251,20 @@ type AlertProps = { dotColor: string; title: string; time: string; isLocation?: 
 export default function DashboardScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { user } = useAuth();
   const maxBar = Math.max(...BAR_DATA);
+
+  const { data, loading, error, refetch } = useApi<DashboardData>(
+    () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
+  );
+
+  const avatarInitials = user
+    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'HB'
+    : 'HB';
+
+  const syncTime = data?.timestamp
+    ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    : '—';
 
   function MetricCard({ icon, iconColor, label, value, unit, change }: MetricProps) {
     return (
@@ -281,7 +315,6 @@ export default function DashboardScreen() {
           </View>
         </View>
         <View style={styles.headerActions}>
-          {/* Theme toggle */}
           <TouchableOpacity style={styles.headerBtn} onPress={toggleTheme}>
             <Ionicons
               name={isDark ? 'sunny-outline' : 'moon-outline'}
@@ -293,19 +326,27 @@ export default function DashboardScreen() {
             <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>HB</Text>
+            <Text style={styles.avatarText}>{avatarInitials}</Text>
           </View>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.accent} />
+        }
+      >
         <View style={styles.titleSection}>
           <View style={styles.titleLeft}>
             <Text style={styles.pageTitle}>
               Panel de{'\n'}<Text style={styles.pageTitleAccent}>control</Text>
             </Text>
             <Text style={styles.pageSubtitle}>
-              Información en tiempo real de tu manilla Horus
+              {user
+                ? `Bienvenido/a, ${user.firstName ?? user.email}`
+                : 'Información en tiempo real de tu manilla Horus'}
             </Text>
           </View>
           <View style={styles.syncPill}>
@@ -313,6 +354,16 @@ export default function DashboardScreen() {
             <Text style={styles.syncLabel}>En vivo</Text>
           </View>
         </View>
+
+        {error && (
+          <View style={styles.errorCard}>
+            <Ionicons name="cloud-offline-outline" size={28} color={colors.textMuted} />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={refetch}>
+              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.statusRow}>
           <View style={[styles.statusCard, styles.statusCardHalf]}>
@@ -324,9 +375,12 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
-              <Text style={styles.statusValue}>Online</Text>
+              <Text style={styles.statusValue}>{loading ? '...' : data ? 'Online' : 'Sin datos'}</Text>
             </View>
-            <Text style={styles.statusSub}>HRS-BR-204 · v2.4.1</Text>
+            {/* TODO: ajustar según la respuesta real de la API — mostrar nfcTagId o device info */}
+            <Text style={styles.statusSub}>
+              {user?.nfcTagId ? `ID: ${user.nfcTagId}` : 'HRS-BR · v2.4.1'}
+            </Text>
           </View>
 
           <View style={[styles.statusCard, styles.statusCardHalf]}>
@@ -336,9 +390,10 @@ export default function DashboardScreen() {
                 <Ionicons name="battery-charging" size={14} color={colors.accent} />
               </View>
             </View>
+            {/* TODO: ajustar según la respuesta real de la API — reemplazar con dato real */}
             <Text style={styles.statusValue}>82%</Text>
             <View style={styles.batteryTrack}>
-              <View style={styles.batteryFill} />
+              <View style={[styles.batteryFill, { width: '82%' }]} />
             </View>
             <Text style={styles.statusSub}>~18 h restantes</Text>
           </View>
@@ -352,15 +407,24 @@ export default function DashboardScreen() {
             </View>
           </View>
           <View style={styles.syncRow}>
-            <Text style={styles.statusValueLg}>10:42 AM</Text>
-            <View style={styles.syncOkBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-              <Text style={styles.syncOkText}>Exitoso</Text>
-            </View>
+            <Text style={styles.statusValueLg}>
+              {loading ? <ActivityIndicator size="small" color={colors.accent} /> : syncTime}
+            </Text>
+            {data && (
+              <View style={styles.syncOkBadge}>
+                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <Text style={styles.syncOkText}>Exitoso</Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.statusSub}>Hoy · hace 3 minutos</Text>
+          <Text style={styles.statusSub}>
+            {data?.timestamp
+              ? new Date(data.timestamp).toLocaleDateString('es-MX', { weekday: 'long' })
+              : 'Hoy'}
+          </Text>
         </View>
 
+        {/* TODO: ajustar según la respuesta real de la API — estas métricas deben venir de sensores */}
         <Text style={styles.sectionTitle}>Métricas de salud</Text>
         <View style={styles.metricsGrid}>
           <MetricCard icon="heart" iconColor={colors.strawberryRed} label="Frecuencia cardíaca" value="78" unit="bpm" change="+2%" />
@@ -394,6 +458,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        {/* TODO: ajustar según la respuesta real de la API — reemplazar con alertas reales */}
         <View style={styles.alertsCard}>
           <View style={styles.alertsHead}>
             <View style={styles.alertsTitleRow}>
