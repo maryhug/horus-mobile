@@ -15,11 +15,12 @@ function RouteGuard() {
 
     const inAuthGroup = segments[0] === '(tabs)';
     const inLogin = segments[0] === 'login';
+    const inRegister = segments[0] === 'register';
     const inIndex = segments.length === 0 || segments[0] === 'index';
 
     if (!isAuthenticated && (inAuthGroup || inIndex)) {
       router.replace('/login');
-    } else if (isAuthenticated && (inLogin || inIndex)) {
+    } else if (isAuthenticated && (inLogin || inRegister || inIndex)) {
       router.replace('/(tabs)/dashboard');
     }
   }, [isAuthenticated, isLoading, segments]);
@@ -36,6 +37,7 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="emergency" />

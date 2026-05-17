@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../services/api';
@@ -258,8 +259,8 @@ export default function LoginScreen() {
 
             <View style={styles.signupRow}>
               <Text style={styles.signupText}>¿No tienes cuenta? </Text>
-              <TouchableOpacity>
-                <Text style={styles.signupLink}>Solicita acceso</Text>
+              <TouchableOpacity onPress={() => router.push('/register')}>
+                <Text style={styles.signupLink}>Regístrate</Text>
               </TouchableOpacity>
             </View>
           </View>

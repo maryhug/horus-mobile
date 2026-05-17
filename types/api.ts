@@ -71,6 +71,19 @@ export interface ChatResponse {
   content?: string;
 }
 
+// POST /api/auth/register
+export interface RegisterPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  user?: User;
+  message?: string;
+}
+
 // POST /api/tts
 export interface TtsRequest {
   text: string;
