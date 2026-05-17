@@ -77,6 +77,7 @@ export interface RegisterPayload {
   lastName: string;
   email: string;
   password: string;
+  confirmPassword: string;
 }
 
 export interface RegisterResponse {

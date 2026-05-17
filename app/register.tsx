@@ -218,6 +218,7 @@ export default function RegisterScreen() {
         lastName: lastName.trim(),
         email: email.trim(),
         password,
+        confirmPassword,
       });
     } catch (err) {
       setErrorMsg(getErrorMessage(err));

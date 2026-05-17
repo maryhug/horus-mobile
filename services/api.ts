@@ -30,6 +30,12 @@ apiClient.interceptors.response.use(
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as Record<string, unknown> | undefined;
+    // Field-level validation errors — return the first one
+    const fieldErrors = data?.errors as Record<string, string> | undefined;
+    if (fieldErrors) {
+      const first = Object.values(fieldErrors)[0];
+      if (first) return first;
+    }
     const serverMsg =
       (data?.message as string) ?? (data?.error as string) ?? null;
     if (serverMsg) return serverMsg;
