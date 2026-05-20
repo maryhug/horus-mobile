@@ -249,6 +249,7 @@ export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
 
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editFields, setEditFields] = useState<ProfileUpdatePayload>({});
 
@@ -286,16 +287,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro que deseas cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar sesión', style: 'destructive', onPress: logout },
-      ]
-    );
-  };
+  const handleLogout = () => setLogoutModalVisible(true);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -438,6 +430,29 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Logout confirmation modal */}
+      <Modal visible={logoutModalVisible} transparent animationType="fade" onRequestClose={() => setLogoutModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Cerrar sesión</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 14, marginBottom: 24 }}>
+              ¿Estás seguro que deseas cerrar sesión?
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setLogoutModalVisible(false)}>
+                <Text style={styles.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => { setLogoutModalVisible(false); logout(); }}
+              >
+                <Text style={styles.saveBtnText}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit profile modal */}
       <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>

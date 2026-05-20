@@ -6,13 +6,14 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { getItem, setItem, deleteItem } from '../utils/storage';
 import { router } from 'expo-router';
-import { apiClient, setUnauthorizedHandler, getErrorMessage } from '../services/api';
+import { apiClient, setUnauthorizedHandler, setAuthToken, getErrorMessage } from '../services/api';
 import type { User, LoginResponse, ProfileData, RegisterPayload, RegisterResponse } from '../types/api';
 
 const USER_KEY = 'horus_user';
 const SESSION_KEY = 'horus_session';
+const TOKEN_KEY = 'horus_token';
 
 type AuthContextType = {
   user: User | null;
@@ -38,13 +39,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session from SecureStore on mount
   useEffect(() => {
     (async () => {
       try {
-        const session = await SecureStore.getItemAsync(SESSION_KEY);
+        const session = await getItem(SESSION_KEY);
         if (session === 'active') {
-          const raw = await SecureStore.getItemAsync(USER_KEY);
+          const token = await getItem(TOKEN_KEY);
+          if (token) setAuthToken(token);
+
+          const raw = await getItem(USER_KEY);
           if (raw) setUser(JSON.parse(raw) as User);
         }
       } catch {
@@ -55,26 +58,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const persistUser = useCallback(async (u: User) => {
-    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(u));
-    await SecureStore.setItemAsync(SESSION_KEY, 'active');
+  const persistUser = useCallback(async (u: User, token?: string) => {
+    await setItem(USER_KEY, JSON.stringify(u));
+    await setItem(SESSION_KEY, 'active');
+    if (token) {
+      await setItem(TOKEN_KEY, token);
+      setAuthToken(token);
+    }
     setUser(u);
   }, []);
 
   const clearSession = useCallback(async () => {
-    await SecureStore.deleteItemAsync(USER_KEY);
-    await SecureStore.deleteItemAsync(SESSION_KEY);
+    await deleteItem(USER_KEY);
+    await deleteItem(SESSION_KEY);
+    await deleteItem(TOKEN_KEY);
+    setAuthToken(null);
     setUser(null);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    // TODO: ajustar según la respuesta real de la API
     const { data } = await apiClient.post<LoginResponse>('/auth/login', {
       email,
       password,
     });
 
-    // If login returns user directly, use it; otherwise fetch profile
     let profile: User;
     if (data.user) {
       profile = data.user;
@@ -83,13 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile = profileData;
     }
 
-    await persistUser(profile);
+    await persistUser(profile, data.accessToken);
     router.replace('/(tabs)/dashboard');
   }, [persistUser]);
 
   const register = useCallback(async (payload: RegisterPayload) => {
     await apiClient.post<RegisterResponse>('/auth/register', payload);
-    // Backend doesn't establish a session on register — redirect to login
     router.replace('/login?registered=1');
   }, []);
 
@@ -107,12 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(prev => {
       if (!prev) return prev;
       const updated = { ...prev, ...partial };
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(updated));
+      setItem(USER_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
 
-  // Wire up global 401 handler
   useEffect(() => {
     setUnauthorizedHandler(async () => {
       await clearSession();

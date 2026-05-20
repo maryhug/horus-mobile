@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { getItem, setItem } from '../utils/storage';
 import { darkColors, lightColors, AppColors } from '../constants/colors';
 
 const THEME_KEY = 'horus_theme';
@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    SecureStore.getItemAsync(THEME_KEY).then(val => {
+    getItem(THEME_KEY).then(val => {
       if (val === 'light') setIsDark(false);
     });
   }, []);
@@ -28,7 +28,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const toggleTheme = () => {
     setIsDark(prev => {
       const next = !prev;
-      SecureStore.setItemAsync(THEME_KEY, next ? 'dark' : 'light');
+      setItem(THEME_KEY, next ? 'dark' : 'light');
       return next;
     });
   };

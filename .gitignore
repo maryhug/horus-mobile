@@ -1,6 +1,6 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
 
 # Expo
@@ -9,7 +9,11 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# Native generated folders (created by expo prebuild)
+/ios
+/android
+
+# Native signing / certificates
 .kotlin/
 *.orig.*
 *.jks
@@ -17,25 +21,30 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.pem
 
 # Metro
 .metro-health-check*
 
-# debug
+# Debug logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
+# Environment variables
+# El .env raiz se modifica automaticamente por el tunnel (start-dev.ps1)
+# Crea el tuyo con: echo "EXPO_PUBLIC_API_URL=http://localhost:3000/api" > .env
+.env
 .env*.local
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# Claude Code — configuracion local del editor
+.claude/
+
+# Prisma generated client — regenerar con: cd server && npx prisma generate
+server/src/generated/
