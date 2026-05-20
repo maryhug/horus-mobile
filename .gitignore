@@ -48,3 +48,5 @@ yarn-error.*
 
 # Prisma generated client — regenerar con: cd server && npx prisma generate
 server/src/generated/
+
+.idea/
