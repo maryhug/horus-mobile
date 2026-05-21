@@ -199,13 +199,12 @@ function makeStyles(c: AppColors) {
     productInfo: { flex: 1 },
     productName: { fontSize: 14, fontWeight: '600', color: c.textPrimary },
     productDesc: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-    radioOuter: {
-      width: 22, height: 22, borderRadius: 11,
+    checkboxOuter: {
+      width: 22, height: 22, borderRadius: 6,
       borderWidth: 2, borderColor: c.border,
       justifyContent: 'center', alignItems: 'center',
     },
-    radioOuterActive: { borderColor: c.accent },
-    radioInner: { width: 11, height: 11, borderRadius: 5.5, backgroundColor: c.accent },
+    checkboxOuterActive: { borderColor: c.accent, backgroundColor: c.accent },
 
     userInfoBadge: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -221,7 +220,13 @@ export default function MonitorScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
-  const [activeProduct, setActiveProduct] = React.useState('bracelet');
+  const [activeProducts, setActiveProducts] = React.useState<string[]>(['bracelet']);
+
+  function toggleProduct(id: string) {
+    setActiveProducts(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  }
 
   const { data: dashboardData, loading, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
@@ -400,17 +405,21 @@ export default function MonitorScreen() {
         {/* ── Active product ── */}
         <View style={styles.productCard}>
           <View style={styles.productHeader}>
-            <Text style={styles.productTitle}>Producto activo</Text>
-            <Text style={styles.productSub}>Selecciona el dispositivo Horus conectado</Text>
+            <Text style={styles.productTitle}>Productos activos</Text>
+            <Text style={styles.productSub}>
+              {activeProducts.length === 0
+                ? 'Ningún dispositivo seleccionado'
+                : `${activeProducts.length} dispositivo${activeProducts.length > 1 ? 's' : ''} activo${activeProducts.length > 1 ? 's' : ''}`}
+            </Text>
           </View>
           <View style={styles.productList}>
             {PRODUCTS.map((p, i) => {
-              const isActive = activeProduct === p.id;
+              const isActive = activeProducts.includes(p.id);
               return (
                 <TouchableOpacity
                   key={p.id}
                   style={[styles.productRow, i === PRODUCTS.length - 1 && styles.productRowLast]}
-                  onPress={() => setActiveProduct(p.id)}
+                  onPress={() => toggleProduct(p.id)}
                   activeOpacity={0.75}
                 >
                   <View style={[
@@ -429,8 +438,8 @@ export default function MonitorScreen() {
                     </Text>
                     <Text style={styles.productDesc}>{p.desc}</Text>
                   </View>
-                  <View style={[styles.radioOuter, isActive && styles.radioOuterActive]}>
-                    {isActive && <View style={styles.radioInner} />}
+                  <View style={[styles.checkboxOuter, isActive && styles.checkboxOuterActive]}>
+                    {isActive && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
                   </View>
                 </TouchableOpacity>
               );

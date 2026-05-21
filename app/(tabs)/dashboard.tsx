@@ -8,6 +8,7 @@ import {
   Dimensions,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -300,7 +301,11 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <View style={styles.brandIcon}>
-            <Ionicons name="watch-outline" size={18} color={colors.accent} />
+            <Image
+              source={require('../../assets/icon.png')}
+              style={{ width: 28, height: 28 }}
+              resizeMode="contain"
+            />
           </View>
           <View>
             <Text style={styles.brandName}>HORUS</Text>

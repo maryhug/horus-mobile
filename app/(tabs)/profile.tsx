@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -252,6 +254,47 @@ export default function ProfileScreen() {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editFields, setEditFields] = useState<ProfileUpdatePayload>({});
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  const handlePickImage = () => {
+    Alert.alert('Foto de perfil', 'Elige una opción', [
+      {
+        text: 'Tomar foto',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permiso requerido', 'Se necesita acceso a la cámara.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+          if (!result.canceled) setProfileImage(result.assets[0].uri);
+        },
+      },
+      {
+        text: 'Elegir de galería',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permiso requerido', 'Se necesita acceso a la galería.');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+          if (!result.canceled) setProfileImage(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
 
   const { data: profile, loading, refetch } = useApi<ProfileData>(
     () => apiClient.get<ProfileData>('/profile').then(r => r.data)
@@ -331,11 +374,13 @@ export default function ProfileScreen() {
                 <View style={styles.avatarBox}>
                   {loading
                     ? <ActivityIndicator color={colors.accent} />
-                    : <Ionicons name="person" size={36} color={colors.lavenderGrey} />}
+                    : profileImage
+                      ? <Image source={{ uri: profileImage }} style={{ width: 70, height: 70, borderRadius: 13 }} />
+                      : <Ionicons name="person" size={36} color={colors.lavenderGrey} />}
                 </View>
-                <View style={styles.cameraBtn}>
+                <TouchableOpacity style={styles.cameraBtn} onPress={handlePickImage}>
                   <Ionicons name="camera" size={12} color="#FFFFFF" />
-                </View>
+                </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.editBtn} onPress={handleOpenEdit}>
                 <Ionicons name="pencil" size={14} color="#FFFFFF" />

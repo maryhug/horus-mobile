@@ -1,9 +1,20 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Minimum safe area per platform in case insets.bottom reports 0
+  const minBottom = Platform.OS === 'ios' ? 34 : Platform.OS === 'android' ? 28 : 8;
+  const safeBottom = Math.max(insets.bottom, minBottom);
+
+  // Content area is always 52px (icon 24 + gap + label 14 + breathing room)
+  // safeBottom is added purely as dead space at the bottom for home indicator / gestures
+  const tabBarHeight = 52 + 6 + safeBottom; // 6 = paddingTop
 
   return (
     <Tabs
@@ -13,9 +24,9 @@ export default function TabLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 10,
-          paddingTop: 8,
+          height: tabBarHeight,
+          paddingTop: 6,
+          paddingBottom: safeBottom,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,

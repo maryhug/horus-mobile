@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,18 +37,13 @@ function makeStyles(c: AppColors) {
       borderColor: c.border,
     },
     logoWrap: { alignItems: 'center', marginBottom: 22 },
-    logoCircle: {
-      width: 76,
-      height: 76,
-      borderRadius: 38,
-      backgroundColor: c.accent,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: c.accent,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.4,
-      shadowRadius: 20,
-      elevation: 10,
+    logoImg: {
+      width: 88,
+      height: 88,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
     },
     backBtn: {
       position: 'absolute',
@@ -243,9 +239,11 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             <View style={styles.logoWrap}>
-              <View style={styles.logoCircle}>
-                <Ionicons name="person-add-outline" size={32} color="#FFFFFF" />
-              </View>
+              <Image
+                source={require('../assets/icon.png')}
+                style={styles.logoImg}
+                resizeMode="contain"
+              />
             </View>
 
             <Text style={styles.title}>

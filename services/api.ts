@@ -26,9 +26,27 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+apiClient.interceptors.request.use(request => {
+  console.log(`[API] ${request.method?.toUpperCase()} ${request.baseURL}${request.url}`);
+  return request;
+});
+
 apiClient.interceptors.response.use(
-  response => response,
+  response => {
+    console.log(`[API] ${response.status} ${response.config.url}`);
+    return response;
+  },
   (error: AxiosError) => {
+    if (!error.response) {
+      console.error(`[API] SIN RESPUESTA — ${error.config?.baseURL}${error.config?.url} — ${error.message}`);
+    } else if (error.response.status === 408) {
+      console.warn(`[API] 408 TIMEOUT (tunnel lento) — ${error.config?.url}`);
+    } else {
+      console.error(
+        `[API] ERROR ${error.response.status} en ${error.config?.url}`,
+        JSON.stringify(error.response.data)
+      );
+    }
     if (error.response?.status === 401 && onUnauthorized) {
       onUnauthorized();
     }
@@ -46,8 +64,10 @@ export function getErrorMessage(error: unknown): string {
     }
     const serverMsg =
       (data?.message as string) ?? (data?.error as string) ?? null;
-    if (serverMsg) return serverMsg;
-    if (!error.response) return 'Sin conexión. Verifica tu red.';
+    const serverDetail = data?.detail as string | undefined;
+    if (serverMsg) return serverDetail ? `${serverMsg}: ${serverDetail}` : serverMsg;
+    if (!error.response) return 'Sin conexión. Verifica tu red o el tunnel.';
+    if (error.response.status === 408) return 'Tiempo de espera agotado. El tunnel tardó demasiado — intenta de nuevo.';
     if (error.response.status >= 500) return 'Error del servidor. Intenta más tarde.';
     if (error.response.status === 401) return 'Sesión expirada. Por favor inicia sesión de nuevo.';
     if (error.response.status === 403) return 'No tienes permiso para realizar esta acción.';

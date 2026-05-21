@@ -71,8 +71,11 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({ message: 'Usuario registrado correctamente' });
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ message: 'Error al registrar el usuario' });
+    console.error('Register error:', error instanceof Error ? error.stack : error);
+    res.status(500).json({
+      message: 'Error al registrar el usuario',
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -119,8 +122,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       accessToken,
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Error al iniciar sesión' });
+    console.error('Login error:', error instanceof Error ? error.stack : error);
+    res.status(500).json({
+      message: 'Error al iniciar sesión',
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 

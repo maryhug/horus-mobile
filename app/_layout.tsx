@@ -16,6 +16,7 @@ function RouteGuard() {
     const inAuthGroup = segments[0] === '(tabs)';
     const inLogin = segments[0] === 'login';
     const inRegister = segments[0] === 'register';
+    // @ts-ignore
     const inIndex = segments.length === 0 || segments[0] === 'index';
 
     if (!isAuthenticated && (inAuthGroup || inIndex)) {
