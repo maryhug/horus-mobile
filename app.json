@@ -29,7 +29,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.horus.mobile"
+      "package": "com.horus.mobile",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.NFC"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,7 +46,19 @@
           "nfcPermission": "Required to scan Horus NFC bracelets in emergency situations"
         }
       ],
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Required to scan Horus NFC bracelets in emergency situations"
+        }
+      ],
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fb5137ab-3a28-4ccd-b33f-2900ba5cacc3"
+      }
+    },
+    "owner": "emmanuel.arango987"
   }
 }

@@ -33,31 +33,31 @@ function RouteGuard() {
 function RootNavigator() {
   const { isDark } = useTheme();
   return (
-    <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <RouteGuard />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="emergency" />
-      </Stack>
-    </>
+      <>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <RouteGuard />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="emergency" />
+        </Stack>
+      </>
   );
 }
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <LanguageProvider>
-          <AuthProvider>
-            <RootNavigator />
-          </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <RootNavigator />
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
   );
 }
