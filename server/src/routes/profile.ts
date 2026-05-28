@@ -100,4 +100,83 @@ router.put('/', requireAuth, async (req: AuthRequest, res: Response): Promise<vo
   }
 });
 
+
+// GET /api/profile/full — para el QR médico
+router.get('/full', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      include: {
+        personalInfo:      true,
+        medicalProfile:    true,
+        allergies:         { where: { isActive: true } },
+        chronicConditions: true,
+        medications:       { where: { isCurrent: true }, include: { medication: true } },
+        emergencyContacts: { where: { isActive: true }, orderBy: { priorityOrder: 'asc' } },
+        privacySettings:   true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ message: 'Usuario no encontrado' });
+      return;
+    }
+
+    res.json({
+      personalInfo: user.personalInfo ? {
+        firstName:            user.personalInfo.firstName,
+        lastName:             user.personalInfo.lastName,
+        dateOfBirth:          user.personalInfo.dateOfBirth?.toISOString().split('T')[0],
+        gender:               user.personalInfo.gender,
+        bloodType:            user.personalInfo.bloodType,
+        identificationNumber: user.personalInfo.identificationNumber,
+        photoUrl:             user.personalInfo.photoUrl,
+      } : null,
+      medicalProfile: user.medicalProfile ? {
+        heightCm:          Number(user.medicalProfile.heightCm),
+        weightKg:          Number(user.medicalProfile.weightKg),
+        organDonor:        user.medicalProfile.organDonor,
+        insuranceProvider: user.medicalProfile.insuranceProvider,
+        additionalNotes:   user.medicalProfile.additionalNotes,
+      } : null,
+      allergies: user.allergies.map(a => ({
+        allergenName:        a.allergenName,
+        allergyType:         a.allergyType,
+        severity:            a.severity,
+        reactionDescription: a.reactionDescription,
+      })),
+      chronicConditions: user.chronicConditions.map(c => ({
+        conditionName: c.conditionName,
+        severity:      c.severity,
+        status:        c.status,
+      })),
+      medications: user.medications.map(m => ({
+        customMedicationName: m.customMedicationName,
+        medication:           m.medication ? { genericName: m.medication.genericName } : null,
+        dosage:               m.dosage,
+        frequency:            m.frequency,
+        route:                m.route,
+      })),
+      emergencyContacts: user.emergencyContacts.map(c => ({
+        fullName:       c.fullName,
+        relationship:   c.relationship,
+        phonePrimary:   c.phonePrimary,
+        phoneSecondary: c.phoneSecondary,
+      })),
+      privacySettings: user.privacySettings ? {
+        showFullName:          user.privacySettings.showFullName,
+        showAge:               user.privacySettings.showAge,
+        showBloodType:         user.privacySettings.showBloodType,
+        showMedications:       user.privacySettings.showMedications,
+        showAllergies:         user.privacySettings.showAllergies,
+        showEmergencyContacts: user.privacySettings.showEmergencyContacts,
+        showMedicalHistory:    user.privacySettings.showMedicalHistory,
+      } : null,
+    });
+  } catch (error) {
+    console.error('Profile full GET error:', error);
+    res.status(500).json({ message: 'Error al obtener el perfil completo' });
+  }
+});
+
 export default router;

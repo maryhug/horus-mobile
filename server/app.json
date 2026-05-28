@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "e01a68ab-3626-461e-bac7-f2c7b3c3753a"
+      }
+    },
+    "android": {
+      "package": "com.emmanuel_arango82231.horusapi"
+    }
+  }
+}
