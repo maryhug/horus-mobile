@@ -246,4 +246,59 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
     }
 });
 
+// GET /emergency/:userId/json — para la app Wear OS
+router.get('/:userId/json', async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { userId } = req.params;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                personalInfo:      true,
+                medicalProfile:    true,
+                allergies:         { where: { isActive: true } },
+                chronicConditions: { where: { status: 'ACTIVE' } },
+                medications:       { where: { isCurrent: true }, include: { medication: true } },
+                emergencyContacts: { where: { isActive: true }, orderBy: { priorityOrder: 'asc' } },
+                privacySettings:   true,
+            },
+        });
+
+        if (!user) { res.status(404).json({ message: 'No encontrado' }); return; }
+
+        const priv = user.privacySettings;
+        res.json({
+            personalInfo: user.personalInfo ? {
+                firstName:   user.personalInfo.firstName,
+                lastName:    user.personalInfo.lastName,
+                dateOfBirth: user.personalInfo.dateOfBirth?.toISOString().split('T')[0],
+                gender:      user.personalInfo.gender,
+                bloodType:   priv?.showBloodType !== false ? user.personalInfo.bloodType : null,
+            } : null,
+            medicalProfile: user.medicalProfile ? {
+                organDonor:        user.medicalProfile.organDonor,
+                insuranceProvider: user.medicalProfile.insuranceProvider,
+            } : null,
+            allergies: (priv?.showAllergies !== false ? user.allergies : []).map(a => ({
+                allergenName: a.allergenName,
+                severity:     a.severity,
+            })),
+            chronicConditions: user.chronicConditions.map(c => ({
+                conditionName: c.conditionName,
+            })),
+            medications: (priv?.showMedications !== false ? user.medications : []).map(m => ({
+                customMedicationName: m.customMedicationName,
+                medication:           m.medication ? { genericName: m.medication.genericName } : null,
+                dosage:               m.dosage,
+            })),
+            emergencyContacts: (priv?.showEmergencyContacts !== false ? user.emergencyContacts : []).map(c => ({
+                fullName:     c.fullName,
+                relationship: c.relationship,
+                phonePrimary: c.phonePrimary,
+            })),
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error' });
+    }
+});
+
 export default router;

@@ -29,8 +29,55 @@ model User {
   orders            Order[]
   payments          Payment[]
   subscriptions     Subscription[]
+  deviceLoginCodes  DeviceLoginCode[]
+  deviceSessions    DeviceSession[]
+  securityLogs      SecurityLog[]
 
   @@map("users")
+}
+
+model DeviceLoginCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  codeHash  String   @map("code_hash")
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("device_login_codes")
+}
+
+model DeviceSession {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  deviceName   String?  @map("device_name")
+  deviceModel  String?  @map("device_model")
+  osVersion    String?  @map("os_version")
+  isActive     Boolean  @default(true) @map("is_active")
+  lastActive   DateTime @default(now()) @map("last_active")
+  refreshToken String?  @unique @map("refresh_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("device_sessions")
+}
+
+model SecurityLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventType String   @map("event_type")
+  ipAddress String?  @map("ip_address")
+  details   Json?
+  userId    String?  @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("security_logs")
 }
 
 model PersonalInformation {

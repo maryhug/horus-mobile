@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -140,6 +140,15 @@ function makeStyles(c: AppColors) {
     langCheck: { width: 24, height: 24, borderRadius: 12, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' },
     langCheckEmpty: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.border },
     langSubtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 20 },
+
+    // Smartwatch code
+    codeContainer: {
+      backgroundColor: c.accent10, borderRadius: 16, padding: 24,
+      alignItems: 'center', justifyContent: 'center', marginVertical: 20,
+    },
+    codeText: { fontSize: 42, fontWeight: '900', color: c.accent, letterSpacing: 8 },
+    codeDescText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
+    codeTimer: { fontSize: 13, color: '#EF233C', fontWeight: '700', marginTop: 12 },
   });
 }
 
@@ -191,6 +200,7 @@ export default function SettingsScreen() {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [pwModalVisible, setPwModalVisible] = useState(false);
+  const [smartwatchModalVisible, setSmartwatchModalVisible] = useState(false);
 
   // Change password state
   const [currentPw, setCurrentPw] = useState('');
@@ -202,6 +212,11 @@ export default function SettingsScreen() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwSuccess, setPwSuccess] = useState(false);
+
+  // Smartwatch state
+  const [deviceCode, setDeviceCode] = useState<string | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
 
   const switchColors = { trackColor: { false: colors.border, true: `${colors.accent}80` }, thumbColor: colors.accent };
 
@@ -237,6 +252,41 @@ export default function SettingsScreen() {
     } finally {
       setPwLoading(false);
     }
+  };
+
+  const handleGenerateDeviceCode = async () => {
+    setCodeLoading(true);
+    try {
+      const res = await apiClient.post('/auth/device-code/generate');
+      setDeviceCode(res.data.code);
+      setTimeLeft(120); // 2 minutes
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err));
+    } finally {
+      setCodeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (deviceCode && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            setDeviceCode(null);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [deviceCode, timeLeft]);
+
+  const handleCloseSmartwatchModal = () => {
+    setDeviceCode(null);
+    setTimeLeft(0);
+    setSmartwatchModalVisible(false);
   };
 
   const currentLangName = LANGUAGES.find(l => l.code === language)?.name ?? 'Español';
@@ -299,6 +349,9 @@ export default function SettingsScreen() {
           <SettingRow icon="navigate-outline" iconBg={colors.accent10} iconColor={colors.accent}
             title={t('gps')} desc={t('gpsDesc')}
             right={<Switch value={gpsEnabled} onValueChange={setGpsEnabled} {...switchColors} />} styles={styles} />
+          <SettingRow icon="watch-outline" iconBg="rgba(156,39,176,0.12)" iconColor="#9C27B0"
+            title={t('pairSmartwatch')} desc={t('pairSmartwatchDesc')}
+            onPress={() => { setDeviceCode(null); setSmartwatchModalVisible(true); }} styles={styles} />
           <SettingRow icon="repeat-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('autoSync')} desc={t('autoSyncDesc')} isLast
             right={<Switch value={autoSync} onValueChange={setAutoSync} {...switchColors} />} styles={styles} />
@@ -528,6 +581,44 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Modal: Vincular Smartwatch ── */}
+      <Modal visible={smartwatchModalVisible} transparent animationType="slide" onRequestClose={handleCloseSmartwatchModal}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('smartwatchTitle')}</Text>
+              <TouchableOpacity style={styles.modalClose} onPress={handleCloseSmartwatchModal}>
+                <Ionicons name="close" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.codeDescText}>{t('smartwatchDesc')}</Text>
+              
+              {deviceCode ? (
+                <View style={styles.codeContainer}>
+                  <Text style={styles.codeText}>{deviceCode}</Text>
+                  <Text style={styles.codeTimer}>
+                    {t('codeExpires')} {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} {t('minutes')}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ marginVertical: 30, alignItems: 'center' }}>
+                  <Ionicons name="watch-outline" size={64} color={colors.border} />
+                </View>
+              )}
+
+              <TouchableOpacity style={[styles.confirmBtn, { marginTop: 10 }]} onPress={handleGenerateDeviceCode} disabled={codeLoading}>
+                {codeLoading
+                  ? <ActivityIndicator size="small" color="#FFF" />
+                  : <Text style={styles.confirmBtnText}>{deviceCode ? 'Generar nuevo código' : t('generateCode')}</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
