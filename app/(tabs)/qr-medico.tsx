@@ -79,6 +79,7 @@ type ProfileData = {
         showAllergies?: boolean;
         showEmergencyContacts?: boolean;
         showMedicalHistory?: boolean;
+        showChronicConditions?: boolean;
         showAge?: boolean;
     };
 };
@@ -288,6 +289,7 @@ export default function QrMedicoScreen() {
     const qrRef = useRef<View>(null);
 
     const [saving, setSaving] = useState(false);
+    const [updatingParams, setUpdatingParams] = useState(false);
     const [cfg, setCfg] = useState<QrConfig>({
         includeBloodType:    true,
         includeAllergies:    true,
@@ -301,16 +303,54 @@ export default function QrMedicoScreen() {
         () => apiClient.get<ProfileData>('/profile/full').then(r => r.data)
     );
 
+    // Sincronizar estado local con DB al cargar
+    React.useEffect(() => {
+        if (data?.privacySettings) {
+            setCfg({
+                includeBloodType:    !!data.privacySettings.showBloodType,
+                includeAllergies:    !!data.privacySettings.showAllergies,
+                includeMedications:  !!data.privacySettings.showMedications,
+                includeConditions:   !!data.privacySettings.showChronicConditions,
+                includeContacts:     !!data.privacySettings.showEmergencyContacts,
+                includeMedicalNotes: !!data.privacySettings.showMedicalHistory,
+            });
+        }
+    }, [data?.privacySettings]);
+
     const { user } = useAuth();
 
     const qrUrl = useMemo(() => {
         if (!user?.id) return null;
+        // Para que se refresque el QR si la config local cambia se podría mapear a un token,
+        // pero como es link directo, el server usa las privacySettings.
+        // Solo retornamos el URL base, backend procesará qué mostrar limitando la info.
         return buildQrUrl(user.id);
     }, [user?.id]);
 
-    const toggle = useCallback((key: keyof QrConfig) => {
-        setCfg(prev => ({ ...prev, [key]: !prev[key] }));
-    }, []);
+    const toggle = useCallback(async (key: keyof QrConfig) => {
+        const newValue = !cfg[key];
+        setCfg(prev => ({ ...prev, [key]: newValue }));
+        setUpdatingParams(true);
+
+        try {
+            // Mapeamos local a db
+            const payload: any = {};
+            if (key === 'includeBloodType') payload.showBloodType = newValue;
+            if (key === 'includeAllergies') payload.showAllergies = newValue;
+            if (key === 'includeMedications') payload.showMedications = newValue;
+            if (key === 'includeContacts') payload.showEmergencyContacts = newValue;
+            if (key === 'includeConditions') payload.showChronicConditions = newValue;
+            if (key === 'includeMedicalNotes') payload.showMedicalHistory = newValue;
+
+            await apiClient.put('/profile/privacy', payload);
+        } catch (e) {
+            console.error('Error actualizando privacidad:', e);
+            // Revertir en caso de error
+            setCfg(prev => ({ ...prev, [key]: !newValue }));
+        } finally {
+            setUpdatingParams(false);
+        }
+    }, [cfg]);
 
     const handleShare = useCallback(async () => {
         if (!qrUrl) return;

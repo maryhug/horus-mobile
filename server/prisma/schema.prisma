@@ -22,7 +22,8 @@ model User {
   emergencyContacts EmergencyContact[]
   medicalHistory    MedicalHistory[]
   medicalProfile    MedicalProfile?
-  nfcScans          NfcScan[]
+  nfcScans          ProfileScan[]
+  pushToken         String?              @map("push_token")
   personalInfo      PersonalInformation?
   privacySettings   PrivacySettings?
   medications       UserMedication[]
@@ -213,9 +214,15 @@ model MedicalHistory {
   @@map("medical_history")
 }
 
-model NfcScan {
+enum ScanType {
+  NFC
+  QR
+}
+
+model ProfileScan {
   id                String   @id @default(uuid()) @db.Uuid
   userId            String   @map("user_id") @db.Uuid
+  scanType          ScanType @default(NFC) @map("scan_type")
   scanTimestamp     DateTime @default(now()) @map("scan_timestamp")
   scannerIp         String?  @map("scanner_ip")
   scannerDeviceInfo Json?    @map("scanner_device_info")
@@ -224,7 +231,7 @@ model NfcScan {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, scanTimestamp(sort: Desc)])
-  @@map("nfc_scans")
+  @@map("profile_scans")
 }
 
 model EmergencyAlert {
@@ -252,6 +259,7 @@ model PrivacySettings {
   showMedications       Boolean  @default(true) @map("show_medications")
   showAllergies         Boolean  @default(true) @map("show_allergies")
   showEmergencyContacts Boolean  @default(true) @map("show_emergency_contacts")
+  showChronicConditions Boolean  @default(true) @map("show_chronic_conditions")
   requireAuthentication Boolean  @default(false) @map("require_authentication")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
@@ -261,40 +269,40 @@ model PrivacySettings {
 }
 
 model Product {
-  id          String      @id @default(uuid()) @db.Uuid
-  name        String      @unique
-  productType ProductType @map("product_type")
-  description String?     @db.Text
-  price       Decimal     @db.Decimal(10, 2)
-  currency    String      @default("COP")
-  isActive    Boolean     @default(true) @map("is_active")
-  billingCycle String     @default("ANNUAL") @map("billing_cycle")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  orders      Order[]
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @unique
+  productType   ProductType    @map("product_type")
+  description   String?        @db.Text
+  price         Decimal        @db.Decimal(10, 2)
+  currency      String         @default("COP")
+  isActive      Boolean        @default(true) @map("is_active")
+  billingCycle  String         @default("ANNUAL") @map("billing_cycle")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  orders        Order[]
   subscriptions Subscription[]
 
   @@map("products")
 }
 
 model Order {
-  id        String      @id @default(uuid()) @db.Uuid
-  userId    String      @map("user_id") @db.Uuid
-  productId String      @map("product_id") @db.Uuid
-  reference String      @unique
-  status    OrderStatus @default(PENDING)
-  totalAmount Decimal   @map("total_amount") @db.Decimal(10, 2)
-  currency  String      @default("COP")
-  shippingStreet     String  @map("shipping_street")
-  shippingCity       String  @map("shipping_city")
-  shippingDepartment String  @map("shipping_department")
-  shippingZip        String? @map("shipping_zip")
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-  user      User        @relation(fields: [userId], references: [id])
-  product   Product     @relation(fields: [productId], references: [id])
-  payment   Payment?
-  subscription Subscription?
+  id                 String        @id @default(uuid()) @db.Uuid
+  userId             String        @map("user_id") @db.Uuid
+  productId          String        @map("product_id") @db.Uuid
+  reference          String        @unique
+  status             OrderStatus   @default(PENDING)
+  totalAmount        Decimal       @map("total_amount") @db.Decimal(10, 2)
+  currency           String        @default("COP")
+  shippingStreet     String        @map("shipping_street")
+  shippingCity       String        @map("shipping_city")
+  shippingDepartment String        @map("shipping_department")
+  shippingZip        String?       @map("shipping_zip")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  user               User          @relation(fields: [userId], references: [id])
+  product            Product       @relation(fields: [productId], references: [id])
+  payment            Payment?
+  subscription       Subscription?
 
   @@index([userId, status])
   @@index([reference])
@@ -325,21 +333,21 @@ model Payment {
 }
 
 model Subscription {
-  id        String             @id @default(uuid()) @db.Uuid
-  userId    String             @map("user_id") @db.Uuid
-  orderId   String?            @unique @map("order_id") @db.Uuid
-  productId String             @map("product_id") @db.Uuid
-  status    SubscriptionStatus @default(PENDING)
-  startDate DateTime?          @map("start_date")
-  endDate   DateTime?          @map("end_date")
-  cancelledAt DateTime?        @map("cancelled_at")
-  autoRenew Boolean            @default(true) @map("auto_renew")
-  renewalReminderSentAt DateTime? @map("renewal_reminder_sent_at")
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
-  user      User               @relation(fields: [userId], references: [id])
-  product   Product            @relation(fields: [productId], references: [id])
-  order     Order?             @relation(fields: [orderId], references: [id])
+  id                    String             @id @default(uuid()) @db.Uuid
+  userId                String             @map("user_id") @db.Uuid
+  orderId               String?            @unique @map("order_id") @db.Uuid
+  productId             String             @map("product_id") @db.Uuid
+  status                SubscriptionStatus @default(PENDING)
+  startDate             DateTime?          @map("start_date")
+  endDate               DateTime?          @map("end_date")
+  cancelledAt           DateTime?          @map("cancelled_at")
+  autoRenew             Boolean            @default(true) @map("auto_renew")
+  renewalReminderSentAt DateTime?          @map("renewal_reminder_sent_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  user                  User               @relation(fields: [userId], references: [id])
+  product               Product            @relation(fields: [productId], references: [id])
+  order                 Order?             @relation(fields: [orderId], references: [id])
 
   @@index([userId, status])
   @@index([endDate])

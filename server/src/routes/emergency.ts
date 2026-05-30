@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { sendPushNotification } from '../services/notification';
 
 const router = Router();
 
@@ -43,7 +44,7 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
                 personalInfo:      true,
                 medicalProfile:    true,
                 allergies:         { where: { isActive: true } },
-                chronicConditions: { where: { status: 'ACTIVE' } },
+                chronicConditions: true,
                 medications:       { where: { isCurrent: true }, include: { medication: true } },
                 emergencyContacts: { where: { isActive: true }, orderBy: { priorityOrder: 'asc' } },
                 privacySettings:   true,
@@ -53,6 +54,26 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
         if (!user) {
             res.status(404).send('<h1>Perfil no encontrado</h1>');
             return;
+        }
+
+        // Registrar el escaneo QR y enviar notificación
+        try {
+            await prisma.profileScan.create({
+                data: {
+                    userId,
+                    scanType: 'QR',
+                    scannerIp: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
+                }
+            });
+
+            await sendPushNotification(
+                userId,
+                'Horus',
+                'Tu perfil fue consultado',
+                { scanType: 'QR' }
+            );
+        } catch (err) {
+            console.error('Error recording scan/notifying:', err);
         }
 
         const priv = user.privacySettings;
@@ -65,7 +86,7 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
 
         const allergies  = priv?.showAllergies !== false ? user.allergies : [];
         const meds       = priv?.showMedications !== false ? user.medications : [];
-        const conditions = user.chronicConditions;
+        const conditions = priv?.showChronicConditions !== false ? user.chronicConditions : [];
         const contacts   = priv?.showEmergencyContacts !== false ? user.emergencyContacts : [];
 
         const allergiesHtml = allergies.length > 0 ? `
@@ -128,7 +149,7 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
         const extraHtml = extraItems.length > 0 ? `
       <div class="extra-row">${extraItems.map(i => `<span>${i}</span>`).join('')}</div>` : '';
 
-        const notesHtml = m?.additionalNotes ? `
+        const notesHtml = (m?.additionalNotes && priv?.showMedicalHistory !== false) ? `
       <div class="section">
         <div class="section-title">📋 NOTAS MÉDICAS</div>
         <div class="item">${m.additionalNotes}</div>
@@ -227,7 +248,7 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
   </div>` : ''}
 
   ${contacts.length ? `<div class="card">${contactsHtml}</div>` : ''}
-  ${m?.additionalNotes ? `<div class="card">${notesHtml}</div>` : ''}
+  ${notesHtml ? `<div class="card">${notesHtml}</div>` : ''}
 
   <a href="tel:123" class="call-112">📞 Llamar al 123</a>
 
@@ -256,7 +277,7 @@ router.get('/:userId/json', async (req: Request, res: Response): Promise<void> =
                 personalInfo:      true,
                 medicalProfile:    true,
                 allergies:         { where: { isActive: true } },
-                chronicConditions: { where: { status: 'ACTIVE' } },
+                chronicConditions: true,
                 medications:       { where: { isCurrent: true }, include: { medication: true } },
                 emergencyContacts: { where: { isActive: true }, orderBy: { priorityOrder: 'asc' } },
                 privacySettings:   true,
@@ -282,7 +303,7 @@ router.get('/:userId/json', async (req: Request, res: Response): Promise<void> =
                 allergenName: a.allergenName,
                 severity:     a.severity,
             })),
-            chronicConditions: user.chronicConditions.map(c => ({
+            chronicConditions: (priv?.showChronicConditions !== false ? user.chronicConditions : []).map(c => ({
                 conditionName: c.conditionName,
             })),
             medications: (priv?.showMedications !== false ? user.medications : []).map(m => ({

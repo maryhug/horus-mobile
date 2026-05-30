@@ -100,7 +100,6 @@ router.put('/', requireAuth, async (req: AuthRequest, res: Response): Promise<vo
   }
 });
 
-
 // GET /api/profile/full — para el QR médico
 router.get('/full', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -171,11 +170,74 @@ router.get('/full', requireAuth, async (req: AuthRequest, res: Response): Promis
         showAllergies:         user.privacySettings.showAllergies,
         showEmergencyContacts: user.privacySettings.showEmergencyContacts,
         showMedicalHistory:    user.privacySettings.showMedicalHistory,
+        showChronicConditions: user.privacySettings.showChronicConditions,
       } : null,
     });
   } catch (error) {
     console.error('Profile full GET error:', error);
     res.status(500).json({ message: 'Error al obtener el perfil completo' });
+  }
+});
+
+// PUT /api/profile/privacy
+router.put('/privacy', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      showBloodType,
+      showAllergies,
+      showMedications,
+      showMedicalHistory,
+      showChronicConditions,
+      showEmergencyContacts
+    } = req.body;
+
+    const privacySettings = await prisma.privacySettings.upsert({
+      where: { userId: req.userId },
+      update: {
+        ...(showBloodType !== undefined && { showBloodType }),
+        ...(showAllergies !== undefined && { showAllergies }),
+        ...(showMedications !== undefined && { showMedications }),
+        ...(showMedicalHistory !== undefined && { showMedicalHistory }),
+        ...(showChronicConditions !== undefined && { showChronicConditions }),
+        ...(showEmergencyContacts !== undefined && { showEmergencyContacts })
+      },
+      create: {
+        userId: req.userId!,
+        showBloodType: showBloodType ?? true,
+        showAllergies: showAllergies ?? true,
+        showMedications: showMedications ?? true,
+        showMedicalHistory: showMedicalHistory ?? true,
+        showChronicConditions: showChronicConditions ?? true,
+        showEmergencyContacts: showEmergencyContacts ?? true,
+      }
+    });
+
+    res.json(privacySettings);
+  } catch (error) {
+    console.error('Privacy update error:', error);
+    res.status(500).json({ message: 'Error al actualizar configuración de privacidad' });
+  }
+});
+
+// POST /api/profile/push-token
+router.post('/push-token', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { pushToken } = req.body;
+    
+    if (!pushToken) {
+      res.status(400).json({ message: 'Push token es requerido' });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { pushToken }
+    });
+
+    res.json({ message: 'Push token actualizado correctamente' });
+  } catch (error) {
+    console.error('Push token update error:', error);
+    res.status(500).json({ message: 'Error al actualizar push token' });
   }
 });
 

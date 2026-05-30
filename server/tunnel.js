@@ -4,10 +4,6 @@ const path = require('path');
 
 const PORT = 3000;
 const ENV_PATH = path.join(__dirname, '..', '.env');
-// Ruta absoluta por si cloudflared no está en PATH del proceso hijo
-const CLOUDFLARED_PATH =
-  process.env.CLOUDFLARED_PATH ||
-  'C:\\Program Files (x86)\\cloudflared\\cloudflared.exe';
 
 function updateEnv(url) {
   const newUrl = `${url}/api`;
@@ -22,31 +18,39 @@ function updateEnv(url) {
 }
 
 function startTunnel() {
-  const bin = fs.existsSync(CLOUDFLARED_PATH) ? CLOUDFLARED_PATH : 'cloudflared';
-  console.log(`Iniciando Cloudflare tunnel (${bin}) en puerto ${PORT}...`);
+  console.log(`Iniciando ngrok tunnel en puerto ${PORT}...`);
 
-  const proc = spawn(bin, ['tunnel', '--url', `http://localhost:${PORT}`], {
-    stdio: ['ignore', 'pipe', 'pipe'],
+  const proc = spawn('ngrok', ['http', PORT.toString()], {
+    stdio: 'ignore'
   });
 
   let urlFound = false;
 
-  function checkOutput(data) {
+  async function checkTunnel() {
     if (urlFound) return;
-    const text = data.toString();
-    const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-    if (match) {
-      urlFound = true;
-      const apiUrl = updateEnv(match[0]);
-      console.log('\n========================================');
-      console.log(`  Tunnel activo:  ${match[0]}`);
-      console.log(`  .env actualizado: ${apiUrl}`);
-      console.log('========================================\n');
+    try {
+      const response = await fetch('http://127.0.0.1:4040/api/tunnels');
+      const data = await response.json();
+      const tunnel = data.tunnels.find(t => t.public_url && t.public_url.startsWith('https://'));
+      if (tunnel) {
+        urlFound = true;
+        const apiUrl = updateEnv(tunnel.public_url);
+        console.log('\n========================================');
+        console.log(`  Tunnel activo:  ${tunnel.public_url}`);
+        console.log(`  .env actualizado: ${apiUrl}`);
+        console.log('========================================\n');
+      }
+    } catch (err) {
+      // API not ready yet
+    }
+
+    if (!urlFound) {
+      setTimeout(checkTunnel, 2000);
     }
   }
 
-  proc.stdout.on('data', checkOutput);
-  proc.stderr.on('data', checkOutput);
+  // Start polling
+  setTimeout(checkTunnel, 2000);
 
   proc.on('close', (code) => {
     console.log(`Tunnel cerrado (${code}). Reconectando en 3s...`);
@@ -56,8 +60,8 @@ function startTunnel() {
 
   proc.on('error', (err) => {
     if (err.code === 'ENOENT') {
-      console.error('\nERROR: cloudflared no encontrado en:', bin);
-      console.error('Instálalo con:  winget install Cloudflare.cloudflared\n');
+      console.error('\nERROR: ngrok no encontrado en el sistema.');
+      console.error('Instálalo con: winget install ngrok.ngrok\n');
       process.exit(1);
     }
     console.error('Error en tunnel:', err.message, '— Reintentando en 5s...');

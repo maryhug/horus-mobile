@@ -3,17 +3,17 @@
 #  Para cuando el router bloquea conexiones LAN
 #  o el celular esta en otra red
 #
-#  Requiere cloudflared instalado:
-#  winget install Cloudflare.cloudflared
+#  Requiere ngrok instalado:
+#  winget install ngrok.ngrok
 # =============================================
-$ROOT = "C:\Users\ASUS\WebstormProjects\Horus-Mobile"
+$ROOT = $PSScriptRoot
 
 # Iniciar servidor API en ventana separada
 Write-Host "[1/3] Iniciando servidor API (puerto 3000)..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$ROOT\server'; npm run dev"
 
 # Iniciar tunnel en ventana separada (actualiza ../.env automaticamente con la URL publica)
-Write-Host "[2/3] Iniciando Cloudflare tunnel..." -ForegroundColor Cyan
+Write-Host "[2/3] Iniciando ngrok tunnel..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$ROOT\server'; npm run tunnel"
 
 # Esperar a que el tunnel obtenga su URL y actualice el .env
