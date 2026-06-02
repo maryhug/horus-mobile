@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   RefreshControl,
-  ActivityIndicator,
-  Image,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,450 +15,428 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import { apiClient } from '../../services/api';
-import { AppColors } from '../../constants/colors';
 import type { DashboardData } from '../../types/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const H_PAD = 20;
-const CARD_GAP = 12;
-const METRIC_W = (SCREEN_WIDTH - H_PAD * 2 - CARD_GAP) / 2;
-const CHART_H = 140;
 
-const BAR_HOURS = ['00:00', '06:00', '12:00', '18:00', '24:00'];
+// ── Vibrant palette ────────────────────────────────────────────────────────
+const V = {
+  coral:    '#FF6B9D',
+  ocean:    '#4B8EF0',
+  tangerine:'#FF8C42',
+  mint:     '#34D399',
+  grape:    '#A78BFA',
+  sunshine: '#FCD34D',
+};
 
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: H_PAD,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
-    },
-    headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    brandIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: c.accent10,
-      borderWidth: 1,
-      borderColor: c.accent20,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    brandName: { color: c.accent, fontSize: 14, fontWeight: '800', letterSpacing: 1.5, lineHeight: 17 },
-    brandSub: { color: c.textMuted, fontSize: 9, fontWeight: '600', letterSpacing: 2, lineHeight: 12 },
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: c.surfaceElevated,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    avatarCircle: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: c.accentDark,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    avatarText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+// ── Health Orbit constants ─────────────────────────────────────────────────
+const ORBIT_R = 112;
+const BUBBLE_SIZE = 70;
+const CENTER_SIZE = 102;
+const ORBIT_CONTAINER = ORBIT_R * 2 + BUBBLE_SIZE; // 294
 
-    scroll: { paddingHorizontal: H_PAD, paddingBottom: 28 },
+const METRICS = [
+  { id: 'heart',    label: 'Frec. Cardíaca', unit: 'bpm',   color: V.coral,     icon: 'heart',     angle: -90 },
+  { id: 'steps',    label: 'Pasos hoy',      unit: 'pasos', color: V.ocean,     icon: 'footsteps', angle: 0   },
+  { id: 'calories', label: 'Calorías',       unit: 'kcal',  color: V.tangerine, icon: 'flame',     angle: 90  },
+  { id: 'activity', label: 'Actividad',      unit: 'min',   color: V.mint,      icon: 'pulse',     angle: 180 },
+];
 
-    titleSection: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      paddingTop: 20,
-      marginBottom: 20,
-    },
-    titleLeft: { flex: 1 },
-    pageTitle: { fontSize: 30, fontWeight: '800', color: c.textPrimary, lineHeight: 36, marginBottom: 6 },
-    pageTitleAccent: { color: c.accent },
-    pageSubtitle: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
-    syncPill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: c.accent10,
-      borderRadius: 20,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      gap: 6,
-      marginLeft: 12,
-    },
-    syncDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.accent },
-    syncLabel: { color: c.accent, fontSize: 11, fontWeight: '700' },
+// Pre-computed random-ish bar heights (stable across renders)
+const BAR_HEIGHTS = Array.from({ length: 24 }, (_, i) =>
+  10 + ((i * 37 + 19) % 71)
+);
+const BAR_COLORS_CYCLE = [V.coral, V.grape, V.ocean, V.mint, V.tangerine, V.sunshine];
 
-    statusRow: { flexDirection: 'row', gap: CARD_GAP, marginBottom: CARD_GAP },
-    statusCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    statusCardHalf: { flex: 1 },
-    statusCardFull: { marginBottom: CARD_GAP },
-    statusCardHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 10,
-    },
-    statusCardLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '500', flex: 1 },
-    smallBadge: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
-    onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 5 },
-    onlineDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: c.success },
-    statusValue: { fontSize: 22, fontWeight: '700', color: c.textPrimary },
-    statusValueLg: { fontSize: 26, fontWeight: '800', color: c.textPrimary },
-    statusSub: { fontSize: 11, color: c.textSecondary, marginTop: 4 },
-    batteryTrack: { height: 5, backgroundColor: c.border, borderRadius: 3, marginVertical: 10, overflow: 'hidden' },
-    batteryFill: { height: '100%', backgroundColor: c.accent, borderRadius: 3 },
-    syncRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-    syncOkBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: 'rgba(76, 175, 80, 0.12)',
-      borderRadius: 10,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-    },
-    syncOkText: { fontSize: 11, color: c.success, fontWeight: '600' },
-
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.textPrimary, marginBottom: 12 },
-
-    metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, marginBottom: 20 },
-    metricCard: {
-      width: METRIC_W,
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    metricTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-    metricIcon: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
-    changeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      backgroundColor: 'rgba(76, 175, 80, 0.12)',
-      borderRadius: 8,
-      paddingHorizontal: 6,
-      paddingVertical: 3,
-    },
-    changeText: { fontSize: 11, color: c.success, fontWeight: '700' },
-    metricLabel: { fontSize: 12, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
-    metricBottom: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-    metricValue: { fontSize: 26, fontWeight: '800', color: c.textPrimary },
-    metricUnit: { fontSize: 13, color: c.textSecondary, fontWeight: '500' },
-
-    chartCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-      marginBottom: 20,
-    },
-    chartHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 20,
-    },
-    chartTitle: { fontSize: 15, fontWeight: '700', color: c.textPrimary },
-    chartSub: { fontSize: 12, color: c.textSecondary, marginTop: 3 },
-    livePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: c.accent10,
-      borderRadius: 12,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      gap: 5,
-    },
-    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.accent },
-    liveLabel: { fontSize: 11, color: c.accent, fontWeight: '700' },
-    barsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, flex: 1 },
-    barCol: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', height: CHART_H },
-    bar: { width: '100%', backgroundColor: c.accent, borderRadius: 3, opacity: 0.7, minHeight: 4 },
-    xLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    xLabel: { fontSize: 10, color: c.textMuted },
-
-    alertsCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    alertsHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    alertsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    alertsTitle: { fontSize: 15, fontWeight: '700', color: c.textPrimary },
-    seeAll: { fontSize: 13, color: c.accent, fontWeight: '600' },
-    alertRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 14,
-      paddingVertical: 13,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    alertDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, flexShrink: 0 },
-    alertBody: { flex: 1 },
-    alertTitle: { fontSize: 14, color: c.textPrimary, fontWeight: '500', lineHeight: 20, marginBottom: 3 },
-    alertTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    alertTime: { fontSize: 12, color: c.textMuted },
-
-    // Loading skeleton
-    skeletonBlock: { backgroundColor: c.surfaceElevated, borderRadius: 8 },
-    errorCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      alignItems: 'center',
-      gap: 10,
-      marginBottom: CARD_GAP,
-    },
-    errorText: { color: c.textSecondary, fontSize: 14, textAlign: 'center' },
-  });
+function bubblePos(angleDeg: number) {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cx = ORBIT_CONTAINER / 2;
+  const cy = ORBIT_CONTAINER / 2;
+  return {
+    left: cx + ORBIT_R * Math.cos(rad) - BUBBLE_SIZE / 2,
+    top:  cy + ORBIT_R * Math.sin(rad) - BUBBLE_SIZE / 2,
+  };
 }
 
-type MetricProps = { icon: string; iconColor: string; label: string; value: string; unit: string };
-type AlertProps = { dotColor: string; title: string; time: string; isLocation?: boolean };
-
 export default function DashboardScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { isDark, toggleTheme } = useTheme();
   const { user } = useAuth();
+  const [selectedIdx, setSelectedIdx] = useState(0);
 
-  const { data, loading, error, refetch } = useApi<DashboardData>(
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnims = useRef(METRICS.map(() => new Animated.Value(1))).current;
+  const livePulse  = useRef(new Animated.Value(1)).current;
+
+  const { data, loading, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
   );
 
-  const avatarInitials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'HB'
-    : 'HB';
+  // ── Pulsing live dot ──────────────────────────────────────────────────
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, { toValue: 1.5, duration: 900, useNativeDriver: true }),
+        Animated.timing(livePulse, { toValue: 1,   duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
+  // ── Metric selection ──────────────────────────────────────────────────
+  function selectMetric(idx: number) {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 110, useNativeDriver: true }).start(() => {
+      setSelectedIdx(idx);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    });
+    Animated.sequence([
+      Animated.timing(scaleAnims[idx], { toValue: 1.28, duration: 110, useNativeDriver: true }),
+      Animated.spring(scaleAnims[idx], { toValue: 1, friction: 3.5, tension: 120, useNativeDriver: true }),
+    ]).start();
+  }
+
+  const metric = METRICS[selectedIdx];
   const syncTime = data?.timestamp
     ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
     : '—';
+  const avatarInitials = user
+    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'H'
+    : 'H';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
+  const firstName = user?.firstName ?? 'usuario';
 
-  function MetricCard({ icon, iconColor, label, value, unit }: MetricProps) {
-    return (
-      <View style={styles.metricCard}>
-        <View style={styles.metricTop}>
-          <View style={[styles.metricIcon, { backgroundColor: iconColor + '28' }]}>
-            <Ionicons name={icon as any} size={20} color={iconColor} />
-          </View>
-        </View>
-        <Text style={styles.metricLabel}>{label}</Text>
-        <View style={styles.metricBottom}>
-          <Text style={styles.metricValue}>{value}</Text>
-          <Text style={styles.metricUnit}>{unit}</Text>
-        </View>
-      </View>
-    );
-  }
-
-  function AlertRow({ dotColor, title, time, isLocation }: AlertProps) {
-    return (
-      <View style={styles.alertRow}>
-        <View style={[styles.alertDot, { backgroundColor: dotColor }]} />
-        <View style={styles.alertBody}>
-          <Text style={styles.alertTitle}>{title}</Text>
-          <View style={styles.alertTimeRow}>
-            {isLocation && <Ionicons name="location-outline" size={12} color={colors.textMuted} />}
-            <Text style={styles.alertTime}>{time}</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  // ── Theme tokens ──────────────────────────────────────────────────────
+  const bg       = isDark ? '#0E0F1A' : '#F7F8FF';
+  const cardBg   = isDark ? '#181928' : '#FFFFFF';
+  const txt1     = isDark ? '#EEF2FF' : '#1A1B30';
+  const txt2     = isDark ? '#6B7299' : '#8891B8';
+  const border   = isDark ? '#252640' : '#E8EAF6';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerBrand}>
-          <View style={styles.brandIcon}>
-            <Image
-              source={require('../../assets/icon.png')}
-              style={{ width: 28, height: 28 }}
-              resizeMode="contain"
-            />
-          </View>
-          <View>
-            <Text style={styles.brandName}>HORUS</Text>
-            <Text style={styles.brandSub}>BRASLET</Text>
-          </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <View style={[s.header, { backgroundColor: cardBg, borderBottomColor: border }]}>
+        <View>
+          <Text style={[s.greeting, { color: txt2 }]}>{greeting} 👋</Text>
+          <Text style={[s.headerName, { color: txt1 }]}>{firstName}</Text>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={toggleTheme}>
-            <Ionicons
-              name={isDark ? 'sunny-outline' : 'moon-outline'}
-              size={20}
-              color={colors.textSecondary}
-            />
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={[s.iconBtn, { backgroundColor: isDark ? '#20213A' : '#EEF0FF', borderColor: border }]}
+          >
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={txt2} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn}>
-            <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
+          <TouchableOpacity style={[s.iconBtn, { backgroundColor: isDark ? '#20213A' : '#EEF0FF', borderColor: border }]}>
+            <Ionicons name="notifications-outline" size={18} color={txt2} />
           </TouchableOpacity>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{avatarInitials}</Text>
+          <View style={[s.avatar, { backgroundColor: metric.color }]}>
+            <Text style={s.avatarTxt}>{avatarInitials}</Text>
           </View>
         </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.accent} />
-        }
+        contentContainerStyle={{ paddingBottom: 36 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={V.coral} />}
       >
-        <View style={styles.titleSection}>
-          <View style={styles.titleLeft}>
-            <Text style={styles.pageTitle}>
-              Panel de{'\n'}<Text style={styles.pageTitleAccent}>control</Text>
-            </Text>
-            <Text style={styles.pageSubtitle}>
-              {user
-                ? `Bienvenido/a, ${user.firstName ?? user.email}`
-                : 'Información en tiempo real de tu manilla Horus'}
-            </Text>
-          </View>
-          <View style={styles.syncPill}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncLabel}>En vivo</Text>
-          </View>
-        </View>
 
-        {error && (
-          <View style={styles.errorCard}>
-            <Ionicons name="cloud-offline-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={refetch}>
-              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>Reintentar</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.statusRow}>
-          <View style={[styles.statusCard, styles.statusCardHalf]}>
-            <View style={styles.statusCardHead}>
-              <Text style={styles.statusCardLabel}>Dispositivo</Text>
-              <View style={[styles.smallBadge, { backgroundColor: colors.accent10 }]}>
-                <Ionicons name="wifi" size={14} color={colors.accent} />
-              </View>
-            </View>
-            <View style={styles.onlineRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.statusValue}>{loading ? '...' : data ? 'Online' : 'Sin datos'}</Text>
-            </View>
-            {/* TODO: ajustar según la respuesta real de la API — mostrar nfcTagId o device info */}
-            <Text style={styles.statusSub}>
-              {user?.nfcTagId ? `ID: ${user.nfcTagId}` : 'HRS-BR · v2.4.1'}
-            </Text>
-          </View>
-
-          <View style={[styles.statusCard, styles.statusCardHalf]}>
-            <View style={styles.statusCardHead}>
-              <Text style={styles.statusCardLabel}>Batería</Text>
-              <View style={[styles.smallBadge, { backgroundColor: colors.accent10 }]}>
-                <Ionicons name="battery-charging" size={14} color={colors.accent} />
-              </View>
-            </View>
-            <Text style={[styles.statusValue, { color: colors.textMuted }]}>—</Text>
-            <View style={styles.batteryTrack}>
-              <View style={[styles.batteryFill, { width: '0%' }]} />
-            </View>
-            <Text style={styles.statusSub}>Sin datos del dispositivo</Text>
-          </View>
-        </View>
-
-        <View style={[styles.statusCard, styles.statusCardFull]}>
-          <View style={styles.statusCardHead}>
-            <Text style={styles.statusCardLabel}>Última sincronización</Text>
-            <View style={[styles.smallBadge, { backgroundColor: colors.accent10 }]}>
-              <Ionicons name="time-outline" size={14} color={colors.accent} />
-            </View>
-          </View>
-          <View style={styles.syncRow}>
-            <Text style={styles.statusValueLg}>
-              {loading ? <ActivityIndicator size="small" color={colors.accent} /> : syncTime}
-            </Text>
-            {data && (
-              <View style={styles.syncOkBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                <Text style={styles.syncOkText}>Exitoso</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.statusSub}>
-            {data?.timestamp
-              ? new Date(data.timestamp).toLocaleDateString('es-MX', { weekday: 'long' })
-              : 'Hoy'}
+        {/* ── Big page title ─────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: 22, paddingTop: 26, marginBottom: 26 }}>
+          <Text style={[s.pageTitle, { color: txt1 }]}>
+            Panel de{'\n'}<Text style={{ color: metric.color }}>Salud</Text>
           </Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Métricas de salud</Text>
-        <View style={styles.metricsGrid}>
-          <MetricCard icon="heart" iconColor={colors.strawberryRed} label="Frecuencia cardíaca" value="—" unit="bpm" />
-          <MetricCard icon="footsteps" iconColor={colors.lavenderGrey} label="Pasos hoy" value="—" unit="pasos" />
-          <MetricCard icon="flame" iconColor="#FF9800" label="Calorías" value="—" unit="kcal" />
-          <MetricCard icon="pulse" iconColor={colors.spaceIndigo} label="Actividad" value="—" unit="min" />
-        </View>
-
-        <View style={styles.chartCard}>
-          <View style={styles.chartHead}>
-            <View>
-              <Text style={styles.chartTitle}>Actividad de las últimas 24h</Text>
-              <Text style={styles.chartSub}>Sin datos del sensor aún</Text>
-            </View>
-          </View>
-          <View style={{ height: CHART_H, justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="analytics-outline" size={36} color={colors.textMuted} />
-            <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8 }}>
-              Conecta tu manilla para ver datos
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <Animated.View style={[s.liveBlip, { backgroundColor: V.mint, transform: [{ scale: livePulse }] }]} />
+            <Text style={{ color: txt2, fontSize: 13, fontWeight: '700' }}>
+              En vivo · {syncTime}
             </Text>
           </View>
-          <View style={styles.xLabels}>
-            {BAR_HOURS.map((h, i) => <Text key={i} style={styles.xLabel}>{h}</Text>)}
+        </View>
+
+        {/* ── Health Orbit ────────────────────────────────────────────── */}
+        <View style={{ alignItems: 'center', marginBottom: 30 }}>
+          <Text style={[s.orbitLabel, { color: txt2 }]}>MÉTRICAS DE SALUD</Text>
+
+          <View style={{ width: ORBIT_CONTAINER, height: ORBIT_CONTAINER, position: 'relative' }}>
+
+            {/* Decorative orbit ring */}
+            <View style={[
+              s.orbitRing,
+              {
+                width:  ORBIT_CONTAINER - 4,
+                height: ORBIT_CONTAINER - 4,
+                left: 2, top: 2,
+                borderColor: metric.color + '22',
+              }
+            ]} />
+
+            {/* Center circle */}
+            <View style={[
+              s.orbitCenter,
+              {
+                left:        ORBIT_CONTAINER / 2 - CENTER_SIZE / 2,
+                top:         ORBIT_CONTAINER / 2 - CENTER_SIZE / 2,
+                backgroundColor: cardBg,
+                borderColor: metric.color + '55',
+                shadowColor: metric.color,
+              }
+            ]}>
+              <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', gap: 2 }}>
+                <View style={[s.centerIconWrap, { backgroundColor: metric.color + '25' }]}>
+                  <Ionicons name={metric.icon as any} size={20} color={metric.color} />
+                </View>
+                <Text style={[s.centerValue, { color: txt1 }]}>—</Text>
+                <Text style={[s.centerUnit, { color: txt2 }]}>{metric.unit}</Text>
+              </Animated.View>
+            </View>
+
+            {/* Metric bubbles */}
+            {METRICS.map((m, i) => {
+              const pos = bubblePos(m.angle);
+              const active = i === selectedIdx;
+              return (
+                <Animated.View
+                  key={m.id}
+                  style={[
+                    s.bubble,
+                    {
+                      left:            pos.left,
+                      top:             pos.top,
+                      backgroundColor: active ? m.color : isDark ? '#1C1E32' : '#F0F2FF',
+                      borderColor:     m.color + (active ? 'FF' : '55'),
+                      shadowColor:     m.color,
+                      shadowOpacity:   active ? 0.45 : 0.12,
+                      transform:       [{ scale: scaleAnims[i] }],
+                    }
+                  ]}
+                >
+                  <TouchableOpacity
+                    onPress={() => selectMetric(i)}
+                    activeOpacity={0.75}
+                    style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', gap: 3 }}
+                  >
+                    <Ionicons name={m.icon as any} size={22} color={active ? '#FFF' : m.color} />
+                    <Text style={[s.bubbleLbl, { color: active ? '#FFF' : txt2 }]}>
+                      {m.label.split(' ')[0]}
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+          </View>
+
+          {/* Selected metric name */}
+          <Animated.Text style={[s.orbitMetricName, { color: metric.color, opacity: fadeAnim }]}>
+            {metric.label}
+          </Animated.Text>
+
+          {/* Dot indicators */}
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
+            {METRICS.map((m, i) => (
+              <View key={m.id} style={[
+                s.dotIndicator,
+                {
+                  backgroundColor: i === selectedIdx ? m.color : (isDark ? '#252640' : '#E0E4FF'),
+                  width: i === selectedIdx ? 20 : 8,
+                }
+              ]} />
+            ))}
           </View>
         </View>
 
-        <View style={styles.alertsCard}>
-          <View style={styles.alertsHead}>
-            <View style={styles.alertsTitleRow}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
-              <Text style={styles.alertsTitle}>Alertas recientes</Text>
+        {/* ── Status row (3 colorful mini-cards) ─────────────────────── */}
+        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 }}>
+          {/* Device */}
+          <View style={[s.miniCard, { flex: 1, backgroundColor: V.ocean + '1A', borderColor: V.ocean + '35' }]}>
+            <View style={[s.miniIcon, { backgroundColor: V.ocean + '28' }]}>
+              <Ionicons name="wifi" size={15} color={V.ocean} />
+            </View>
+            <Text style={[s.miniLabel, { color: txt2 }]}>Dispositivo</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+              <View style={[s.onlineDot, { backgroundColor: V.mint }]} />
+              <Text style={[s.miniValue, { color: txt1 }]}>
+                {loading ? '...' : data ? 'Online' : '—'}
+              </Text>
+            </View>
+            <Text style={[s.miniSub, { color: txt2 }]}>v2.4.1</Text>
+          </View>
+
+          {/* Battery */}
+          <View style={[s.miniCard, { flex: 1, backgroundColor: V.mint + '1A', borderColor: V.mint + '35' }]}>
+            <View style={[s.miniIcon, { backgroundColor: V.mint + '28' }]}>
+              <Ionicons name="battery-charging" size={15} color={V.mint} />
+            </View>
+            <Text style={[s.miniLabel, { color: txt2 }]}>Batería</Text>
+            <Text style={[s.miniValue, { color: txt1, marginTop: 3 }]}>—</Text>
+            <View style={[s.batteryTrack, { backgroundColor: isDark ? '#20213A' : '#DCFCE7' }]}>
+              <View style={[s.batteryFill, { width: '0%', backgroundColor: V.mint }]} />
             </View>
           </View>
-          <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
-            <Ionicons name="notifications-off-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.errorText}>Sin alertas recientes</Text>
+
+          {/* Sync */}
+          <View style={[s.miniCard, { flex: 1, backgroundColor: V.grape + '1A', borderColor: V.grape + '35' }]}>
+            <View style={[s.miniIcon, { backgroundColor: V.grape + '28' }]}>
+              <Ionicons name="time-outline" size={15} color={V.grape} />
+            </View>
+            <Text style={[s.miniLabel, { color: txt2 }]}>Sync</Text>
+            <Text style={[s.miniValue, { color: txt1, marginTop: 3 }]}>{syncTime}</Text>
+            <Text style={[s.miniSub, { color: txt2 }]}>hoy</Text>
           </View>
         </View>
+
+        {/* ── Activity chart ──────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <View style={[s.bigCard, { backgroundColor: cardBg, borderColor: border }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <View>
+                <Text style={[s.cardTitle, { color: txt1 }]}>Actividad 24h</Text>
+                <Text style={[s.cardSub, { color: txt2 }]}>Conecta tu manilla para ver datos reales</Text>
+              </View>
+              <View style={[s.livePill, { backgroundColor: V.mint + '22', borderColor: V.mint + '44' }]}>
+                <Animated.View style={[s.liveBlip, { backgroundColor: V.mint, transform: [{ scale: livePulse }] }]} />
+                <Text style={{ color: V.mint, fontSize: 11, fontWeight: '800' }}>LIVE</Text>
+              </View>
+            </View>
+
+            {/* Colorful bars */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 90, gap: 3 }}>
+              {BAR_HEIGHTS.map((h, i) => {
+                const c = BAR_COLORS_CYCLE[i % BAR_COLORS_CYCLE.length];
+                return (
+                  <View key={i} style={{ flex: 1, justifyContent: 'flex-end' }}>
+                    <View style={{
+                      height: h,
+                      backgroundColor: c + '40',
+                      borderRadius: 5,
+                      borderTopLeftRadius: 5,
+                      borderTopRightRadius: 5,
+                      borderTopWidth: 2.5,
+                      borderTopColor: c,
+                    }} />
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              {['00h', '06h', '12h', '18h', '24h'].map(h => (
+                <Text key={h} style={{ color: txt2, fontSize: 10, fontWeight: '600' }}>{h}</Text>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* ── Quick actions row ────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <Text style={[s.sectionHeading, { color: txt1 }]}>Acciones rápidas</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            {[
+              { icon: 'qr-code-outline',      label: 'ID Médico', color: V.coral  },
+              { icon: 'sparkles-outline',     label: 'Asistente', color: V.grape  },
+              { icon: 'folder-open-outline',  label: 'Archivos',  color: V.ocean  },
+              { icon: 'person-circle-outline',label: 'Perfil',    color: V.mint   },
+            ].map((item, i) => (
+              <View key={i} style={[
+                s.quickAction,
+                { backgroundColor: item.color + '1A', borderColor: item.color + '35' }
+              ]}>
+                <View style={[s.quickIcon, { backgroundColor: item.color + '28' }]}>
+                  <Ionicons name={item.icon as any} size={20} color={item.color} />
+                </View>
+                <Text style={[s.quickLabel, { color: item.color }]}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Alerts card ─────────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: 20 }}>
+          <View style={[s.bigCard, { backgroundColor: cardBg, borderColor: border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+              <View style={[s.miniIcon, { backgroundColor: V.sunshine + '28' }]}>
+                <Ionicons name="shield-checkmark" size={16} color={V.sunshine} />
+              </View>
+              <Text style={[s.cardTitle, { color: txt1 }]}>Alertas recientes</Text>
+            </View>
+            <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
+              <View style={[s.emptyCircle, { backgroundColor: V.sunshine + '20' }]}>
+                <Ionicons name="checkmark-circle" size={32} color={V.sunshine} />
+              </View>
+              <Text style={[s.cardSub, { color: txt2 }]}>Todo en orden, sin alertas</Text>
+            </View>
+          </View>
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 22, paddingVertical: 16, borderBottomWidth: 1,
+  },
+  greeting: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
+  headerName: { fontSize: 22, fontWeight: '900', marginTop: 1 },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 1,
+  },
+  avatar: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  avatarTxt: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+
+  pageTitle: { fontSize: 40, fontWeight: '900', lineHeight: 48, letterSpacing: -1 },
+  liveBlip: { width: 8, height: 8, borderRadius: 4 },
+
+  // Orbit
+  orbitLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.8, marginBottom: 20 },
+  orbitRing: { position: 'absolute', borderRadius: 999, borderWidth: 1.5, borderStyle: 'dashed' },
+  orbitCenter: {
+    position: 'absolute', width: CENTER_SIZE, height: CENTER_SIZE,
+    borderRadius: CENTER_SIZE / 2, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2.5,
+    shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.35, shadowRadius: 18, elevation: 10,
+  },
+  centerIconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  centerValue: { fontSize: 20, fontWeight: '900', lineHeight: 24 },
+  centerUnit: { fontSize: 10, fontWeight: '700' },
+  bubble: {
+    position: 'absolute', width: BUBBLE_SIZE, height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_SIZE / 2, borderWidth: 2.5,
+    shadowOffset: { width: 0, height: 6 }, shadowRadius: 14, elevation: 8, overflow: 'hidden',
+  },
+  bubbleLbl: { fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+  orbitMetricName: { fontSize: 15, fontWeight: '800', marginTop: 6 },
+  dotIndicator: { height: 8, borderRadius: 4 },
+
+  // Mini cards
+  miniCard: { borderRadius: 18, padding: 13, borderWidth: 1.5 },
+  miniIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 7 },
+  miniLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  miniValue: { fontSize: 15, fontWeight: '900' },
+  miniSub: { fontSize: 9, marginTop: 2 },
+  onlineDot: { width: 7, height: 7, borderRadius: 3.5 },
+  batteryTrack: { height: 4, borderRadius: 2, marginTop: 7, overflow: 'hidden' },
+  batteryFill: { height: '100%', borderRadius: 2 },
+
+  // Big card
+  bigCard: { borderRadius: 24, padding: 20, borderWidth: 1.5 },
+  cardTitle: { fontSize: 17, fontWeight: '800' },
+  cardSub: { fontSize: 12, marginTop: 3 },
+  livePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1.5,
+  },
+
+  // Quick actions
+  sectionHeading: { fontSize: 18, fontWeight: '900' },
+  quickAction: { flex: 1, borderRadius: 18, padding: 12, alignItems: 'center', gap: 6, borderWidth: 1.5 },
+  quickIcon: { width: 40, height: 40, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  quickLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.4, textAlign: 'center' },
+
+  emptyCircle: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+});
