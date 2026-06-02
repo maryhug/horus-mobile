@@ -12,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { HorusIcon } from '../assets/icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -67,7 +67,7 @@ function makeStyles(c: AppColors) {
       paddingHorizontal: 14,
       height: 50,
     },
-    inputBoxError: { borderColor: c.strawberryRed ?? '#EF233C' },
+    inputBoxError: { borderColor: c.strawberryRed ?? '#F55642' },
     inputIcon: { marginRight: 10 },
     input: { flex: 1, color: c.textPrimary, fontSize: 15 },
     eyeBtn: { padding: 4 },
@@ -108,10 +108,10 @@ function makeStyles(c: AppColors) {
     loginBtnDisabled: { opacity: 0.7 },
     loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
     errorBox: {
-      backgroundColor: 'rgba(239,35,60,0.10)',
+      backgroundColor: 'rgba(245, 86, 66,0.10)',
       borderRadius: 10,
       borderWidth: 1,
-      borderColor: 'rgba(239,35,60,0.25)',
+      borderColor: 'rgba(245, 86, 66,0.25)',
       paddingHorizontal: 14,
       paddingVertical: 10,
       marginBottom: 18,
@@ -119,7 +119,7 @@ function makeStyles(c: AppColors) {
       alignItems: 'center',
       gap: 8,
     },
-    errorText: { color: '#EF233C', fontSize: 13, flex: 1, lineHeight: 18 },
+    errorText: { color: '#F55642', fontSize: 13, flex: 1, lineHeight: 18 },
     signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     signupText: { color: c.textSecondary, fontSize: 14 },
     signupLink: { color: c.accent, fontSize: 14, fontWeight: '600' },
@@ -187,7 +187,7 @@ export default function LoginScreen() {
 
             <Text style={styles.title}>
               <Text style={styles.titleAccent}>Horus </Text>
-              <Text style={styles.titleBold}>Braslet</Text>
+              <Text style={styles.titleBold}>Mobile</Text>
             </Text>
             <Text style={styles.subtitle}>
               Inicia sesión para conectar con tu manilla inteligente
@@ -195,14 +195,14 @@ export default function LoginScreen() {
 
             {registered === '1' && (
               <View style={styles.successBox}>
-                <Ionicons name="checkmark-circle-outline" size={16} color="#4CAF50" />
+                <HorusIcon name="check-circle" size={16} color="#4CAF50" />
                 <Text style={styles.successText}>¡Cuenta creada! Ya puedes iniciar sesión.</Text>
               </View>
             )}
 
             {errorMsg && (
               <View style={styles.errorBox}>
-                <Ionicons name="alert-circle-outline" size={16} color="#EF233C" />
+                <HorusIcon name="alert-circle" size={16} color="#F55642" />
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
             )}
@@ -210,7 +210,7 @@ export default function LoginScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Correo electrónico</Text>
               <View style={[styles.inputBox, errorMsg ? styles.inputBoxError : null]}>
-                <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
+                <HorusIcon name="mail" size={18} color={colors.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder="tu@correo.com"
@@ -228,7 +228,7 @@ export default function LoginScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Contraseña</Text>
               <View style={[styles.inputBox, errorMsg ? styles.inputBoxError : null]}>
-                <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
+                <HorusIcon name="lock" size={18} color={colors.textMuted} />
                 <TextInput
                   style={styles.input}
                   placeholder="••••••••"
@@ -239,8 +239,8 @@ export default function LoginScreen() {
                   editable={!isLoading}
                 />
                 <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn}>
-                  <Ionicons
-                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                  <HorusIcon
+                    name={showPassword ? 'lock-open' : 'lock'}
                     size={18}
                     color={colors.textMuted}
                   />
@@ -251,7 +251,7 @@ export default function LoginScreen() {
             <View style={styles.row}>
               <TouchableOpacity style={styles.checkRow} onPress={() => setRememberMe(v => !v)}>
                 <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
-                  {rememberMe && <Ionicons name="checkmark" size={11} color="#FFFFFF" />}
+                  {rememberMe && <HorusIcon name="check" size={11} color="#FFFFFF" />}
                 </View>
                 <Text style={styles.checkLabel}>Recordarme</Text>
               </TouchableOpacity>
@@ -271,7 +271,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <Text style={styles.loginBtnText}>Iniciar Sesión</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                  <HorusIcon name="arrow-right" size={18} color="#FFFFFF" />
                 </>
               )}
             </TouchableOpacity>

@@ -12,7 +12,9 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { HorusIcon } from '../assets/icons';
+import type { HorusIconName } from '../assets/icons';
+import { AppHeader } from '../components/AppHeader';
 import { router } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,16 +28,19 @@ function makeStyles(c: AppColors) {
     header: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingHorizontal: 20, paddingVertical: 14,
-      borderBottomWidth: 1, borderBottomColor: c.border,
-      backgroundColor: c.surface,
+      backgroundColor: c.background,
     },
     backBtn: {
-      width: 38, height: 38, borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1, borderColor: c.border,
+      width: 42, height: 42, borderRadius: 21,
+      backgroundColor: c.surface,
       justifyContent: 'center', alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      elevation: 3,
     },
-    headerTitle: { fontSize: 18, fontWeight: '800', color: c.textPrimary, flex: 1 },
+    headerTitle: { fontSize: 22, fontWeight: '800', color: c.textPrimary, flex: 1 },
     scroll: { paddingBottom: 40 },
     sectionLabel: {
       fontSize: 11, fontWeight: '800', color: c.textMuted, letterSpacing: 1.2,
@@ -43,7 +48,12 @@ function makeStyles(c: AppColors) {
     },
     settingGroup: {
       backgroundColor: c.surface, marginHorizontal: 16,
-      borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden',
+      borderRadius: 26, overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 14,
+      elevation: 3,
     },
     settingRow: {
       flexDirection: 'row', alignItems: 'center', gap: 14,
@@ -57,15 +67,21 @@ function makeStyles(c: AppColors) {
     settingDesc: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
     themeSelector: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
     themeOption: {
-      flex: 1, padding: 12, borderRadius: 14,
-      borderWidth: 1.5, borderColor: c.border, alignItems: 'center', gap: 6,
+      flex: 1, padding: 14, borderRadius: 18,
+      alignItems: 'center', gap: 6,
+      backgroundColor: c.surfaceElevated,
     },
-    themeOptionActive: { borderColor: c.accent, backgroundColor: c.accent10 },
+    themeOptionActive: { backgroundColor: c.accent10 },
     themeOptionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
     themeOptionLabelActive: { color: c.accent },
     dangerGroup: {
       backgroundColor: c.surface, marginHorizontal: 16,
-      borderRadius: 20, borderWidth: 1, borderColor: `${c.accent}40`, overflow: 'hidden',
+      borderRadius: 26, overflow: 'hidden',
+      shadowColor: c.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 14,
+      elevation: 3,
     },
     dangerRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 15 },
     dangerIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent10, justifyContent: 'center', alignItems: 'center' },
@@ -108,16 +124,16 @@ function makeStyles(c: AppColors) {
       backgroundColor: c.surfaceElevated, borderRadius: 12,
       borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, height: 50,
     },
-    inputBoxError: { borderColor: '#EF233C' },
+    inputBoxError: { borderColor: '#F55642' },
     textInput: { flex: 1, color: c.textPrimary, fontSize: 15 },
     eyeBtn: { padding: 4 },
     errorBox: {
-      backgroundColor: 'rgba(239,35,60,0.10)', borderRadius: 10,
-      borderWidth: 1, borderColor: 'rgba(239,35,60,0.25)',
+      backgroundColor: 'rgba(245, 86, 66,0.10)', borderRadius: 10,
+      borderWidth: 1, borderColor: 'rgba(245, 86, 66,0.25)',
       paddingHorizontal: 14, paddingVertical: 10, marginBottom: 16,
       flexDirection: 'row', alignItems: 'center', gap: 8,
     },
-    errorText: { color: '#EF233C', fontSize: 13, flex: 1, lineHeight: 18 },
+    errorText: { color: '#F55642', fontSize: 13, flex: 1, lineHeight: 18 },
     successBox: {
       backgroundColor: 'rgba(76,175,80,0.10)', borderRadius: 10,
       borderWidth: 1, borderColor: 'rgba(76,175,80,0.25)',
@@ -148,12 +164,12 @@ function makeStyles(c: AppColors) {
     },
     codeText: { fontSize: 42, fontWeight: '900', color: c.accent, letterSpacing: 8 },
     codeDescText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
-    codeTimer: { fontSize: 13, color: '#EF233C', fontWeight: '700', marginTop: 12 },
+    codeTimer: { fontSize: 13, color: '#F55642', fontWeight: '700', marginTop: 12 },
   });
 }
 
 type SettingRowProps = {
-  icon: string; iconBg: string; iconColor: string;
+  icon: HorusIconName; iconBg: string; iconColor: string;
   title: string; desc?: string; isLast?: boolean;
   right?: React.ReactNode; onPress?: () => void;
   styles: ReturnType<typeof makeStyles>;
@@ -167,13 +183,13 @@ function SettingRow({ icon, iconBg, iconColor, title, desc, isLast, right, onPre
       activeOpacity={onPress ? 0.7 : 1}
     >
       <View style={[styles.settingIconWrap, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={18} color={iconColor} />
+        <HorusIcon name={icon} size={18} color={iconColor} />
       </View>
       <View style={styles.settingText}>
         <Text style={styles.settingTitle}>{title}</Text>
         {desc && <Text style={styles.settingDesc}>{desc}</Text>}
       </View>
-      {right ?? <Ionicons name="chevron-forward" size={16} color="rgba(141,153,174,0.5)" />}
+      {right ?? <HorusIcon name="chevron-right" size={16} color="rgba(141,153,174,0.5)" />}
     </TouchableOpacity>
   );
 }
@@ -293,10 +309,14 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+      <AppHeader hideNotification hideAvatar
+        rightExtra={
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <HorusIcon name="arrow-left" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        }
+      />
+      <View style={{ paddingHorizontal: 20, paddingBottom: 8, backgroundColor: colors.background }}>
         <Text style={styles.headerTitle}>{t('title')}</Text>
       </View>
 
@@ -307,7 +327,7 @@ export default function SettingsScreen() {
         <View style={styles.settingGroup}>
           <View style={[styles.settingRow, { paddingBottom: 8 }]}>
             <View style={[styles.settingIconWrap, { backgroundColor: colors.accent10 }]}>
-              <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={colors.accent} />
+              <HorusIcon name={isDark ? 'moon' : 'sun'} size={18} color={colors.accent} />
             </View>
             <View style={styles.settingText}>
               <Text style={styles.settingTitle}>{t('theme')}</Text>
@@ -316,11 +336,11 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.themeSelector}>
             <TouchableOpacity style={[styles.themeOption, isDark && styles.themeOptionActive]} onPress={() => !isDark && toggleTheme()}>
-              <Ionicons name="moon" size={22} color={isDark ? colors.accent : colors.textMuted} />
+              <HorusIcon name="moon" size={22} color={isDark ? colors.accent : colors.textMuted} />
               <Text style={[styles.themeOptionLabel, isDark && styles.themeOptionLabelActive]}>{t('dark')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.themeOption, !isDark && styles.themeOptionActive]} onPress={() => isDark && toggleTheme()}>
-              <Ionicons name="sunny" size={22} color={!isDark ? colors.accent : colors.textMuted} />
+              <HorusIcon name="sun" size={22} color={!isDark ? colors.accent : colors.textMuted} />
               <Text style={[styles.themeOptionLabel, !isDark && styles.themeOptionLabelActive]}>{t('light')}</Text>
             </TouchableOpacity>
           </View>
@@ -329,13 +349,13 @@ export default function SettingsScreen() {
         {/* ── Notificaciones ── */}
         <Text style={styles.sectionLabel}>{t('notifications')}</Text>
         <View style={styles.settingGroup}>
-          <SettingRow icon="warning-outline" iconBg="rgba(255,167,38,0.12)" iconColor="#FFA726"
+          <SettingRow icon="alert-triangle" iconBg="rgba(255,167,38,0.12)" iconColor="#FFA726"
             title={t('securityAlerts')} desc={t('securityAlertsDesc')}
             right={<Switch value={notifAlerts} onValueChange={setNotifAlerts} {...switchColors} />} styles={styles} />
-          <SettingRow icon="sync-outline" iconBg="rgba(76,175,80,0.12)" iconColor="#4CAF50"
+          <SettingRow icon="sync" iconBg="rgba(76,175,80,0.12)" iconColor="#4CAF50"
             title={t('syncNotif')} desc={t('syncNotifDesc')}
             right={<Switch value={notifSync} onValueChange={setNotifSync} {...switchColors} />} styles={styles} />
-          <SettingRow icon="location-outline" iconBg={colors.accent10} iconColor={colors.accent}
+          <SettingRow icon="location" iconBg={colors.accent10} iconColor={colors.accent}
             title={t('locationUpdates')} desc={t('locationUpdatesDesc')} isLast
             right={<Switch value={notifLocation} onValueChange={setNotifLocation} {...switchColors} />} styles={styles} />
         </View>
@@ -343,16 +363,16 @@ export default function SettingsScreen() {
         {/* ── Dispositivo ── */}
         <Text style={styles.sectionLabel}>{t('device')}</Text>
         <View style={styles.settingGroup}>
-          <SettingRow icon="wifi-outline" iconBg="rgba(76,175,80,0.12)" iconColor="#4CAF50"
+          <SettingRow icon="nfc" iconBg="rgba(76,175,80,0.12)" iconColor="#4CAF50"
             title={t('nfc')} desc={t('nfcDesc')}
             right={<Switch value={nfcEnabled} onValueChange={setNfcEnabled} {...switchColors} />} styles={styles} />
-          <SettingRow icon="navigate-outline" iconBg={colors.accent10} iconColor={colors.accent}
+          <SettingRow icon="location" iconBg={colors.accent10} iconColor={colors.accent}
             title={t('gps')} desc={t('gpsDesc')}
             right={<Switch value={gpsEnabled} onValueChange={setGpsEnabled} {...switchColors} />} styles={styles} />
-          <SettingRow icon="watch-outline" iconBg="rgba(156,39,176,0.12)" iconColor="#9C27B0"
+          <SettingRow icon="watch" iconBg="rgba(156,39,176,0.12)" iconColor="#9C27B0"
             title={t('pairSmartwatch')} desc={t('pairSmartwatchDesc')}
             onPress={() => { setDeviceCode(null); setSmartwatchModalVisible(true); }} styles={styles} />
-          <SettingRow icon="repeat-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="refresh" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('autoSync')} desc={t('autoSyncDesc')} isLast
             right={<Switch value={autoSync} onValueChange={setAutoSync} {...switchColors} />} styles={styles} />
         </View>
@@ -360,11 +380,11 @@ export default function SettingsScreen() {
         {/* ── Privacidad ── */}
         <Text style={styles.sectionLabel}>{t('privacy')}</Text>
         <View style={styles.settingGroup}>
-          <SettingRow icon="lock-closed-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="lock" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('changePassword')} onPress={openPwModal} styles={styles} />
-          <SettingRow icon="shield-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="shield" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('privacyData')} styles={styles} />
-          <SettingRow icon="language-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="options" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('language')} desc={currentLangName} isLast
             onPress={() => setLangModalVisible(true)} styles={styles} />
         </View>
@@ -372,11 +392,11 @@ export default function SettingsScreen() {
         {/* ── Acerca de ── */}
         <Text style={styles.sectionLabel}>{t('about')}</Text>
         <View style={styles.settingGroup}>
-          <SettingRow icon="information-circle-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="info" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('appVersion')} desc={t('appVersionDesc')} right={<View />} styles={styles} />
-          <SettingRow icon="document-text-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="document" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('terms')} onPress={() => setTermsVisible(true)} styles={styles} />
-          <SettingRow icon="help-circle-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
+          <SettingRow icon="help" iconBg={colors.grey10} iconColor={colors.textSecondary}
             title={t('help')} isLast styles={styles} />
         </View>
 
@@ -385,13 +405,13 @@ export default function SettingsScreen() {
         <View style={styles.dangerGroup}>
           <TouchableOpacity style={styles.dangerRow} onPress={handleLogout}>
             <View style={styles.dangerIconWrap}>
-              <Ionicons name="log-out-outline" size={18} color={colors.accent} />
+              <HorusIcon name="logout" size={18} color={colors.accent} />
             </View>
             <View style={styles.dangerText}>
               <Text style={styles.dangerTitle}>{t('logout')}</Text>
               <Text style={styles.dangerDesc}>{user?.email ?? ''}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+            <HorusIcon name="chevron-right" size={16} color={colors.accent} />
           </TouchableOpacity>
         </View>
 
@@ -423,20 +443,20 @@ export default function SettingsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('changePasswordTitle')}</Text>
               <TouchableOpacity style={styles.modalClose} onPress={() => setPwModalVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
+                <HorusIcon name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
 
               {pwError && (
                 <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#EF233C" />
+                  <HorusIcon name="alert-circle" size={16} color="#F55642" />
                   <Text style={styles.errorText}>{pwError}</Text>
                 </View>
               )}
               {pwSuccess && (
                 <View style={styles.successBox}>
-                  <Ionicons name="checkmark-circle-outline" size={16} color="#4CAF50" />
+                  <HorusIcon name="check-circle" size={16} color="#4CAF50" />
                   <Text style={styles.successText}>
                     {language === 'es' ? '¡Contraseña actualizada correctamente!' : 'Password updated successfully!'}
                   </Text>
@@ -446,9 +466,9 @@ export default function SettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{t('currentPassword')}</Text>
                 <View style={[styles.inputBox, pwError ? styles.inputBoxError : null]}>
-                  <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
+                  <HorusIcon name="lock" size={18} color={colors.textMuted} />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { marginLeft: 10 }]}
                     placeholder="••••••••"
                     placeholderTextColor={colors.textMuted}
                     secureTextEntry={!showCurrent}
@@ -457,7 +477,7 @@ export default function SettingsScreen() {
                     editable={!pwLoading}
                   />
                   <TouchableOpacity onPress={() => setShowCurrent(p => !p)} style={styles.eyeBtn}>
-                    <Ionicons name={showCurrent ? 'eye-outline' : 'eye-off-outline'} size={18} color={colors.textMuted} />
+                    <HorusIcon name={showCurrent ? 'lock-open' : 'lock'} size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -465,9 +485,9 @@ export default function SettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{t('newPassword')}</Text>
                 <View style={[styles.inputBox, pwError ? styles.inputBoxError : null]}>
-                  <Ionicons name="lock-open-outline" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
+                  <HorusIcon name="lock-open" size={18} color={colors.textMuted} />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { marginLeft: 10 }]}
                     placeholder="••••••••"
                     placeholderTextColor={colors.textMuted}
                     secureTextEntry={!showNew}
@@ -476,7 +496,7 @@ export default function SettingsScreen() {
                     editable={!pwLoading}
                   />
                   <TouchableOpacity onPress={() => setShowNew(p => !p)} style={styles.eyeBtn}>
-                    <Ionicons name={showNew ? 'eye-outline' : 'eye-off-outline'} size={18} color={colors.textMuted} />
+                    <HorusIcon name={showNew ? 'lock-open' : 'lock'} size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -484,9 +504,9 @@ export default function SettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{t('confirmPassword')}</Text>
                 <View style={[styles.inputBox, pwError ? styles.inputBoxError : null]}>
-                  <Ionicons name="lock-open-outline" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
+                  <HorusIcon name="lock-open" size={18} color={colors.textMuted} />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { marginLeft: 10 }]}
                     placeholder="••••••••"
                     placeholderTextColor={colors.textMuted}
                     secureTextEntry={!showConfirm}
@@ -495,7 +515,7 @@ export default function SettingsScreen() {
                     editable={!pwLoading}
                   />
                   <TouchableOpacity onPress={() => setShowConfirm(p => !p)} style={styles.eyeBtn}>
-                    <Ionicons name={showConfirm ? 'eye-outline' : 'eye-off-outline'} size={18} color={colors.textMuted} />
+                    <HorusIcon name={showConfirm ? 'lock-open' : 'lock'} size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -524,7 +544,7 @@ export default function SettingsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('languageTitle')}</Text>
               <TouchableOpacity style={styles.modalClose} onPress={() => setLangModalVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
+                <HorusIcon name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -542,7 +562,7 @@ export default function SettingsScreen() {
                     <Text style={styles.langNative}>{lang.native}</Text>
                   </View>
                   {language === lang.code
-                    ? <View style={styles.langCheck}><Ionicons name="checkmark" size={14} color="#FFF" /></View>
+                    ? <View style={styles.langCheck}><HorusIcon name="check" size={14} color="#FFF" /></View>
                     : <View style={styles.langCheckEmpty} />
                   }
                 </TouchableOpacity>
@@ -559,7 +579,7 @@ export default function SettingsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('terms')}</Text>
               <TouchableOpacity style={styles.modalClose} onPress={() => setTermsVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
+                <HorusIcon name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
@@ -589,7 +609,7 @@ export default function SettingsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('smartwatchTitle')}</Text>
               <TouchableOpacity style={styles.modalClose} onPress={handleCloseSmartwatchModal}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
+                <HorusIcon name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -604,7 +624,7 @@ export default function SettingsScreen() {
                 </View>
               ) : (
                 <View style={{ marginVertical: 30, alignItems: 'center' }}>
-                  <Ionicons name="watch-outline" size={64} color={colors.border} />
+                  <HorusIcon name="watch" size={64} color={colors.border} />
                 </View>
               )}
 

@@ -13,7 +13,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { HorusIcon } from '../assets/icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { useApi } from '../hooks/useApi';
@@ -201,39 +201,62 @@ export default function Emergency() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>← Volver</Text>
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+            <HorusIcon name="arrow-left" size={16} color="#2563eb" />
+            <Text style={styles.backText}>Volver</Text>
           </TouchableOpacity>
-          <View style={styles.alertBadge}>
-            <Text style={styles.alertBadgeText}>🚨 EMERGENCIA</Text>
+          <View style={[styles.alertBadge, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+            <HorusIcon name="sos" size={12} color="#fff" />
+            <Text style={styles.alertBadgeText}>EMERGENCIA</Text>
           </View>
         </View>
 
         {/* Patient Info — TODO: ajustar según la respuesta real de la API — conectar con perfil del usuario */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>👤 Paciente</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <HorusIcon name="profile" size={13} color="#8a9bb0" />
+            <Text style={[styles.cardTitle, { marginBottom: 0 }]}>PACIENTE</Text>
+          </View>
           <Text style={styles.name}>Información del paciente</Text>
-          <Text style={styles.detail}>🩸 Tipo de sangre: <Text style={styles.highlight}>Ver perfil</Text></Text>
-          <Text style={styles.detail}>ℹ️ Datos médicos disponibles en el perfil</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <HorusIcon name="blood-drop" size={14} color="#ff3b30" />
+            <Text style={styles.detail}>Tipo de sangre: <Text style={styles.highlight}>Ver perfil</Text></Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <HorusIcon name="info" size={14} color="#8a9bb0" />
+            <Text style={styles.detail}>Datos médicos disponibles en el perfil</Text>
+          </View>
         </View>
 
         {/* Critical Alerts */}
         <View style={[styles.card, styles.alertCard]}>
-          <Text style={styles.cardTitle}>⚠️ Alertas críticas</Text>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>🥜 Consultar perfil para alergias</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <HorusIcon name="alert-triangle" size={13} color="#8a9bb0" />
+            <Text style={[styles.cardTitle, { marginBottom: 0 }]}>ALERTAS CRÍTICAS</Text>
           </View>
           <View style={styles.tag}>
-            <Text style={styles.tagText}>💊 Consultar perfil para medicamentos</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <HorusIcon name="alert-circle" size={14} color="#ff8a80" />
+              <Text style={styles.tagText}>Consultar perfil para alergias</Text>
+            </View>
+          </View>
+          <View style={styles.tag}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <HorusIcon name="pills" size={14} color="#ff8a80" />
+              <Text style={styles.tagText}>Consultar perfil para medicamentos</Text>
+            </View>
           </View>
         </View>
 
         {/* Emergency Contacts */}
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>📞 Contactos de emergencia</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <HorusIcon name="contact-emergency" size={13} color="#8a9bb0" />
+              <Text style={[styles.cardTitle, { marginBottom: 0 }]}>CONTACTOS DE EMERGENCIA</Text>
+            </View>
             <TouchableOpacity style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
-              <Ionicons name="add" size={14} color="#2563eb" />
+              <HorusIcon name="plus" size={14} color="#2563eb" />
               <Text style={styles.addBtnText}>Agregar</Text>
             </TouchableOpacity>
           </View>
@@ -270,7 +293,7 @@ export default function Emergency() {
                 <Text style={styles.contactPhone}>{contact.phone}</Text>
               </View>
               <TouchableOpacity style={styles.callBtn} onPress={() => handleCall(contact.phone)}>
-                <Ionicons name="call" size={14} color="#2563eb" />
+                <HorusIcon name="call" size={14} color="#2563eb" />
                 <Text style={styles.callBtnText}>Llamar</Text>
               </TouchableOpacity>
             </View>

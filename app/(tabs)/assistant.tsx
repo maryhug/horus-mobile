@@ -11,16 +11,17 @@ import {
   ListRenderItem,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiClient, getErrorMessage } from '../../services/api';
 import { AppColors } from '../../constants/colors';
+import { HorusIcon } from '../../assets/icons';
+import { AppHeader } from '../../components/AppHeader';
 import type { ChatResponse } from '../../types/api';
 
 type Message = { id: string; role: 'bot' | 'user'; text: string; error?: boolean };
 
 const INITIAL_MESSAGES: Message[] = [
-  { id: '1', role: 'bot', text: 'Hola 👋 Soy tu asistente Horus. Pregúntame sobre tu actividad, sensores o alertas recientes.' },
+  { id: '1', role: 'bot', text: 'Hola. Soy tu asistente Horus. Pregúntame sobre tu actividad, sensores o alertas recientes.' },
 ];
 
 const SUGGESTIONS = [
@@ -39,17 +40,13 @@ function makeStyles(c: AppColors) {
       gap: 12,
       paddingHorizontal: 20,
       paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
+      backgroundColor: c.background,
     },
     headerAvatar: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1.5,
-      borderColor: c.accent20,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: c.accent10,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -58,14 +55,17 @@ function makeStyles(c: AppColors) {
     headerAccent: { color: c.accent },
     headerActions: { flexDirection: 'row', gap: 8 },
     themeBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1,
-      borderColor: c.border,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: c.surface,
       justifyContent: 'center',
       alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      elevation: 3,
     },
     onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
     onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.success },
@@ -75,41 +75,47 @@ function makeStyles(c: AppColors) {
     msgRowBot: { justifyContent: 'flex-start' },
     msgRowUser: { justifyContent: 'flex-end' },
     botIcon: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: c.surfaceElevated,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: c.accent10,
       borderWidth: 1,
-      borderColor: c.border,
+      borderColor: c.accent20,
       justifyContent: 'center',
       alignItems: 'center',
       flexShrink: 0,
     },
-    bubble: { maxWidth: '78%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 11 },
+    bubble: { maxWidth: '78%', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 11 },
     bubbleBot: {
       backgroundColor: c.surface,
-      borderTopLeftRadius: 4,
-      borderWidth: 1,
-      borderColor: c.border,
+      borderTopLeftRadius: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 2,
     },
-    bubbleUser: { backgroundColor: c.accent, borderTopRightRadius: 4 },
-    bubbleError: { borderColor: 'rgba(239,35,60,0.35)', backgroundColor: 'rgba(239,35,60,0.08)' },
+    bubbleUser: { backgroundColor: c.accent, borderTopRightRadius: 6 },
+    bubbleError: { borderColor: 'rgba(245, 86, 66,0.35)', backgroundColor: 'rgba(245, 86, 66,0.08)' },
     bubbleText: { fontSize: 14, lineHeight: 20 },
     bubbleTextBot: { color: c.textPrimary },
     bubbleTextUser: { color: '#FFFFFF', fontWeight: '500' },
-    bubbleTextError: { color: '#EF233C' },
+    bubbleTextError: { color: '#F55642' },
     typingBubble: { paddingVertical: 14, paddingHorizontal: 16 },
     typingDots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
     typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.textSecondary },
-    suggestionsWrap: { borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.background },
+    suggestionsWrap: { backgroundColor: c.background },
     chipsList: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
     chip: {
       backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
       borderRadius: 20,
       paddingHorizontal: 14,
       paddingVertical: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.07,
+      shadowRadius: 8,
+      elevation: 2,
     },
     chipText: { fontSize: 12, color: c.textSecondary },
     inputBar: {
@@ -117,27 +123,29 @@ function makeStyles(c: AppColors) {
       alignItems: 'center',
       paddingHorizontal: 16,
       paddingVertical: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
       gap: 10,
       backgroundColor: c.background,
+      paddingBottom: 16,
     },
     input: {
       flex: 1,
       backgroundColor: c.surface,
-      borderRadius: 22,
+      borderRadius: 24,
       paddingHorizontal: 16,
       paddingVertical: 10,
       color: c.textPrimary,
       fontSize: 14,
-      borderWidth: 1,
-      borderColor: c.border,
       maxHeight: 100,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.07,
+      shadowRadius: 8,
+      elevation: 2,
     },
     sendBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: c.surfaceElevated,
       justifyContent: 'center',
       alignItems: 'center',
@@ -202,7 +210,7 @@ export default function AssistantScreen() {
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowBot]}>
         {!isUser && (
           <View style={styles.botIcon}>
-            <Ionicons name="sparkles" size={13} color={colors.accent} />
+            <HorusIcon name="assistant-active" size={16} color={colors.accent} />
           </View>
         )}
         <View style={[
@@ -224,30 +232,21 @@ export default function AssistantScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppHeader />
+      {/* Status bar del asistente — compacto, útil */}
+      <View style={{
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingHorizontal: 20, paddingVertical: 8,
+        backgroundColor: colors.background,
+      }}>
+        <View style={{
+          width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success,
+        }} />
+        <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '600' }}>
+          Horus AI · En línea · responde en tiempo real
+        </Text>
+      </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.header}>
-          <View style={styles.headerAvatar}>
-            <Ionicons name="sparkles" size={22} color={colors.accent} />
-          </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>
-              Asistente <Text style={styles.headerAccent}>Horus AI</Text>
-            </Text>
-            <View style={styles.onlineRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>En línea · responde en tiempo real</Text>
-            </View>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme}>
-              <Ionicons
-                name={isDark ? 'sunny-outline' : 'moon-outline'}
-                size={18}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
 
         <FlatList
           ref={flatListRef}
@@ -261,7 +260,7 @@ export default function AssistantScreen() {
             isTyping ? (
               <View style={[styles.msgRow, styles.msgRowBot]}>
                 <View style={styles.botIcon}>
-                  <Ionicons name="sparkles" size={13} color={colors.accent} />
+                  <HorusIcon name="assistant-active" size={16} color={colors.accent} />
                 </View>
                 <View style={[styles.bubble, styles.bubbleBot, styles.typingBubble]}>
                   <View style={styles.typingDots}>
@@ -308,10 +307,15 @@ export default function AssistantScreen() {
             onPress={() => sendMessage(inputText)}
             disabled={!inputText.trim() || isTyping}
           >
-            <Ionicons name="send" size={15} color={(inputText.trim() && !isTyping) ? '#FFFFFF' : colors.textMuted} />
+            <HorusIcon
+              name="send"
+              size={16}
+              color={(inputText.trim() && !isTyping) ? '#FFFFFF' : colors.textMuted}
+            />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+

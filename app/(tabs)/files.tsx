@@ -8,11 +8,13 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { AppColors } from '../../constants/colors';
+import { HorusIcon } from '../../assets/icons';
+import type { HorusIconName } from '../../assets/icons';
+import { AppHeader } from '../../components/AppHeader';
 
-type FileItem = { name: string; type: string; size: string; iconColor: string; icon: string };
+type FileItem = { name: string; type: string; size: string; iconColor: string; iconName: HorusIconName };
 
 const INITIAL_FILES: FileItem[] = [];
 
@@ -25,9 +27,7 @@ function makeStyles(c: AppColors) {
       paddingHorizontal: 20,
       paddingTop: 14,
       paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
+      backgroundColor: c.background,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
@@ -37,24 +37,30 @@ function makeStyles(c: AppColors) {
     pageTitleAccent: { color: c.accent },
     pageSubtitle: { fontSize: 11, color: c.textSecondary, marginTop: 4, lineHeight: 16 },
     themeBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1,
-      borderColor: c.border,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: c.surface,
       justifyContent: 'center',
       alignItems: 'center',
       marginLeft: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      elevation: 3,
     },
-    scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 14 },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 72, gap: 14 },
     uploadZone: {
       backgroundColor: c.surface,
-      borderRadius: 20,
-      borderWidth: 1.5,
-      borderColor: c.border,
+      borderRadius: 26,
       padding: 28,
       alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.10,
+      shadowRadius: 16,
+      elevation: 4,
     },
     uploadIconCircle: {
       width: 72,
@@ -76,19 +82,20 @@ function makeStyles(c: AppColors) {
     fileTypesRow: { flexDirection: 'row', gap: 8 },
     fileTypeBadge: {
       backgroundColor: c.surfaceElevated,
-      borderRadius: 8,
+      borderRadius: 10,
       paddingHorizontal: 10,
       paddingVertical: 5,
-      borderWidth: 1,
-      borderColor: c.border,
     },
     fileTypeText: { fontSize: 11, color: c.textSecondary, fontWeight: '600', letterSpacing: 0.5 },
     recentCard: {
       backgroundColor: c.surface,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
+      borderRadius: 26,
       overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.10,
+      shadowRadius: 16,
+      elevation: 4,
     },
     recentHeader: {
       flexDirection: 'row',
@@ -104,29 +111,30 @@ function makeStyles(c: AppColors) {
     fileList: { paddingHorizontal: 16 },
     fileRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 12 },
     fileRowBorder: { borderBottomWidth: 1, borderBottomColor: c.border },
-    fileIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+    fileIcon: { width: 46, height: 46, borderRadius: 14, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     fileInfo: { flex: 1 },
     fileName: { fontSize: 13, fontWeight: '500', color: c.textPrimary, marginBottom: 3 },
     fileMeta: { fontSize: 11, color: c.textSecondary },
     fileActions: { flexDirection: 'row', gap: 6 },
     actionBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
+      width: 36,
+      height: 36,
+      borderRadius: 12,
       backgroundColor: c.surfaceElevated,
       justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: c.border,
     },
     emptyState: { paddingVertical: 32, alignItems: 'center', gap: 8 },
     emptyText: { fontSize: 13, color: c.textMuted },
     storageCard: {
       backgroundColor: c.surface,
-      borderRadius: 16,
+      borderRadius: 26,
       padding: 16,
-      borderWidth: 1,
-      borderColor: c.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.10,
+      shadowRadius: 16,
+      elevation: 4,
     },
     storageHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 12 },
     storageTitle: { fontSize: 13, fontWeight: '600', color: c.textPrimary },
@@ -156,28 +164,18 @@ export default function FilesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.pageTitle}>
-            Gestión de <Text style={styles.pageTitleAccent}>archivos</Text>
-          </Text>
-          <Text style={styles.pageSubtitle}>
-            Reportes, configuraciones e historiales de tu manilla Horus
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme}>
-          <Ionicons
-            name={isDark ? 'sunny-outline' : 'moon-outline'}
-            size={18}
-            color={colors.textSecondary}
-          />
-        </TouchableOpacity>
+      <AppHeader />
+      {/* Greeting compacto — sin repetir "Archivos" que ya está en el nav */}
+      <View style={{ paddingHorizontal: 20, paddingBottom: 10, backgroundColor: colors.background }}>
+        <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+          Reportes, configuraciones e historiales de tu dispositivo
+        </Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <TouchableOpacity style={styles.uploadZone} activeOpacity={0.8}>
           <View style={styles.uploadIconCircle}>
-            <Ionicons name="cloud-upload-outline" size={34} color="#FFFFFF" />
+            <HorusIcon name="upload" size={34} color="#FFFFFF" />
           </View>
           <Text style={styles.uploadTitle}>Arrastra y suelta tus archivos aquí</Text>
           <Text style={styles.uploadHint}>
@@ -200,7 +198,7 @@ export default function FilesScreen() {
           </View>
           {files.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="folder-open-outline" size={40} color={colors.textMuted} />
+              <HorusIcon name="files" size={40} color={colors.textMuted} />
               <Text style={styles.emptyText}>No hay archivos aún</Text>
             </View>
           ) : (
@@ -208,7 +206,7 @@ export default function FilesScreen() {
               {files.map((file, index) => (
                 <View key={index} style={[styles.fileRow, index < files.length - 1 && styles.fileRowBorder]}>
                   <View style={[styles.fileIcon, { backgroundColor: file.iconColor + '22' }]}>
-                    <Ionicons name={file.icon as any} size={20} color={file.iconColor} />
+                    <HorusIcon name={file.iconName} size={20} color={file.iconColor} />
                   </View>
                   <View style={styles.fileInfo}>
                     <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
@@ -216,10 +214,10 @@ export default function FilesScreen() {
                   </View>
                   <View style={styles.fileActions}>
                     <TouchableOpacity style={styles.actionBtn}>
-                      <Ionicons name="download-outline" size={17} color={colors.textSecondary} />
+                      <HorusIcon name="download" size={17} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(index)}>
-                      <Ionicons name="trash-outline" size={17} color={colors.strawberryRed} />
+                      <HorusIcon name="trash" size={17} color={colors.strawberryRed} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -230,7 +228,7 @@ export default function FilesScreen() {
 
         <View style={styles.storageCard}>
           <View style={styles.storageHeader}>
-            <Ionicons name="server-outline" size={15} color={colors.accent} />
+            <HorusIcon name="cloud" size={15} color={colors.accent} />
             <Text style={styles.storageTitle}>Almacenamiento</Text>
           </View>
           <View style={styles.storageBarTrack}>

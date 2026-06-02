@@ -15,7 +15,9 @@ import {
     ActivityIndicator, Share, Dimensions, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { HorusIcon } from '../../assets/icons';
+import type { HorusIconName } from '../../assets/icons';
+import { AppHeader } from '../../components/AppHeader';
 import QRCode from 'react-native-qrcode-svg';
 import * as MediaLibrary from 'expo-media-library';
 import { captureRef } from 'react-native-view-shot';
@@ -116,7 +118,7 @@ function severityColor(s: string): string {
 
 function severityLabel(s: string): string {
     switch (s?.toUpperCase()) {
-        case 'LIFE_THREATENING': return '⚠️ Riesgo vital';
+        case 'LIFE_THREATENING': return 'Riesgo vital';
         case 'SEVERE':           return 'Severa';
         case 'MODERATE':         return 'Moderada';
         default:                 return 'Leve';
@@ -140,24 +142,28 @@ function makeStyles(c: AppColors) {
         header: {
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
             paddingHorizontal: H_PAD, paddingVertical: 14,
-            borderBottomWidth: 1, borderBottomColor: c.border,
-            backgroundColor: c.surface,
+            backgroundColor: c.background,
         },
         headerBrand:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
         brandIcon: {
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: c.accent10, borderWidth: 1, borderColor: c.accent20,
+            width: 44, height: 44, borderRadius: 14,
+            backgroundColor: c.accent10,
             justifyContent: 'center', alignItems: 'center',
         },
         brandName:    { color: c.accent, fontSize: 14, fontWeight: '800', letterSpacing: 1.5, lineHeight: 17 },
         brandSub:     { color: c.textMuted, fontSize: 9, fontWeight: '600', letterSpacing: 2, lineHeight: 12 },
         headerActions:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
         headerBtn: {
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: c.surfaceElevated, borderWidth: 1, borderColor: c.border,
+            width: 42, height: 42, borderRadius: 21,
+            backgroundColor: c.surface,
             justifyContent: 'center', alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.08,
+            shadowRadius: 10,
+            elevation: 3,
         },
-        scroll:       { paddingHorizontal: H_PAD, paddingBottom: 40 },
+        scroll:       { paddingHorizontal: H_PAD, paddingBottom: 72 },
         titleSection: {
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
             paddingTop: 20, marginBottom: 20,
@@ -176,10 +182,15 @@ function makeStyles(c: AppColors) {
 
         // QR card
         qrCard: {
-            backgroundColor: c.surface, borderRadius: 20,
+            backgroundColor: c.surface, borderRadius: 24,
             borderWidth: 1, borderColor: c.border,
             padding: 24, alignItems: 'center',
             marginBottom: CARD_GAP,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 2,
         },
         qrWrap: {
             backgroundColor: '#FFFFFF', borderRadius: 16,
@@ -198,7 +209,7 @@ function makeStyles(c: AppColors) {
         actionsRow:   { flexDirection: 'row', gap: CARD_GAP, marginBottom: CARD_GAP },
         actionBtn: {
             flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            gap: 8, paddingVertical: 14, borderRadius: 14,
+            gap: 8, paddingVertical: 14, borderRadius: 20,
             backgroundColor: c.surfaceElevated, borderWidth: 1, borderColor: c.border,
         },
         actionBtnPrimary: { backgroundColor: c.accent, borderColor: c.accent },
@@ -207,9 +218,14 @@ function makeStyles(c: AppColors) {
 
         // Config card
         card: {
-            backgroundColor: c.surface, borderRadius: 18,
+            backgroundColor: c.surface, borderRadius: 24,
             borderWidth: 1, borderColor: c.border,
             marginBottom: CARD_GAP, overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 2,
         },
         cardHead: {
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -250,7 +266,7 @@ function makeStyles(c: AppColors) {
 // TOGGLE ROW
 
 function ToggleRow({ icon, iconBg, iconColor, label, sub, value, onChange, last, styles, c }: {
-    icon: React.ComponentProps<typeof Ionicons>['name'];
+    icon: HorusIconName;
     iconBg: string; iconColor: string;
     label: string; sub: string;
     value: boolean; onChange: (v: boolean) => void;
@@ -262,7 +278,7 @@ function ToggleRow({ icon, iconBg, iconColor, label, sub, value, onChange, last,
         <View style={[styles.toggleRow, last && styles.toggleRowLast]}>
             <View style={styles.toggleLeft}>
                 <View style={[styles.toggleIconWrap, { backgroundColor: iconBg }]}>
-                    <Ionicons name={icon} size={16} color={iconColor} />
+                    <HorusIcon name={icon} size={16} color={iconColor} />
                 </View>
                 <View>
                     <Text style={styles.toggleLabel}>{label}</Text>
@@ -340,7 +356,7 @@ export default function QrMedicoScreen() {
             // Guardar en galería
             const asset = await MediaLibrary.createAssetAsync(uri);
             await MediaLibrary.createAlbumAsync('Horus', asset, false);
-            alert('✅ QR guardado en tu galería en el álbum "Horus"');
+            alert('QR guardado en tu galería en el álbum "Horus"');
         } catch (e: any) {
             alert('Error al guardar: ' + e.message);
         } finally {
@@ -355,38 +371,25 @@ export default function QrMedicoScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* ── Header ── */}
-            <View style={styles.header}>
-                <View style={styles.headerBrand}>
-                    <View style={styles.brandIcon}>
-                        <Ionicons name="qr-code-outline" size={20} color={colors.accent} />
-                    </View>
-                    <View>
-                        <Text style={styles.brandName}>ID MÉDICO</Text>
-                        <Text style={styles.brandSub}>HORUS · QR</Text>
-                    </View>
-                </View>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.headerBtn} onPress={toggleTheme}>
-                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerBtn} onPress={refetch}>
-                        <Ionicons name="refresh-outline" size={18} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
+            <AppHeader
+              rightExtra={
+                <TouchableOpacity style={styles.headerBtn} onPress={refetch}>
+                  <HorusIcon name="refresh" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              }
+            />
+            {/* Subtítulo compacto — "ID Médico" ya está en el nav */}
+            <View style={{ paddingHorizontal: H_PAD, paddingBottom: 8, backgroundColor: colors.background }}>
+              <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                Escaneable sin internet ni app desde cualquier cámara
+              </Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-                {/* ── Título ── */}
-                <View style={styles.titleSection}>
+                {/* ── Título (legacy section kept minimal) ── */}
+                <View style={[styles.titleSection, { paddingTop: 0, marginBottom: 12 }]}>
                     <View style={styles.titleLeft}>
-                        <Text style={styles.pageTitle}>
-                            Mi <Text style={styles.pageTitleAccent}>ID Médico</Text>
-                        </Text>
-                        <Text style={styles.pageSubtitle}>
-                            Escaneable sin internet ni app desde cualquier cámara
-                        </Text>
                     </View>
                     <View style={styles.statusPill}>
                         <View style={styles.statusDot} />
@@ -396,7 +399,7 @@ export default function QrMedicoScreen() {
 
                 {/* ── Info ── */}
                 <View style={styles.infoCard}>
-                    <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+                    <HorusIcon name="info" size={18} color={colors.accent} />
                     <Text style={styles.infoText}>
                         Muestra este QR en tu reloj como fondo de pantalla. Cualquier persona puede escanearlo con la cámara del teléfono para ver tu ficha médica, sin internet y sin instalar ninguna app.
                     </Text>
@@ -410,7 +413,7 @@ export default function QrMedicoScreen() {
                     </View>
                 ) : error ? (
                     <View style={[styles.card, styles.centered]}>
-                        <Ionicons name="cloud-offline-outline" size={32} color={colors.textMuted} />
+                        <HorusIcon name="cloud-offline" size={32} color={colors.textMuted} />
                         <Text style={styles.errorText}>{error}</Text>
                         <TouchableOpacity onPress={refetch}>
                             <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>Reintentar</Text>
@@ -431,7 +434,7 @@ export default function QrMedicoScreen() {
                         {age ? <Text style={styles.qrMeta}>{age}</Text> : null}
                         {blood !== '—' && (
                             <View style={styles.qrBlood}>
-                                <Ionicons name="water" size={14} color={colors.accent} />
+                                <HorusIcon name="blood-drop" size={14} color={colors.accent} />
                                 <Text style={styles.qrBloodText}>Tipo {blood}</Text>
                             </View>
                         )}
@@ -442,7 +445,7 @@ export default function QrMedicoScreen() {
                 {qrUrl && (
                     <View style={styles.actionsRow}>
                         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                            <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
+                            <HorusIcon name="share" size={18} color={colors.textPrimary} />
                             <Text style={styles.actionBtnText}>Compartir</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -452,7 +455,7 @@ export default function QrMedicoScreen() {
                         >
                             {saving
                                 ? <ActivityIndicator size="small" color="#FFF" />
-                                : <Ionicons name="download-outline" size={18} color="#FFF" />
+                                : <HorusIcon name="download" size={18} color="#FFF" />
                             }
                             <Text style={styles.actionBtnTextPrimary}>{saving ? 'Guardando…' : 'Guardar'}</Text>
                         </TouchableOpacity>
@@ -463,30 +466,30 @@ export default function QrMedicoScreen() {
                 <View style={styles.card}>
                     <View style={styles.cardHead}>
                         <View style={styles.cardHeadLeft}>
-                            <Ionicons name="options-outline" size={16} color={colors.accent} />
+                            <HorusIcon name="options" size={16} color={colors.accent} />
                             <Text style={styles.cardTitle}>Datos incluidos en el QR</Text>
                         </View>
                     </View>
                     <ToggleRow
-                        icon="water" iconBg="rgba(239,35,60,0.10)" iconColor={colors.accent}
+                        icon="blood-drop" iconBg="rgba(239,35,60,0.10)" iconColor={colors.accent}
                         label="Tipo de sangre" sub="Visible al escanear"
                         value={cfg.includeBloodType} onChange={() => toggle('includeBloodType')}
                         styles={styles} c={colors}
                     />
                     <ToggleRow
-                        icon="warning" iconBg="rgba(255,87,34,0.10)" iconColor="#FF5722"
+                        icon="alert-triangle" iconBg="rgba(255,87,34,0.10)" iconColor="#FF5722"
                         label="Alergias" sub="Incluye severidad y reacción"
                         value={cfg.includeAllergies} onChange={() => toggle('includeAllergies')}
                         styles={styles} c={colors}
                     />
                     <ToggleRow
-                        icon="medical" iconBg="rgba(33,150,243,0.10)" iconColor="#2196F3"
+                        icon="pills" iconBg="rgba(33,150,243,0.10)" iconColor="#2196F3"
                         label="Medicamentos" sub="Medicación actual"
                         value={cfg.includeMedications} onChange={() => toggle('includeMedications')}
                         styles={styles} c={colors}
                     />
                     <ToggleRow
-                        icon="fitness" iconBg="rgba(76,175,80,0.10)" iconColor="#4CAF50"
+                        icon="heartbeat" iconBg="rgba(76,175,80,0.10)" iconColor="#4CAF50"
                         label="Condiciones crónicas" sub="Solo condiciones activas"
                         value={cfg.includeConditions} onChange={() => toggle('includeConditions')}
                         styles={styles} c={colors}
@@ -498,7 +501,7 @@ export default function QrMedicoScreen() {
                         styles={styles} c={colors}
                     />
                     <ToggleRow
-                        icon="document-text" iconBg={colors.surfaceElevated} iconColor={colors.textMuted}
+                        icon="document" iconBg={colors.surfaceElevated} iconColor={colors.textMuted}
                         label="Notas médicas" sub="Información adicional del perfil"
                         value={cfg.includeMedicalNotes} onChange={() => toggle('includeMedicalNotes')}
                         last styles={styles} c={colors}
@@ -509,7 +512,7 @@ export default function QrMedicoScreen() {
                 <View style={styles.card}>
                     <View style={styles.cardHead}>
                         <View style={styles.cardHeadLeft}>
-                            <Ionicons name="watch-outline" size={16} color={colors.accent} />
+                            <HorusIcon name="watch" size={16} color={colors.accent} />
                             <Text style={styles.cardTitle}>Cómo ponerlo en tu reloj</Text>
                         </View>
                     </View>

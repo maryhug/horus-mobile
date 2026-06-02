@@ -1,80 +1,154 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
+import { HorusIcon } from '../../assets/icons';
+import { TAB_COLORS } from '../../constants/colors';
+import type { HorusIconName } from '../../assets/icons';
+
+type TabKey = keyof typeof TAB_COLORS;
+
+interface TabIconProps {
+  name: HorusIconName;
+  activeName: HorusIconName;
+  label: string;
+  tabKey: TabKey;
+  focused: boolean;
+}
+
+function TabItem({ name, activeName, label, tabKey, focused }: TabIconProps) {
+  const { colors } = useTheme();
+  const tc = TAB_COLORS[tabKey];
+
+  return (
+    <View style={{ alignItems: 'center', paddingTop: 6, width: 52 }}>
+      {/* Icon pill — only shows bg when active */}
+      <View style={{
+        width: 44,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: focused ? tc.bg : 'transparent',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 3,
+      }}>
+        <HorusIcon
+          name={focused ? activeName : name}
+          size={20}
+          color={focused ? tc.icon : colors.textMuted}
+        />
+      </View>
+      {/* Label */}
+      <Text style={{
+        fontSize: 10,
+        fontWeight: focused ? '700' : '500',
+        color: focused ? tc.icon : colors.textMuted,
+        letterSpacing: 0.1,
+      }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 export default function TabLayout() {
-    const { colors } = useTheme();
-    const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
-    // Minimum safe area per platform in case insets.bottom reports 0
-    const minBottom = Platform.OS === 'ios' ? 34 : Platform.OS === 'android' ? 28 : 8;
-    const safeBottom = Math.max(insets.bottom, minBottom);
+  const minBottom = Platform.OS === 'ios' ? 20 : Platform.OS === 'android' ? 8 : 4;
+  const safeBottom = Math.max(insets.bottom, minBottom);
+  const TAB_HEIGHT = 58 + safeBottom;
 
-    // Content area is always 52px (icon 24 + gap + label 14 + breathing room)
-    // safeBottom is added purely as dead space at the bottom for home indicator / gestures
-    const tabBarHeight = 52 + 6 + safeBottom; // 6 = paddingTop
-
-    return (
-        <Tabs
-            screenOptions={{
-                headerShown: false,
-                tabBarStyle: {
-                    backgroundColor: colors.surface,
-                    borderTopColor: colors.border,
-                    borderTopWidth: 1,
-                    height: tabBarHeight,
-                    paddingTop: 6,
-                    paddingBottom: safeBottom,
-                },
-                tabBarActiveTintColor: colors.accent,
-                tabBarInactiveTintColor: colors.textMuted,
-                tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-            }}
-        >
-            <Tabs.Screen
-                name="dashboard"
-                options={{
-                    title: 'Dashboard',
-                    tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
-                }}
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          height: TAB_HEIGHT,
+          paddingBottom: safeBottom,
+          paddingTop: 0,
+          paddingHorizontal: 4,
+          // Subtle top shadow
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: isDark ? 0.22 : 0.07,
+          shadowRadius: 12,
+          elevation: 10,
+        },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
+      }}
+    >
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              name="dashboard" activeName="dashboard-active"
+              label="Inicio" tabKey="dashboard" focused={focused}
             />
-            <Tabs.Screen
-                name="monitor"
-                options={{
-                    title: 'Monitor',
-                    tabBarIcon: ({ color, size }) => <Ionicons name="radio-outline" size={size} color={color} />,
-                }}
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="monitor"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              name="monitor" activeName="monitor-active"
+              label="Monitor" tabKey="monitor" focused={focused}
             />
-            <Tabs.Screen
-                name="qr-medico"
-                options={{
-                    title: 'ID Médico',
-                    tabBarIcon: ({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />,
-                }}
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="qr-medico"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              name="qr-medical" activeName="qr-medical-active"
+              label="ID Médico" tabKey="qr" focused={focused}
             />
-            <Tabs.Screen
-                name="assistant"
-                options={{
-                    title: 'Asistente IA',
-                    tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
-                }}
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="assistant"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              name="assistant" activeName="assistant-active"
+              label="Asistente" tabKey="assistant" focused={focused}
             />
-            <Tabs.Screen
-                name="files"
-                options={{
-                    title: 'Archivos',
-                    tabBarIcon: ({ color, size }) => <Ionicons name="folder-outline" size={size} color={color} />,
-                }}
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="files"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              name="files" activeName="files-active"
+              label="Archivos" tabKey="files" focused={focused}
             />
-            <Tabs.Screen
-                name="profile"
-                options={{
-                    title: 'Perfil',
-                    tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-                }}
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              name="profile" activeName="profile-active"
+              label="Perfil" tabKey="profile" focused={focused}
             />
-        </Tabs>
-    );
+          ),
+        }}
+      />
+    </Tabs>
+  );
 }

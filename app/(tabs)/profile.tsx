@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { HorusIcon } from '../../assets/icons';
+import type { HorusIconName } from '../../assets/icons';
+import { AppHeader } from '../../components/AppHeader';
 import { router } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,16 +28,19 @@ import type { ProfileData, ProfileUpdatePayload } from '../../types/api';
 function makeStyles(c: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingBottom: 32 },
+    scroll: { paddingBottom: 72 },
 
     profileCard: {
       backgroundColor: c.surface,
       marginHorizontal: 16,
-      marginTop: 16,
-      borderRadius: 20,
+      marginTop: 4,
+      borderRadius: 26,
       overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: c.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.10,
+      shadowRadius: 16,
+      elevation: 4,
     },
     banner: { height: 110, backgroundColor: c.accent },
     profileBottom: { paddingHorizontal: 16, paddingBottom: 20 },
@@ -49,7 +54,7 @@ function makeStyles(c: AppColors) {
     avatarBox: {
       width: 76,
       height: 76,
-      borderRadius: 16,
+      borderRadius: 20,
       backgroundColor: c.spaceIndigo,
       justifyContent: 'center',
       alignItems: 'center',
@@ -91,10 +96,13 @@ function makeStyles(c: AppColors) {
       backgroundColor: c.surface,
       marginHorizontal: 16,
       marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
+      borderRadius: 26,
       overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 14,
+      elevation: 3,
     },
     sectionHeader: {
       paddingHorizontal: 16,
@@ -167,10 +175,13 @@ function makeStyles(c: AppColors) {
       backgroundColor: c.surface,
       marginHorizontal: 16,
       marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
+      borderRadius: 26,
       padding: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 14,
+      elevation: 3,
     },
     settingsBtnLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     settingsBtnIconWrap: {
@@ -191,7 +202,7 @@ function makeStyles(c: AppColors) {
       gap: 8,
       marginHorizontal: 16,
       marginTop: 14,
-      borderRadius: 14,
+      borderRadius: 20,
       borderWidth: 1.5,
       borderColor: c.accent,
       padding: 14,
@@ -334,29 +345,8 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        backgroundColor: colors.surface,
-      }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.textPrimary }}>Mi Perfil</Text>
-        <TouchableOpacity
-          onPress={toggleTheme}
-          style={{
-            width: 38, height: 38, borderRadius: 10,
-            backgroundColor: colors.surfaceElevated,
-            borderWidth: 1, borderColor: colors.border,
-            justifyContent: 'center', alignItems: 'center',
-          }}
-        >
-          <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
+      <AppHeader hideNotification />
+      {/* Sin título redundante — "Perfil" ya está en el nav */}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -375,15 +365,15 @@ export default function ProfileScreen() {
                   {loading
                     ? <ActivityIndicator color={colors.accent} />
                     : profileImage
-                      ? <Image source={{ uri: profileImage }} style={{ width: 70, height: 70, borderRadius: 13 }} />
-                      : <Ionicons name="person" size={36} color={colors.lavenderGrey} />}
+                      ? <Image source={{ uri: profileImage }} style={{ width: 70, height: 70, borderRadius: 16 }} />
+                      : <HorusIcon name="profile" size={36} color={colors.lavenderGrey} />}
                 </View>
                 <TouchableOpacity style={styles.cameraBtn} onPress={handlePickImage}>
-                  <Ionicons name="camera" size={12} color="#FFFFFF" />
+                  <HorusIcon name="camera" size={12} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.editBtn} onPress={handleOpenEdit}>
-                <Ionicons name="pencil" size={14} color="#FFFFFF" />
+                <HorusIcon name="edit" size={14} color="#FFFFFF" />
                 <Text style={styles.editBtnText}>Editar perfil</Text>
               </TouchableOpacity>
             </View>
@@ -400,13 +390,13 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>INFORMACIÓN PERSONAL</Text>
           </View>
 
-          <InfoRow icon="mail-outline" label="Email" value={displayUser?.email ?? '—'} colors={colors} styles={styles} />
-          <InfoRow icon="call-outline" label="Teléfono" value={displayUser?.phone ?? '—'} muted={!displayUser?.phone} styles={styles} colors={colors} />
-          <InfoRow icon="location-outline" label="Ubicación" value={displayUser?.location ?? '—'} muted={!displayUser?.location} styles={styles} colors={colors} />
-          <InfoRow icon="water-outline" label="Tipo de sangre" value={displayUser?.bloodType ?? '—'} muted={!displayUser?.bloodType} styles={styles} colors={colors} />
+          <InfoRow icon="mail" label="Email" value={displayUser?.email ?? '—'} colors={colors} styles={styles} />
+          <InfoRow icon="call" label="Teléfono" value={displayUser?.phone ?? '—'} muted={!displayUser?.phone} styles={styles} colors={colors} />
+          <InfoRow icon="location" label="Ubicación" value={displayUser?.location ?? '—'} muted={!displayUser?.location} styles={styles} colors={colors} />
+          <InfoRow icon="blood-drop" label="Tipo de sangre" value={displayUser?.bloodType ?? '—'} muted={!displayUser?.bloodType} styles={styles} colors={colors} />
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="calendar-outline" size={17} color={colors.accent} />
+              <HorusIcon name="calendar" size={17} color={colors.accent} />
             </View>
             <View style={styles.infoTextWrap}>
               <Text style={styles.infoLabel}>Fecha de nacimiento</Text>
@@ -426,7 +416,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.deviceRow}>
             <View style={styles.deviceIconWrap}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
+              <HorusIcon name="shield-check" size={20} color={colors.accent} />
             </View>
             <View>
               <Text style={styles.deviceName}>Manilla Horus</Text>
@@ -460,18 +450,18 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')}>
           <View style={styles.settingsBtnLeft}>
             <View style={styles.settingsBtnIconWrap}>
-              <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
+              <HorusIcon name="settings" size={20} color={colors.textSecondary} />
             </View>
             <View>
               <Text style={styles.settingsBtnText}>Configuración</Text>
               <Text style={styles.settingsBtnSub}>Notificaciones, privacidad, dispositivo</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          <HorusIcon name="chevron-right" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={19} color={colors.accent} />
+          <HorusIcon name="logout" size={19} color={colors.accent} />
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -567,13 +557,13 @@ export default function ProfileScreen() {
 function InfoRow({
   icon, label, value, muted, styles, colors,
 }: {
-  icon: string; label: string; value: string; muted?: boolean;
+  icon: HorusIconName; label: string; value: string; muted?: boolean;
   styles: ReturnType<typeof makeStyles>; colors: AppColors;
 }) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoIconWrap}>
-        <Ionicons name={icon as any} size={17} color={colors.accent} />
+        <HorusIcon name={icon} size={17} color={colors.accent} />
       </View>
       <View style={styles.infoTextWrap}>
         <Text style={styles.infoLabel}>{label}</Text>
