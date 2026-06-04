@@ -1,247 +1,279 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
+  View, Text, ScrollView, StyleSheet,
+  TouchableOpacity, Alert, Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../contexts/ThemeContext';
-import { AppColors } from '../../constants/colors';
+import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
+import { FONT } from '../../constants/fonts';
 
-type FileItem = { name: string; type: string; size: string; iconColor: string; icon: string };
+// ── Palette ────────────────────────────────────────────────────────────────
+const BG      = '#F9F6ED';
+const CARD    = '#FFFFFF';
+const PRIMARY = '#1A1512';
+const MUTED   = '#8C7F6E';
+const MUTED_BG= '#F3EFE7';
+const GREEN   = '#96C979';
+const YELLOW  = '#FAD957';
+const BLUE    = '#A5CCF4';
+const PINK    = '#FAB2D3';
+const RED_BG  = '#FDECEA';
+const RED_FG  = '#C0392B';
 
-const INITIAL_FILES: FileItem[] = [];
+// ── Type colors ────────────────────────────────────────────────────────────
+const TYPE_COLOR: Record<string, { bg: string; fg: string }> = {
+  PDF:  { bg: PINK,   fg: '#7A1A3A' },
+  CSV:  { bg: GREEN,  fg: '#1A3D0A' },
+  JSON: { bg: BLUE,   fg: '#1A3A5C' },
+  PNG:  { bg: YELLOW, fg: '#3D2C00' },
+};
 
-const FILE_TYPES = ['PDF', 'CSV', 'JSON', 'PNG'];
+// ── Mock data ──────────────────────────────────────────────────────────────
+type FileItem = { id: string; name: string; type: string; size: string };
+const INITIAL_FILES: FileItem[] = [
+  { id: '1', name: 'Examen_sangre_marzo.pdf', type: 'PDF',  size: '1.2 MB' },
+  { id: '2', name: 'Reporte_actividad.csv',   type: 'CSV',  size: '340 KB' },
+  { id: '3', name: 'Config_dispositivo.json', type: 'JSON', size: '12 KB'  },
+  { id: '4', name: 'Electrocardiograma.png',  type: 'PNG',  size: '2.8 MB' },
+];
+const STORAGE_USED  = 4.4;
+const STORAGE_LIMIT = 100;
 
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: 14,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-    },
-    headerText: { flex: 1 },
-    pageTitle: { fontSize: 20, fontWeight: '700', color: c.textPrimary, lineHeight: 26 },
-    pageTitleAccent: { color: c.accent },
-    pageSubtitle: { fontSize: 11, color: c.textSecondary, marginTop: 4, lineHeight: 16 },
-    themeBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1,
-      borderColor: c.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginLeft: 12,
-    },
-    scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 14 },
-    uploadZone: {
-      backgroundColor: c.surface,
-      borderRadius: 20,
-      borderWidth: 1.5,
-      borderColor: c.border,
-      padding: 28,
-      alignItems: 'center',
-    },
-    uploadIconCircle: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: c.accent,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 16,
-      shadowColor: c.accent,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.4,
-      shadowRadius: 14,
-      elevation: 8,
-    },
-    uploadTitle: { fontSize: 14, fontWeight: '600', color: c.textPrimary, marginBottom: 8, textAlign: 'center' },
-    uploadHint: { fontSize: 12, color: c.textSecondary, textAlign: 'center', marginBottom: 16, lineHeight: 18 },
-    uploadLink: { color: c.accent, fontWeight: '600' },
-    fileTypesRow: { flexDirection: 'row', gap: 8 },
-    fileTypeBadge: {
-      backgroundColor: c.surfaceElevated,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    fileTypeText: { fontSize: 11, color: c.textSecondary, fontWeight: '600', letterSpacing: 0.5 },
-    recentCard: {
-      backgroundColor: c.surface,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      overflow: 'hidden',
-    },
-    recentHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    recentTitle: { fontSize: 14, fontWeight: '600', color: c.textPrimary },
-    recentCount: { fontSize: 11, color: c.textSecondary },
-    fileList: { paddingHorizontal: 16 },
-    fileRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 12 },
-    fileRowBorder: { borderBottomWidth: 1, borderBottomColor: c.border },
-    fileIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-    fileInfo: { flex: 1 },
-    fileName: { fontSize: 13, fontWeight: '500', color: c.textPrimary, marginBottom: 3 },
-    fileMeta: { fontSize: 11, color: c.textSecondary },
-    fileActions: { flexDirection: 'row', gap: 6 },
-    actionBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    emptyState: { paddingVertical: 32, alignItems: 'center', gap: 8 },
-    emptyText: { fontSize: 13, color: c.textMuted },
-    storageCard: {
-      backgroundColor: c.surface,
-      borderRadius: 16,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    storageHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 12 },
-    storageTitle: { fontSize: 13, fontWeight: '600', color: c.textPrimary },
-    storageBarTrack: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
-    storageBarFill: { width: '16.4%', height: '100%', backgroundColor: c.accent, borderRadius: 3 },
-    storageStats: { flexDirection: 'row', justifyContent: 'space-between' },
-    storageUsed: { fontSize: 11, color: c.textSecondary },
-    storageTotal: { fontSize: 11, color: c.textMuted },
-  });
+// ── SVG Icons (Lucide paths) ───────────────────────────────────────────────
+function UploadCloudIcon({ color, size = 28 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M12 12v9"     stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="m16 16-4-4-4 4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
+function HardDriveIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Line x1={22} y1={12} x2={2} y2={12} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={6} y1={16} x2="6.01" y2={16} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={10} y1={16} x2="10.01" y2={16} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function FileTextIcon({ color, size = 20 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M14 2v4a2 2 0 0 0 2 2h4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M10 9H8"  stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M16 13H8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M16 17H8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function DownloadIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Polyline points="7 10 12 15 17 10" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={12} y1={15} x2={12} y2={3} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function Trash2Icon({ color, size = 16 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M3 6h18"                                     stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"      stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"         stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={10} y1={11} x2={10} y2={17}                 stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={14} y1={11} x2={14} y2={17}                 stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// ── Screen ─────────────────────────────────────────────────────────────────
 export default function FilesScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [files, setFiles] = useState<FileItem[]>(INITIAL_FILES);
 
-  const handleDelete = (index: number) => {
+  const pct = Math.round((STORAGE_USED / STORAGE_LIMIT) * 100);
+
+  const handleDownload = (name: string) => {
+    Share.share({ message: `Descargando: ${name}` }).catch(() => {});
+  };
+
+  const handleDelete = (id: string, name: string) => {
     Alert.alert(
       'Eliminar archivo',
-      `¿Seguro que deseas eliminar "${files[index].name}"?`,
+      `¿Eliminar "${name}"? Esta acción no se puede deshacer.`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => setFiles(prev => prev.filter((_, i) => i !== index)) },
+        { text: 'Eliminar', style: 'destructive', onPress: () => setFiles(p => p.filter(f => f.id !== id)) },
       ]
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.pageTitle}>
-            Gestión de <Text style={styles.pageTitleAccent}>archivos</Text>
-          </Text>
-          <Text style={styles.pageSubtitle}>
-            Reportes, configuraciones e historiales de tu manilla Horus
-          </Text>
+    <SafeAreaView style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View style={s.header}>
+          <Text style={s.title}>Archivos</Text>
+          <Text style={s.subtitle}>Documentos y reportes médicos</Text>
         </View>
-        <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme}>
-          <Ionicons
-            name={isDark ? 'sunny-outline' : 'moon-outline'}
-            size={18}
-            color={colors.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity style={styles.uploadZone} activeOpacity={0.8}>
-          <View style={styles.uploadIconCircle}>
-            <Ionicons name="cloud-upload-outline" size={34} color="#FFFFFF" />
+        {/* ── Upload zone ─────────────────────────────────────────────── */}
+        <TouchableOpacity style={s.uploadZone} activeOpacity={0.85}>
+          <View style={s.uploadIcon}>
+            <UploadCloudIcon color={PRIMARY} size={28} />
           </View>
-          <Text style={styles.uploadTitle}>Arrastra y suelta tus archivos aquí</Text>
-          <Text style={styles.uploadHint}>
-            o <Text style={styles.uploadLink}>haz clic para seleccionar</Text>
-            {' '}· Máx. 25 MB por archivo
-          </Text>
-          <View style={styles.fileTypesRow}>
-            {FILE_TYPES.map(type => (
-              <View key={type} style={styles.fileTypeBadge}>
-                <Text style={styles.fileTypeText}>{type}</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={s.uploadTitle}>Subir archivo</Text>
+          <Text style={s.uploadSub}>PDF, CSV, JSON, PNG · máx. 25 MB</Text>
         </TouchableOpacity>
 
-        <View style={styles.recentCard}>
-          <View style={styles.recentHeader}>
-            <Text style={styles.recentTitle}>Archivos recientes</Text>
-            <Text style={styles.recentCount}>{files.length} elemento{files.length !== 1 ? 's' : ''}</Text>
-          </View>
-          {files.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="folder-open-outline" size={40} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No hay archivos aún</Text>
+        {/* ── Storage bar ─────────────────────────────────────────────── */}
+        <View style={s.storageCard}>
+          <View style={s.storageRow}>
+            <View style={s.storageLeft}>
+              <HardDriveIcon color={MUTED} size={16} />
+              <Text style={s.storageLabel}>Almacenamiento</Text>
             </View>
-          ) : (
-            <View style={styles.fileList}>
-              {files.map((file, index) => (
-                <View key={index} style={[styles.fileRow, index < files.length - 1 && styles.fileRowBorder]}>
-                  <View style={[styles.fileIcon, { backgroundColor: file.iconColor + '22' }]}>
-                    <Ionicons name={file.icon as any} size={20} color={file.iconColor} />
+            <Text style={s.storageValue}>{STORAGE_USED} MB de {STORAGE_LIMIT} MB</Text>
+          </View>
+          <View style={s.barTrack}>
+            <View style={[s.barFill, { width: `${pct}%` as any }]} />
+          </View>
+        </View>
+
+        {/* ── File list ───────────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Archivos recientes</Text>
+
+        {files.length === 0 ? (
+          <View style={s.emptyCard}>
+            <Text style={s.emptyTitle}>Sin archivos</Text>
+            <Text style={s.emptySub}>Sube tu primer documento</Text>
+          </View>
+        ) : (
+          <View style={s.fileList}>
+            {files.map(f => {
+              const tc = TYPE_COLOR[f.type] ?? { bg: MUTED_BG, fg: PRIMARY };
+              return (
+                <View key={f.id} style={s.fileRow}>
+                  <View style={[s.fileIcon, { backgroundColor: tc.bg }]}>
+                    <FileTextIcon color={tc.fg} size={20} />
                   </View>
-                  <View style={styles.fileInfo}>
-                    <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
-                    <Text style={styles.fileMeta}>{file.type} · {file.size}</Text>
+                  <View style={s.fileInfo}>
+                    <Text style={s.fileName} numberOfLines={1}>{f.name}</Text>
+                    <Text style={s.fileMeta}>{f.type} · {f.size}</Text>
                   </View>
-                  <View style={styles.fileActions}>
-                    <TouchableOpacity style={styles.actionBtn}>
-                      <Ionicons name="download-outline" size={17} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(index)}>
-                      <Ionicons name="trash-outline" size={17} color={colors.strawberryRed} />
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity style={s.actionBtn} activeOpacity={0.7} onPress={() => handleDownload(f.name)}>
+                    <DownloadIcon color={MUTED} size={16} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.actionBtnRed} onPress={() => handleDelete(f.id, f.name)} activeOpacity={0.7}>
+                    <Trash2Icon color={RED_FG} size={16} />
+                  </TouchableOpacity>
                 </View>
-              ))}
-            </View>
-          )}
-        </View>
+              );
+            })}
+          </View>
+        )}
 
-        <View style={styles.storageCard}>
-          <View style={styles.storageHeader}>
-            <Ionicons name="server-outline" size={15} color={colors.accent} />
-            <Text style={styles.storageTitle}>Almacenamiento</Text>
-          </View>
-          <View style={styles.storageBarTrack}>
-            <View style={[styles.storageBarFill, { width: '0%' }]} />
-          </View>
-          <View style={styles.storageStats}>
-            <Text style={styles.storageUsed}>0 MB usados</Text>
-            <Text style={styles.storageTotal}>Sin límite configurado</Text>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  scroll:    { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120, gap: 20 },
+
+  // Header
+  header:   { gap: 3, paddingTop: 20 },
+  title:    { fontSize: 26, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.52 },
+  subtitle: { fontSize: 14, color: MUTED, fontFamily: FONT.sansRegular },
+
+  // Upload zone — borde punteado visible
+  uploadZone: {
+    backgroundColor: CARD,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#C8C2B6',
+    borderStyle: 'dashed',
+    paddingVertical: 36,
+    alignItems: 'center',
+    gap: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+  },
+  uploadIcon: {
+    width: 56, height: 56, borderRadius: 16,
+    backgroundColor: YELLOW,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  uploadTitle: { fontSize: 15, fontWeight: '700', color: PRIMARY },
+  uploadSub:   { fontSize: 12, color: MUTED, marginTop: 2 },
+
+  // Storage card
+  storageCard: {
+    backgroundColor: CARD, borderRadius: 24, padding: 18,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    gap: 12,
+  },
+  storageRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  storageLeft:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storageLabel: { fontSize: 13, fontWeight: '700', color: PRIMARY },
+  storageValue: { fontSize: 12, color: MUTED },
+  barTrack: {
+    height: 10, backgroundColor: MUTED_BG,
+    borderRadius: 5, overflow: 'hidden',
+  },
+  barFill: { height: '100%', backgroundColor: GREEN, borderRadius: 5 },
+
+  // Section title
+  sectionTitle: { fontSize: 17, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.34 },
+
+  // File list — cada fila es una card separada
+  fileList:  { gap: 8 },
+  fileRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: CARD, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  // ← CÍRCULOS (borderRadius = mitad del tamaño)
+  fileIcon: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  fileInfo:  { flex: 1, minWidth: 0 },
+  fileName:  { fontSize: 14, fontWeight: '700', color: PRIMARY },
+  fileMeta:  { fontSize: 12, color: MUTED, marginTop: 1 },
+  actionBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: MUTED_BG,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  actionBtnRed: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: RED_BG,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+
+  // Empty state
+  emptyCard: {
+    backgroundColor: CARD, borderRadius: 24,
+    paddingVertical: 40, alignItems: 'center', gap: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: PRIMARY },
+  emptySub:   { fontSize: 12, color: MUTED },
+});

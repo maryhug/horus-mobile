@@ -1,265 +1,120 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Switch,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-  Alert,
+  View, Text, ScrollView, StyleSheet,
+  TouchableOpacity, Modal, Alert, Animated, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
-import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useLanguage, Language } from '../contexts/LanguageContext';
+import { EmotionShape } from '../components/EmotionShape';
+import { FONT } from '../constants/fonts';
 import { apiClient, getErrorMessage } from '../services/api';
-import { AppColors } from '../constants/colors';
 
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    header: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingHorizontal: 20, paddingVertical: 14,
-      borderBottomWidth: 1, borderBottomColor: c.border,
-      backgroundColor: c.surface,
-    },
-    backBtn: {
-      width: 38, height: 38, borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1, borderColor: c.border,
-      justifyContent: 'center', alignItems: 'center',
-    },
-    headerTitle: { fontSize: 18, fontWeight: '800', color: c.textPrimary, flex: 1 },
-    scroll: { paddingBottom: 40 },
-    sectionLabel: {
-      fontSize: 11, fontWeight: '800', color: c.textMuted, letterSpacing: 1.2,
-      paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10,
-    },
-    settingGroup: {
-      backgroundColor: c.surface, marginHorizontal: 16,
-      borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden',
-    },
-    settingRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 14,
-      paddingHorizontal: 16, paddingVertical: 14,
-      borderBottomWidth: 1, borderBottomColor: c.border,
-    },
-    settingRowLast: { borderBottomWidth: 0 },
-    settingIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-    settingText: { flex: 1 },
-    settingTitle: { fontSize: 14, fontWeight: '600', color: c.textPrimary },
-    settingDesc: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
-    themeSelector: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-    themeOption: {
-      flex: 1, padding: 12, borderRadius: 14,
-      borderWidth: 1.5, borderColor: c.border, alignItems: 'center', gap: 6,
-    },
-    themeOptionActive: { borderColor: c.accent, backgroundColor: c.accent10 },
-    themeOptionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    themeOptionLabelActive: { color: c.accent },
-    dangerGroup: {
-      backgroundColor: c.surface, marginHorizontal: 16,
-      borderRadius: 20, borderWidth: 1, borderColor: `${c.accent}40`, overflow: 'hidden',
-    },
-    dangerRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 15 },
-    dangerIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent10, justifyContent: 'center', alignItems: 'center' },
-    dangerText: { flex: 1 },
-    dangerTitle: { fontSize: 14, fontWeight: '600', color: c.accent },
-    dangerDesc: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
-    versionText: { textAlign: 'center', color: c.textMuted, fontSize: 12, marginTop: 24 },
+// ── Palette ────────────────────────────────────────────────────────────────
+const BG      = '#F9F6ED';
+const CARD    = '#FFFFFF';
+const PRIMARY = '#1A1512';
+const MUTED   = '#8C7F6E';
+const MUTED_BG= '#F3EFE7';
+const GREEN   = '#96C979';
+const BLUE    = '#A5CCF4';
+const BLUE_FG = '#1A3A5C';
+const RED     = '#C0392B';
+const RED_BG  = '#FDECEA';
 
-    // Shared modal
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalCard: { backgroundColor: c.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
-    modalHeader: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      padding: 20, borderBottomWidth: 1, borderBottomColor: c.border,
-    },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: c.textPrimary },
-    modalClose: { width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceElevated, justifyContent: 'center', alignItems: 'center' },
-    modalBody: { padding: 20 },
-    modalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
-    cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: c.border, alignItems: 'center' },
-    cancelBtnText: { color: c.textSecondary, fontWeight: '700', fontSize: 14 },
-    confirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
-    confirmBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-
-    // Logout modal
-    logoutModalCard: { backgroundColor: c.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-    logoutModalTitle: { fontSize: 18, fontWeight: '800', color: c.textPrimary, marginBottom: 8 },
-    logoutModalDesc: { color: c.textSecondary, fontSize: 14, marginBottom: 24 },
-
-    // Terms modal
-    termsSection: { marginBottom: 20 },
-    termsSectionTitle: { fontSize: 13, fontWeight: '800', color: c.accent, marginBottom: 8, letterSpacing: 0.5 },
-    termsText: { fontSize: 13, color: c.textSecondary, lineHeight: 20 },
-
-    // Change password modal
-    inputGroup: { marginBottom: 16 },
-    inputLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
-    inputBox: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.surfaceElevated, borderRadius: 12,
-      borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, height: 50,
-    },
-    inputBoxError: { borderColor: '#EF233C' },
-    textInput: { flex: 1, color: c.textPrimary, fontSize: 15 },
-    eyeBtn: { padding: 4 },
-    errorBox: {
-      backgroundColor: 'rgba(239,35,60,0.10)', borderRadius: 10,
-      borderWidth: 1, borderColor: 'rgba(239,35,60,0.25)',
-      paddingHorizontal: 14, paddingVertical: 10, marginBottom: 16,
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-    },
-    errorText: { color: '#EF233C', fontSize: 13, flex: 1, lineHeight: 18 },
-    successBox: {
-      backgroundColor: 'rgba(76,175,80,0.10)', borderRadius: 10,
-      borderWidth: 1, borderColor: 'rgba(76,175,80,0.25)',
-      paddingHorizontal: 14, paddingVertical: 10, marginBottom: 16,
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-    },
-    successText: { color: '#4CAF50', fontSize: 13, flex: 1 },
-
-    // Language modal
-    langOption: {
-      flexDirection: 'row', alignItems: 'center', gap: 14,
-      paddingVertical: 16, paddingHorizontal: 4,
-      borderBottomWidth: 1, borderBottomColor: c.border,
-    },
-    langOptionLast: { borderBottomWidth: 0 },
-    langFlag: { fontSize: 28 },
-    langText: { flex: 1 },
-    langName: { fontSize: 15, fontWeight: '600', color: c.textPrimary },
-    langNative: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
-    langCheck: { width: 24, height: 24, borderRadius: 12, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center' },
-    langCheckEmpty: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.border },
-    langSubtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 20 },
-
-    // Smartwatch code
-    codeContainer: {
-      backgroundColor: c.accent10, borderRadius: 16, padding: 24,
-      alignItems: 'center', justifyContent: 'center', marginVertical: 20,
-    },
-    codeText: { fontSize: 42, fontWeight: '900', color: c.accent, letterSpacing: 8 },
-    codeDescText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
-    codeTimer: { fontSize: 13, color: '#EF233C', fontWeight: '700', marginTop: 12 },
-  });
+// ── SVG Icons ──────────────────────────────────────────────────────────────
+const sw = { strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+function Icon({ size = 18, children }: { size?: number; children: React.ReactNode }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">{children}</Svg>;
 }
+const ChevronLeft  = ({ c, s=18 }: { c: string; s?: number }) => <Icon size={s}><Path d="m15 18-6-6 6-6" stroke={c} {...sw} /></Icon>;
+const ChevronRight = ({ c }: { c: string }) => <Icon size={16}><Path d="m9 18 6-6-6-6" stroke={c} {...sw} /></Icon>;
+const SunIcon      = ({ c }: { c: string }) => <Icon><Circle cx={12} cy={12} r={4} stroke={c} {...sw} /><Path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" stroke={c} {...sw} /></Icon>;
+const MoonIcon     = ({ c }: { c: string }) => <Icon><Path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" stroke={c} {...sw} /></Icon>;
+const GlobeIcon    = ({ c }: { c: string }) => <Icon><Circle cx={12} cy={12} r={10} stroke={c} {...sw} /><Path d="M12 2a14.5 14.5 0 0 0 0 20A14.5 14.5 0 0 0 12 2" stroke={c} {...sw} /><Path d="M2 12h20" stroke={c} {...sw} /></Icon>;
+const BellIcon     = ({ c }: { c: string }) => <Icon><Path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" stroke={c} {...sw} /><Path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke={c} {...sw} /></Icon>;
+const MapPinIcon   = ({ c }: { c: string }) => <Icon><Path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" stroke={c} {...sw} /><Circle cx={12} cy={10} r={3} stroke={c} {...sw} /></Icon>;
+const HeartPulse   = ({ c }: { c: string }) => <Icon><Path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" stroke={c} {...sw} /><Path d="M3.22 12H9.5l.5-1 2 4 .5-1h6.28" stroke={c} {...sw} /></Icon>;
+const Fingerprint  = ({ c }: { c: string }) => <Icon><Path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 3" stroke={c} {...sw} /><Path d="M14 13.12c0 2.38 0 6.38-1 8.88" stroke={c} {...sw} /><Path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" stroke={c} {...sw} /><Path d="M2 12a10 10 0 0 1 18-6" stroke={c} {...sw} /><Path d="M2 17.5c0-2.04.89-3.87 2.3-5.17" stroke={c} {...sw} /><Path d="M8 14a5 5 0 0 1 10 0" stroke={c} {...sw} /><Path d="M7 17.5c0-2.07.89-3.93 2.3-5.24" stroke={c} {...sw} /><Path d="M7 17.5a7.5 7.5 0 0 1 5-7.07" stroke={c} {...sw} /></Icon>;
+const Share2Icon   = ({ c }: { c: string }) => <Icon><Circle cx={18} cy={5} r={3} stroke={c} {...sw} /><Circle cx={6} cy={12} r={3} stroke={c} {...sw} /><Circle cx={18} cy={19} r={3} stroke={c} {...sw} /><Line x1={8.59} y1={13.51} x2={15.42} y2={17.49} stroke={c} {...sw} /><Line x1={15.41} y1={6.51} x2={8.59} y2={10.49} stroke={c} {...sw} /></Icon>;
+const KeyRoundIcon = ({ c }: { c: string }) => <Icon><Circle cx={7.5} cy={15.5} r={5.5} stroke={c} {...sw} /><Path d="m21 2-9.6 9.6" stroke={c} {...sw} /><Path d="m15.5 7.5 3 3L22 7l-3-3" stroke={c} {...sw} /></Icon>;
+const CpuIcon      = ({ c }: { c: string }) => <Icon><Rect x={4} y={4} width={16} height={16} rx={2} stroke={c} {...sw} /><Rect x={9} y={9} width={6} height={6} stroke={c} {...sw} /><Path d="M15 2v2M9 2v2M2 15h2M2 9h2M15 20v2M9 20v2M20 15h2M20 9h2" stroke={c} {...sw} /></Icon>;
+const RefreshIcon  = ({ c }: { c: string }) => <Icon><Path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke={c} {...sw} /><Path d="M21 3v5h-5" stroke={c} {...sw} /><Path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke={c} {...sw} /><Path d="M8 16H3v5" stroke={c} {...sw} /></Icon>;
+const Trash2Icon   = ({ c }: { c: string }) => <Icon><Path d="M3 6h18" stroke={c} {...sw} /><Path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" stroke={c} {...sw} /><Path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" stroke={c} {...sw} /><Line x1={10} y1={11} x2={10} y2={17} stroke={c} {...sw} /><Line x1={14} y1={11} x2={14} y2={17} stroke={c} {...sw} /></Icon>;
+const CheckIcon    = ({ c }: { c: string }) => <Icon size={14}><Path d="M20 6 9 17l-5-5" stroke={c} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" /></Icon>;
+const XIcon        = ({ c }: { c: string }) => <Icon size={16}><Path d="M18 6 6 18M6 6l12 12" stroke={c} {...sw} /></Icon>;
+const QrCodeIcon   = ({ c }: { c: string }) => <Icon><Rect x={3} y={3} width={5} height={5} rx={1} stroke={c} {...sw} /><Rect x={16} y={3} width={5} height={5} rx={1} stroke={c} {...sw} /><Rect x={3} y={16} width={5} height={5} rx={1} stroke={c} {...sw} /><Path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" stroke={c} {...sw} /></Icon>;
+const WatchIcon    = ({ c }: { c: string }) => <Icon size={64}><Rect x={5} y={2} width={14} height={20} rx={7} stroke={c} {...sw} /><Path d="M16 2h-2l-1-2h-2l-1 2H8M16 22h-2l-1 2h-2l-1-2H8M12 12v-4M12 12h3" stroke={c} {...sw} /></Icon>;
 
-type SettingRowProps = {
-  icon: string; iconBg: string; iconColor: string;
-  title: string; desc?: string; isLast?: boolean;
-  right?: React.ReactNode; onPress?: () => void;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-function SettingRow({ icon, iconBg, iconColor, title, desc, isLast, right, onPress, styles }: SettingRowProps) {
+// ── Custom Toggle ──────────────────────────────────────────────────────────
+function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
+  const anim = React.useRef(new Animated.Value(value ? 1 : 0)).current;
+  const handle = () => {
+    Animated.timing(anim, { toValue: value ? 0 : 1, duration: 180, useNativeDriver: true }).start();
+    onToggle();
+  };
+  const tx = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
   return (
-    <TouchableOpacity
-      style={[styles.settingRow, isLast && styles.settingRowLast]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-    >
-      <View style={[styles.settingIconWrap, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={18} color={iconColor} />
-      </View>
-      <View style={styles.settingText}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        {desc && <Text style={styles.settingDesc}>{desc}</Text>}
-      </View>
-      {right ?? <Ionicons name="chevron-forward" size={16} color="rgba(141,153,174,0.5)" />}
+    <TouchableOpacity onPress={handle} activeOpacity={0.85}
+      style={[ts.track, { backgroundColor: value ? GREEN : MUTED_BG }]}>
+      <Animated.View style={[ts.thumb, { transform: [{ translateX: tx }] }]} />
     </TouchableOpacity>
   );
 }
+const ts = StyleSheet.create({
+  track: { width: 44, height: 24, borderRadius: 12, justifyContent: 'center' },
+  thumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFF',
+    shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 2 },
+});
 
-const LANGUAGES: { code: Language; name: string; native: string; flag: string }[] = [
-  { code: 'es', name: 'Español', native: 'Spanish', flag: '🇪🇸' },
-  { code: 'en', name: 'English', native: 'Inglés', flag: '🇺🇸' },
+// ── Assistants ─────────────────────────────────────────────────────────────
+const ASSISTANTS = [
+  { id: 'foca',   name: 'Foca',   tagline: 'Siempre alegre, cercana y positiva.', kind: 'blob'   as const, color: 'blue'   as const },
+  { id: 'oso',    name: 'Oso',    tagline: 'Siempre alegre, curioso y valiente.', kind: 'star'   as const, color: 'yellow' as const },
+  { id: 'zarita', name: 'Zarita', tagline: 'Siempre alegre, curiosa y valiente.', kind: 'flower' as const, color: 'pink'   as const },
 ];
 
+// ── Reusable Row ───────────────────────────────────────────────────────────
+function Row({ icon, label, right }: { icon: React.ReactNode; label: string; right: React.ReactNode }) {
+  return (
+    <View style={s.row}>
+      <View style={s.rowIcon}>{icon}</View>
+      <Text style={s.rowLabel}>{label}</Text>
+      {right}
+    </View>
+  );
+}
+
+// ── Screen ─────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { logout, user } = useAuth();
-  const { language, setLanguage, t } = useLanguage();
+  const { logout } = useAuth();
+  const insets = useSafeAreaInsets();
 
-  const [notifAlerts, setNotifAlerts] = useState(true);
-  const [notifSync, setNotifSync] = useState(true);
-  const [notifLocation, setNotifLocation] = useState(false);
-  const [autoSync, setAutoSync] = useState(true);
-  const [nfcEnabled, setNfcEnabled] = useState(true);
-  const [gpsEnabled, setGpsEnabled] = useState(true);
-
-  const [termsVisible, setTermsVisible] = useState(false);
-  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
-  const [langModalVisible, setLangModalVisible] = useState(false);
-  const [pwModalVisible, setPwModalVisible] = useState(false);
-  const [smartwatchModalVisible, setSmartwatchModalVisible] = useState(false);
-
-  // Change password state
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [pwLoading, setPwLoading] = useState(false);
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [pwSuccess, setPwSuccess] = useState(false);
-
-  // Smartwatch state
-  const [deviceCode, setDeviceCode] = useState<string | null>(null);
+  const [theme,       setTheme]       = useState<'light'|'dark'>('light');
+  const [lang,        setLang]        = useState<'es'|'en'>('es');
+  const [assistantId, setAssistantId] = useState('foca');
+  const [notifs,      setNotifs]      = useState({ push: true, loc: true, health: true });
+  const [privacy,     setPrivacy]     = useState({ bio: false, anon: false });
+  const [langOpen,    setLangOpen]    = useState(false);
+  const [syncing,     setSyncing]     = useState(false);
+  const [deleteOpen,  setDeleteOpen]  = useState(false);
+  const [codeOpen,    setCodeOpen]    = useState(false);
+  const [deviceCode,  setDeviceCode]  = useState<string | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [timeLeft,    setTimeLeft]    = useState(0);
 
-  const switchColors = { trackColor: { false: colors.border, true: `${colors.accent}80` }, thumbColor: colors.accent };
+  const flipN = (k: keyof typeof notifs)  => setNotifs(p  => ({ ...p, [k]: !p[k] }));
+  const flipP = (k: keyof typeof privacy) => setPrivacy(p => ({ ...p, [k]: !p[k] }));
 
-  const handleLogout = () => setLogoutModalVisible(true);
-  const confirmLogout = async () => {
-    setLogoutModalVisible(false);
-    await logout();
-  };
-
-  const openPwModal = () => {
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
-    setPwError(null); setPwSuccess(false);
-    setPwModalVisible(true);
-  };
-
-  const handleChangePassword = async () => {
-    if (!currentPw || !newPw || !confirmPw) {
-      setPwError(t('passwordRequired'));
-      return;
-    }
-    if (newPw !== confirmPw) {
-      setPwError(t('passwordMismatch'));
-      return;
-    }
-    setPwError(null);
-    setPwLoading(true);
-    try {
-      await apiClient.put('/auth/change-password', { currentPassword: currentPw, newPassword: newPw });
-      setPwSuccess(true);
-      setCurrentPw(''); setNewPw(''); setConfirmPw('');
-    } catch (err) {
-      setPwError(getErrorMessage(err));
-    } finally {
-      setPwLoading(false);
-    }
-  };
+  const handleSync = () => { setSyncing(true); setTimeout(() => setSyncing(false), 2000); };
 
   const handleGenerateDeviceCode = async () => {
     setCodeLoading(true);
     try {
       const res = await apiClient.post('/auth/device-code/generate');
       setDeviceCode(res.data.code);
-      setTimeLeft(120); // 2 minutes
+      setTimeLeft(120);
     } catch (err) {
       Alert.alert('Error', getErrorMessage(err));
     } finally {
@@ -268,357 +123,305 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (deviceCode && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            setDeviceCode(null);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    if (!deviceCode || timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) { setDeviceCode(null); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
     return () => clearInterval(timer);
   }, [deviceCode, timeLeft]);
 
-  const handleCloseSmartwatchModal = () => {
+  const handleCloseCodeModal = () => {
     setDeviceCode(null);
     setTimeLeft(0);
-    setSmartwatchModalVisible(false);
+    setCodeOpen(false);
   };
-
-  const currentLangName = LANGUAGES.find(l => l.code === language)?.name ?? 'Español';
+  const handleDelete = () => { setDeleteOpen(false); logout(); router.replace('/login'); };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('title')}</Text>
-      </View>
+    <SafeAreaView style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* ── Apariencia ── */}
-        <Text style={styles.sectionLabel}>{t('appearance')}</Text>
-        <View style={styles.settingGroup}>
-          <View style={[styles.settingRow, { paddingBottom: 8 }]}>
-            <View style={[styles.settingIconWrap, { backgroundColor: colors.accent10 }]}>
-              <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={colors.accent} />
-            </View>
-            <View style={styles.settingText}>
-              <Text style={styles.settingTitle}>{t('theme')}</Text>
-              <Text style={styles.settingDesc}>{t('themeDesc')}</Text>
-            </View>
-          </View>
-          <View style={styles.themeSelector}>
-            <TouchableOpacity style={[styles.themeOption, isDark && styles.themeOptionActive]} onPress={() => !isDark && toggleTheme()}>
-              <Ionicons name="moon" size={22} color={isDark ? colors.accent : colors.textMuted} />
-              <Text style={[styles.themeOptionLabel, isDark && styles.themeOptionLabelActive]}>{t('dark')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.themeOption, !isDark && styles.themeOptionActive]} onPress={() => isDark && toggleTheme()}>
-              <Ionicons name="sunny" size={22} color={!isDark ? colors.accent : colors.textMuted} />
-              <Text style={[styles.themeOptionLabel, !isDark && styles.themeOptionLabelActive]}>{t('light')}</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Header */}
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} activeOpacity={0.75}>
+            <ChevronLeft c={PRIMARY} s={20} />
+          </TouchableOpacity>
+          <Text style={s.title}>Configuración</Text>
         </View>
 
-        {/* ── Notificaciones ── */}
-        <Text style={styles.sectionLabel}>{t('notifications')}</Text>
-        <View style={styles.settingGroup}>
-          <SettingRow icon="warning-outline" iconBg="rgba(255,167,38,0.12)" iconColor="#FFA726"
-            title={t('securityAlerts')} desc={t('securityAlertsDesc')}
-            right={<Switch value={notifAlerts} onValueChange={setNotifAlerts} {...switchColors} />} styles={styles} />
-          <SettingRow icon="sync-outline" iconBg="rgba(76,175,80,0.12)" iconColor="#4CAF50"
-            title={t('syncNotif')} desc={t('syncNotifDesc')}
-            right={<Switch value={notifSync} onValueChange={setNotifSync} {...switchColors} />} styles={styles} />
-          <SettingRow icon="location-outline" iconBg={colors.accent10} iconColor={colors.accent}
-            title={t('locationUpdates')} desc={t('locationUpdatesDesc')} isLast
-            right={<Switch value={notifLocation} onValueChange={setNotifLocation} {...switchColors} />} styles={styles} />
-        </View>
-
-        {/* ── Dispositivo ── */}
-        <Text style={styles.sectionLabel}>{t('device')}</Text>
-        <View style={styles.settingGroup}>
-          <SettingRow icon="wifi-outline" iconBg="rgba(76,175,80,0.12)" iconColor="#4CAF50"
-            title={t('nfc')} desc={t('nfcDesc')}
-            right={<Switch value={nfcEnabled} onValueChange={setNfcEnabled} {...switchColors} />} styles={styles} />
-          <SettingRow icon="navigate-outline" iconBg={colors.accent10} iconColor={colors.accent}
-            title={t('gps')} desc={t('gpsDesc')}
-            right={<Switch value={gpsEnabled} onValueChange={setGpsEnabled} {...switchColors} />} styles={styles} />
-          <SettingRow icon="watch-outline" iconBg="rgba(156,39,176,0.12)" iconColor="#9C27B0"
-            title={t('pairSmartwatch')} desc={t('pairSmartwatchDesc')}
-            onPress={() => { setDeviceCode(null); setSmartwatchModalVisible(true); }} styles={styles} />
-          <SettingRow icon="repeat-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('autoSync')} desc={t('autoSyncDesc')} isLast
-            right={<Switch value={autoSync} onValueChange={setAutoSync} {...switchColors} />} styles={styles} />
-        </View>
-
-        {/* ── Privacidad ── */}
-        <Text style={styles.sectionLabel}>{t('privacy')}</Text>
-        <View style={styles.settingGroup}>
-          <SettingRow icon="lock-closed-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('changePassword')} onPress={openPwModal} styles={styles} />
-          <SettingRow icon="shield-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('privacyData')} styles={styles} />
-          <SettingRow icon="language-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('language')} desc={currentLangName} isLast
-            onPress={() => setLangModalVisible(true)} styles={styles} />
-        </View>
-
-        {/* ── Acerca de ── */}
-        <Text style={styles.sectionLabel}>{t('about')}</Text>
-        <View style={styles.settingGroup}>
-          <SettingRow icon="information-circle-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('appVersion')} desc={t('appVersionDesc')} right={<View />} styles={styles} />
-          <SettingRow icon="document-text-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('terms')} onPress={() => setTermsVisible(true)} styles={styles} />
-          <SettingRow icon="help-circle-outline" iconBg={colors.grey10} iconColor={colors.textSecondary}
-            title={t('help')} isLast styles={styles} />
-        </View>
-
-        {/* ── Sesión ── */}
-        <Text style={styles.sectionLabel}>{t('session')}</Text>
-        <View style={styles.dangerGroup}>
-          <TouchableOpacity style={styles.dangerRow} onPress={handleLogout}>
-            <View style={styles.dangerIconWrap}>
-              <Ionicons name="log-out-outline" size={18} color={colors.accent} />
-            </View>
-            <View style={styles.dangerText}>
-              <Text style={styles.dangerTitle}>{t('logout')}</Text>
-              <Text style={styles.dangerDesc}>{user?.email ?? ''}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+        {/* ── Apariencia ──────────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Apariencia</Text>
+        <View style={s.list}>
+          <Row
+            icon={theme === 'dark' ? <MoonIcon c={MUTED} /> : <SunIcon c={MUTED} />}
+            label="Tema"
+            right={
+              <View style={s.segment}>
+                <TouchableOpacity style={[s.segBtn, theme === 'light' && s.segBtnActiveLight]} onPress={() => setTheme('light')} activeOpacity={0.75}>
+                  <Text style={[s.segText, theme === 'light' && s.segTextActiveLight]}>Claro</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.segBtn, theme === 'dark' && s.segBtnActiveDark]} onPress={() => setTheme('dark')} activeOpacity={0.75}>
+                  <Text style={[s.segText, theme === 'dark' && s.segTextActiveDark]}>Oscuro</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+          <TouchableOpacity onPress={() => setLangOpen(true)} activeOpacity={0.75}>
+            <Row icon={<GlobeIcon c={MUTED} />} label="Idioma"
+              right={<Text style={s.rowMuted}>{lang === 'es' ? 'Español' : 'English'}</Text>} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.versionText}>{t('version')}</Text>
+        {/* ── Tu asistente ────────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Tu asistente</Text>
+        <Text style={s.sectionSub}>Elige tu compañero de salud. Aparecerá en el inicio y en el chat con la IA.</Text>
+        <View style={s.list}>
+          {ASSISTANTS.map(a => {
+            const active = a.id === assistantId;
+            return (
+              <TouchableOpacity key={a.id} style={[s.assistRow, active && s.assistRowActive]}
+                onPress={() => setAssistantId(a.id)} activeOpacity={0.8}>
+                <View style={s.assistAvatar}>
+                  <EmotionShape kind={a.kind} color={a.color} size={48} eyes />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.assistName, active && s.assistNameActive]}>{a.name}</Text>
+                  <Text style={[s.assistTag,  active && s.assistTagActive]} numberOfLines={1}>{a.tagline}</Text>
+                </View>
+                <View style={[s.checkCircle, active && s.checkActive]}>
+                  {active && <CheckIcon c={PRIMARY} />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── Notificaciones ──────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Notificaciones</Text>
+        <View style={s.list}>
+          <Row icon={<BellIcon   c={MUTED} />} label="Push notifications"   right={<Toggle value={notifs.push}   onToggle={() => flipN('push')}   />} />
+          <Row icon={<MapPinIcon c={MUTED} />} label="Alertas de ubicación" right={<Toggle value={notifs.loc}    onToggle={() => flipN('loc')}    />} />
+          <Row icon={<HeartPulse c={MUTED} />} label="Alertas de salud"     right={<Toggle value={notifs.health} onToggle={() => flipN('health')} />} />
+        </View>
+
+        {/* ── Privacidad y seguridad ───────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Privacidad y seguridad</Text>
+        <View style={s.list}>
+          <Row icon={<Fingerprint c={MUTED} />} label="Autenticación biométrica"  right={<Toggle value={privacy.bio}  onToggle={() => flipP('bio')}  />} />
+          <Row icon={<Share2Icon  c={MUTED} />} label="Compartir datos anónimos"  right={<Toggle value={privacy.anon} onToggle={() => flipP('anon')} />} />
+          <TouchableOpacity activeOpacity={0.75}
+            onPress={() => Alert.alert('Cambiar contraseña', 'Próximamente disponible.')}>
+            <Row icon={<KeyRoundIcon c={MUTED} />} label="Cambiar contraseña" right={<ChevronRight c={MUTED} />} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Dispositivo ─────────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Dispositivo</Text>
+        <View style={s.list}>
+          <Row icon={<CpuIcon    c={MUTED} />} label="Firmware" right={<Text style={s.rowMuted}>v2.4.1</Text>} />
+          <TouchableOpacity activeOpacity={0.75} onPress={handleSync}>
+            <Row icon={<RefreshIcon c={MUTED} />} label="Sincronizar manilla"
+              right={
+                <View style={s.syncBadge}>
+                  <Text style={s.syncText}>{syncing ? 'Sincronizando…' : 'Sincronizar'}</Text>
+                </View>
+              }
+            />
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.75} onPress={() => { setDeviceCode(null); setCodeOpen(true); }}>
+            <Row icon={<QrCodeIcon c={MUTED} />} label="Generar código de manilla"
+              right={<ChevronRight c={MUTED} />}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Zona de peligro ─────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Zona de peligro</Text>
+        <TouchableOpacity style={s.dangerRow} onPress={() => setDeleteOpen(true)} activeOpacity={0.75}>
+          <Trash2Icon c={RED} />
+          <Text style={s.dangerText}>Eliminar cuenta</Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
-      {/* ── Modal: Cerrar sesión ── */}
-      <Modal visible={logoutModalVisible} transparent animationType="fade" onRequestClose={() => setLogoutModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.logoutModalCard}>
-            <Text style={styles.logoutModalTitle}>{t('logoutConfirmTitle')}</Text>
-            <Text style={styles.logoutModalDesc}>{t('logoutConfirmDesc')}</Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setLogoutModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmBtn} onPress={confirmLogout}>
-                <Text style={styles.confirmBtnText}>{t('confirm')}</Text>
+      {/* ── Código de manilla modal ─────────────────────────────────── */}
+      <Modal visible={codeOpen} animationType="slide" transparent onRequestClose={handleCloseCodeModal}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={handleCloseCodeModal}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 20 }]} activeOpacity={1}>
+            <View style={s.sheetHead}>
+              <Text style={s.sheetTitle}>Vincular manilla</Text>
+              <TouchableOpacity style={s.sheetX} onPress={handleCloseCodeModal}>
+                <XIcon c={PRIMARY} />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
+            <Text style={s.codeDesc}>
+              Ingresa este código en tu manilla Horus para vincularla con tu cuenta. Expira en 2 minutos.
+            </Text>
 
-      {/* ── Modal: Cambiar contraseña ── */}
-      <Modal visible={pwModalVisible} transparent animationType="slide" onRequestClose={() => setPwModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('changePasswordTitle')}</Text>
-              <TouchableOpacity style={styles.modalClose} onPress={() => setPwModalVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-
-              {pwError && (
-                <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#EF233C" />
-                  <Text style={styles.errorText}>{pwError}</Text>
+            {deviceCode ? (
+              <>
+                <View style={s.codePill}>
+                  <Text style={s.codeText}>{deviceCode}</Text>
                 </View>
-              )}
-              {pwSuccess && (
-                <View style={styles.successBox}>
-                  <Ionicons name="checkmark-circle-outline" size={16} color="#4CAF50" />
-                  <Text style={styles.successText}>
-                    {language === 'es' ? '¡Contraseña actualizada correctamente!' : 'Password updated successfully!'}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{t('currentPassword')}</Text>
-                <View style={[styles.inputBox, pwError ? styles.inputBoxError : null]}>
-                  <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.textMuted}
-                    secureTextEntry={!showCurrent}
-                    value={currentPw}
-                    onChangeText={v => { setCurrentPw(v); setPwError(null); setPwSuccess(false); }}
-                    editable={!pwLoading}
-                  />
-                  <TouchableOpacity onPress={() => setShowCurrent(p => !p)} style={styles.eyeBtn}>
-                    <Ionicons name={showCurrent ? 'eye-outline' : 'eye-off-outline'} size={18} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
+                <Text style={s.codeTimer}>
+                  Expira en {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} min
+                </Text>
+              </>
+            ) : (
+              <View style={s.watchPlaceholder}>
+                <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                  <Rect x={5} y={2} width={14} height={20} rx={7} stroke={MUTED_BG} strokeWidth={2} />
+                  <Path d="M9 2h6M9 22h6" stroke={MUTED_BG} strokeWidth={2} strokeLinecap="round" />
+                </Svg>
               </View>
+            )}
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{t('newPassword')}</Text>
-                <View style={[styles.inputBox, pwError ? styles.inputBoxError : null]}>
-                  <Ionicons name="lock-open-outline" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.textMuted}
-                    secureTextEntry={!showNew}
-                    value={newPw}
-                    onChangeText={v => { setNewPw(v); setPwError(null); setPwSuccess(false); }}
-                    editable={!pwLoading}
-                  />
-                  <TouchableOpacity onPress={() => setShowNew(p => !p)} style={styles.eyeBtn}>
-                    <Ionicons name={showNew ? 'eye-outline' : 'eye-off-outline'} size={18} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{t('confirmPassword')}</Text>
-                <View style={[styles.inputBox, pwError ? styles.inputBoxError : null]}>
-                  <Ionicons name="lock-open-outline" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.textMuted}
-                    secureTextEntry={!showConfirm}
-                    value={confirmPw}
-                    onChangeText={v => { setConfirmPw(v); setPwError(null); setPwSuccess(false); }}
-                    editable={!pwLoading}
-                  />
-                  <TouchableOpacity onPress={() => setShowConfirm(p => !p)} style={styles.eyeBtn}>
-                    <Ionicons name={showConfirm ? 'eye-outline' : 'eye-off-outline'} size={18} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setPwModalVisible(false)} disabled={pwLoading}>
-                  <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.confirmBtn} onPress={handleChangePassword} disabled={pwLoading}>
-                  {pwLoading
-                    ? <ActivityIndicator size="small" color="#FFF" />
-                    : <Text style={styles.confirmBtnText}>{t('save')}</Text>
-                  }
-                </TouchableOpacity>
-              </View>
-
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Modal: Idioma ── */}
-      <Modal visible={langModalVisible} transparent animationType="slide" onRequestClose={() => setLangModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('languageTitle')}</Text>
-              <TouchableOpacity style={styles.modalClose} onPress={() => setLangModalVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.btnGrey} onPress={handleCloseCodeModal} activeOpacity={0.85}>
+                <Text style={s.btnGreyText}>Cancelar</Text>
               </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.langSubtitle}>{t('selectLanguage')}</Text>
-              {LANGUAGES.map((lang, i) => (
-                <TouchableOpacity
-                  key={lang.code}
-                  style={[styles.langOption, i === LANGUAGES.length - 1 && styles.langOptionLast]}
-                  onPress={() => { setLanguage(lang.code); setLangModalVisible(false); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.langFlag}>{lang.flag}</Text>
-                  <View style={styles.langText}>
-                    <Text style={styles.langName}>{lang.name}</Text>
-                    <Text style={styles.langNative}>{lang.native}</Text>
-                  </View>
-                  {language === lang.code
-                    ? <View style={styles.langCheck}><Ionicons name="checkmark" size={14} color="#FFF" /></View>
-                    : <View style={styles.langCheckEmpty} />
-                  }
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Modal: Términos ── */}
-      <Modal visible={termsVisible} transparent animationType="slide" onRequestClose={() => setTermsVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('terms')}</Text>
-              <TouchableOpacity style={styles.modalClose} onPress={() => setTermsVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {[
-                ['1. ACEPTACIÓN DE TÉRMINOS', 'Al utilizar Horus Mobile, aceptas los presentes términos y condiciones en su totalidad.'],
-                ['2. USO DE LA APLICACIÓN', 'Horus Mobile es una plataforma de monitoreo de salud y seguridad personal. Está prohibido su uso con fines comerciales no autorizados o actividades ilegales.'],
-                ['3. PRIVACIDAD Y DATOS', 'Recopilamos datos de salud, ubicación y uso del dispositivo para brindar el servicio. Esta información es confidencial y no se comparte sin tu consentimiento.'],
-                ['4. DISPOSITIVOS HORUS', 'Los dispositivos Horus son de uso exclusivo del titular registrado. La pérdida o robo debe reportarse de inmediato.'],
-                ['5. LIMITACIÓN DE RESPONSABILIDAD', 'Horus Mobile es una herramienta de apoyo y no reemplaza la atención médica profesional.'],
-                ['6. MODIFICACIONES', 'Nos reservamos el derecho de actualizar estos términos. Las modificaciones serán notificadas en la app.'],
-                ['7. CONTACTO', 'Dudas: soporte@horusbraslet.com — Versión 1.0, Mayo 2026.'],
-              ].map(([title, text], i, arr) => (
-                <View key={title} style={[styles.termsSection, i === arr.length - 1 && { marginBottom: 40 }]}>
-                  <Text style={styles.termsSectionTitle}>{title}</Text>
-                  <Text style={styles.termsText}>{text}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Modal: Vincular Smartwatch ── */}
-      <Modal visible={smartwatchModalVisible} transparent animationType="slide" onRequestClose={handleCloseSmartwatchModal}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('smartwatchTitle')}</Text>
-              <TouchableOpacity style={styles.modalClose} onPress={handleCloseSmartwatchModal}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalBody}>
-              <Text style={styles.codeDescText}>{t('smartwatchDesc')}</Text>
-              
-              {deviceCode ? (
-                <View style={styles.codeContainer}>
-                  <Text style={styles.codeText}>{deviceCode}</Text>
-                  <Text style={styles.codeTimer}>
-                    {t('codeExpires')} {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} {t('minutes')}
-                  </Text>
-                </View>
-              ) : (
-                <View style={{ marginVertical: 30, alignItems: 'center' }}>
-                  <Ionicons name="watch-outline" size={64} color={colors.border} />
-                </View>
-              )}
-
-              <TouchableOpacity style={[styles.confirmBtn, { marginTop: 10 }]} onPress={handleGenerateDeviceCode} disabled={codeLoading}>
+              <TouchableOpacity
+                style={[s.btnRed, { backgroundColor: PRIMARY }]}
+                onPress={handleGenerateDeviceCode}
+                disabled={codeLoading}
+                activeOpacity={0.85}
+              >
                 {codeLoading
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={styles.confirmBtnText}>{deviceCode ? 'Generar nuevo código' : t('generateCode')}</Text>
+                  : <Text style={s.btnRedText}>{deviceCode ? 'Nuevo código' : 'Generar código'}</Text>
                 }
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Language sheet ───────────────────────────────────────────── */}
+      <Modal visible={langOpen} animationType="slide" transparent onRequestClose={() => setLangOpen(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setLangOpen(false)}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
+            <View style={s.sheetHead}>
+              <Text style={s.sheetTitle}>Idioma</Text>
+              <TouchableOpacity style={s.sheetX} onPress={() => setLangOpen(false)}>
+                <XIcon c={PRIMARY} />
+              </TouchableOpacity>
+            </View>
+            {(['es','en'] as const).map(l => (
+              <TouchableOpacity key={l} style={[s.langRow, lang === l && s.langRowActive]}
+                onPress={() => { setLang(l); setLangOpen(false); }} activeOpacity={0.8}>
+                <Text style={[s.langText, lang === l && s.langTextActive]}>{l === 'es' ? 'Español' : 'English'}</Text>
+                {lang === l && <CheckIcon c="#FFF" />}
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Delete confirm ───────────────────────────────────────────── */}
+      <Modal visible={deleteOpen} animationType="fade" transparent onRequestClose={() => setDeleteOpen(false)}>
+        <TouchableOpacity style={[s.overlay, { justifyContent: 'center', paddingHorizontal: 24 }]}
+          activeOpacity={1} onPress={() => setDeleteOpen(false)}>
+          <TouchableOpacity style={s.deleteModal} activeOpacity={1}>
+            <View style={s.deleteIconWrap}><Trash2Icon c={RED} /></View>
+            <Text style={s.deleteTitle}>¿Eliminar cuenta?</Text>
+            <Text style={s.deleteSub}>Esta acción es irreversible. Se perderán todos tus datos.</Text>
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.btnGrey} onPress={() => setDeleteOpen(false)} activeOpacity={0.85}>
+                <Text style={s.btnGreyText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.btnRed} onPress={handleDelete} activeOpacity={0.85}>
+                <Text style={s.btnRedText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
     </SafeAreaView>
   );
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  scroll:    { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40, gap: 12 },
+
+  header:  { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 8, marginBottom: 4 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  title: { fontSize: 22, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.44 },
+
+  sectionTitle: { fontSize: 17, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.34, marginTop: 4 },
+  sectionSub:   { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: -8 },
+
+  list:     { gap: 8 },
+  row:      { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  rowIcon:  { width: 36, height: 36, borderRadius: 10, backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  rowLabel: { flex: 1, fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+  rowMuted: { fontSize: 13, fontFamily: FONT.sansMedium, color: MUTED },
+
+  // Theme segment
+  segment:           { flexDirection: 'row', backgroundColor: MUTED_BG, borderRadius: 20, padding: 3 },
+  segBtn:            { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 16 },
+  segBtnActiveLight: { backgroundColor: CARD, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  segBtnActiveDark:  { backgroundColor: PRIMARY },
+  segText:           { fontSize: 12, fontFamily: FONT.sansBold, color: MUTED },
+  segTextActiveLight:{ color: PRIMARY },
+  segTextActiveDark: { color: '#FFFFFF' },
+
+  // Assistant rows
+  assistRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  assistRowActive: { backgroundColor: PRIMARY },
+  assistAvatar:    { width: 56, height: 56, borderRadius: 16, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  assistName:      { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY },
+  assistNameActive:{ color: '#FFFFFF' },
+  assistTag:       { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 2 },
+  assistTagActive: { color: '#FFFFFF90' },
+  checkCircle:     { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center' },
+  checkActive:     { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
+
+  // Sync
+  syncBadge: { backgroundColor: BLUE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
+  syncText:  { fontSize: 12, fontFamily: FONT.sansBold, color: BLUE_FG },
+
+  // Danger
+  dangerRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: RED_BG, borderRadius: 20, padding: 16,
+    borderWidth: 1, borderColor: RED + '30' },
+  dangerText: { fontSize: 14, fontFamily: FONT.sansBold, color: RED },
+
+  // Overlay + sheet
+  overlay: { flex: 1, backgroundColor: 'rgba(26,21,18,0.45)', justifyContent: 'flex-end' },
+  sheet:   { backgroundColor: BG, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 8 },
+  sheetHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  sheetTitle: { fontSize: 18, fontFamily: FONT.displayBold, color: PRIMARY },
+  sheetX:     { width: 32, height: 32, borderRadius: 16, backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center' },
+  langRow:        { backgroundColor: CARD, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  langRowActive:  { backgroundColor: PRIMARY },
+  langText:       { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+  langTextActive: { color: '#FFFFFF' },
+
+  // Delete modal
+  deleteModal:   { backgroundColor: BG, borderRadius: 28, padding: 24, alignItems: 'center' },
+  deleteIconWrap:{ width: 48, height: 48, borderRadius: 14, backgroundColor: RED_BG, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  deleteTitle:   { fontSize: 18, fontFamily: FONT.displayBold, color: PRIMARY },
+  deleteSub:     { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED, textAlign: 'center', marginTop: 4 },
+  modalBtns:     { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
+  btnGrey:       { flex: 1, backgroundColor: MUTED_BG, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  btnGreyText:   { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+  btnRed:        { flex: 1, backgroundColor: RED, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  btnRedText:    { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
+
+  // Code modal
+  codeDesc:        { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED, lineHeight: 18, marginBottom: 8 },
+  codePill:        { backgroundColor: MUTED_BG, borderRadius: 16, paddingVertical: 20, alignItems: 'center', marginVertical: 8 },
+  codeText:        { fontSize: 42, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: 10 },
+  codeTimer:       { fontSize: 13, fontFamily: FONT.sansMedium, color: RED, textAlign: 'center', marginBottom: 8 },
+  watchPlaceholder:{ alignItems: 'center', paddingVertical: 28 },
+});

@@ -1,584 +1,394 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-  Image,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  TextInput, Modal, Alert, useWindowDimensions,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Circle, Rect, Line, Polyline, G } from 'react-native-svg';
 import { router } from 'expo-router';
-import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useApi } from '../../hooks/useApi';
-import { apiClient, getErrorMessage } from '../../services/api';
-import { AppColors } from '../../constants/colors';
-import type { ProfileData, ProfileUpdatePayload } from '../../types/api';
+import { FONT } from '../../constants/fonts';
 
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingBottom: 32 },
+// ── Palette ────────────────────────────────────────────────────────────────
+const BG      = '#F9F6ED';
+const CARD    = '#FFFFFF';
+const PRIMARY = '#1A1512';
+const MUTED   = '#8C7F6E';
+const MUTED_BG= '#F3EFE7';
+const GREEN   = '#96C979';
+const GREEN_FG= '#1A3D0A';
+const YELLOW  = '#FAD957';
+const YELLOW_FG='#3D2C00';
+const BLUE    = '#A5CCF4';
+const BLUE_FG = '#1A3A5C';
+const PINK    = '#FAB2D3';
+const PINK_FG = '#7A1A3A';
+const RED     = '#C0392B';
+const RED_BG  = '#FDECEA';
 
-    profileCard: {
-      backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 16,
-      borderRadius: 20,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    banner: { height: 110, backgroundColor: c.accent },
-    profileBottom: { paddingHorizontal: 16, paddingBottom: 20 },
-    avatarWrap: {
-      marginTop: -38,
-      marginBottom: 10,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-end',
-    },
-    avatarBox: {
-      width: 76,
-      height: 76,
-      borderRadius: 16,
-      backgroundColor: c.spaceIndigo,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 3,
-      borderColor: c.surface,
-    },
-    cameraBtn: {
-      position: 'absolute',
-      bottom: -2,
-      left: 52,
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: c.accent,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: c.surface,
-    },
-    editBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: c.accent,
-      paddingHorizontal: 16,
-      paddingVertical: 9,
-      borderRadius: 22,
-      shadowColor: c.accent,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.35,
-      shadowRadius: 8,
-      elevation: 5,
-    },
-    editBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-    userName: { fontSize: 22, fontWeight: '800', color: c.textPrimary, marginBottom: 4 },
-    userHandle: { fontSize: 13, color: c.textSecondary },
+// ── SVG Icons (Lucide) ─────────────────────────────────────────────────────
+const I = (props: { children: React.ReactNode; size?: number }) => (
+  <Svg width={props.size ?? 18} height={props.size ?? 18} viewBox="0 0 24 24" fill="none">
+    {props.children}
+  </Svg>
+);
+const sw = { strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
-    sectionCard: {
-      backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      overflow: 'hidden',
-    },
-    sectionHeader: {
-      paddingHorizontal: 16,
-      paddingTop: 16,
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    sectionTitle: { fontSize: 11, fontWeight: '800', color: c.textMuted, letterSpacing: 1.2 },
-
-    infoRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    infoIconWrap: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      backgroundColor: c.accent10,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    infoTextWrap: { flex: 1 },
-    infoLabel: { fontSize: 11, color: c.textMuted, marginBottom: 2 },
-    infoValue: { fontSize: 14, color: c.textPrimary, fontWeight: '500' },
-    infoValueMuted: { fontSize: 14, color: c.textMuted },
-
-    deviceRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    deviceIconWrap: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      backgroundColor: c.accent10,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    deviceName: { fontSize: 15, fontWeight: '700', color: c.textPrimary },
-    deviceId: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-    statsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-    statCell: {
-      width: '50%',
-      padding: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      borderRightWidth: 1,
-      borderRightColor: c.border,
-    },
-    statCellNoRight: { borderRightWidth: 0 },
-    statCellNoBorder: { borderBottomWidth: 0 },
-    statLabel: { fontSize: 11, color: c.textMuted, marginBottom: 4 },
-    statValue: { fontSize: 16, fontWeight: '700', color: c.textPrimary },
-    statValueGreen: { fontSize: 16, fontWeight: '700', color: c.success },
-
-    settingsBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 14,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      padding: 16,
-    },
-    settingsBtnLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    settingsBtnIconWrap: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      backgroundColor: c.surfaceElevated,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    settingsBtnText: { fontSize: 15, fontWeight: '600', color: c.textPrimary },
-    settingsBtnSub: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
-
-    logoutBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      marginHorizontal: 16,
-      marginTop: 14,
-      borderRadius: 14,
-      borderWidth: 1.5,
-      borderColor: c.accent,
-      padding: 14,
-    },
-    logoutText: { fontSize: 15, fontWeight: '700', color: c.accent },
-
-    // Edit modal
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-      justifyContent: 'flex-end',
-    },
-    modalCard: {
-      backgroundColor: c.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 24,
-      paddingBottom: 40,
-    },
-    modalTitle: { fontSize: 18, fontWeight: '800', color: c.textPrimary, marginBottom: 20 },
-    fieldGroup: { marginBottom: 16 },
-    fieldLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '500', marginBottom: 6 },
-    fieldInput: {
-      backgroundColor: c.surfaceElevated,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.border,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      color: c.textPrimary,
-      fontSize: 14,
-    },
-    modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-    cancelBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 14,
-      borderWidth: 1.5,
-      borderColor: c.border,
-      alignItems: 'center',
-    },
-    cancelBtnText: { color: c.textSecondary, fontWeight: '700', fontSize: 14 },
-    saveBtn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 14,
-      backgroundColor: c.accent,
-      alignItems: 'center',
-    },
-    saveBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  });
+function CameraIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" stroke={color} {...sw} /><Circle cx={12} cy={13} r={3} stroke={color} {...sw} /></I>;
+}
+function PencilIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" stroke={color} {...sw} /></I>;
+}
+function MailIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Rect x={2} y={4} width={20} height={16} rx={2} stroke={color} {...sw} /><Path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" stroke={color} {...sw} /></I>;
+}
+function PhoneIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.07 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 17z" stroke={color} {...sw} /></I>;
+}
+function MapPinIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" stroke={color} {...sw} /><Circle cx={12} cy={10} r={3} stroke={color} {...sw} /></I>;
+}
+function DropletIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z" stroke={color} {...sw} /></I>;
+}
+function CalendarIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M8 2v4M16 2v4" stroke={color} {...sw} /><Rect x={3} y={4} width={18} height={18} rx={2} stroke={color} {...sw} /><Path d="M3 10h18" stroke={color} {...sw} /></I>;
+}
+function NfcIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M6 8.32a7.43 7.43 0 0 0 0 7.36" stroke={color} {...sw} /><Path d="M9.46 6.21a11.76 11.76 0 0 0 0 11.58" stroke={color} {...sw} /><Path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8" stroke={color} {...sw} /><Path d="M16.37 2a20.16 20.16 0 0 1 0 20" stroke={color} {...sw} /></I>;
+}
+function NavigationIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M3.707 6.293a1 1 0 0 0 0 1.414l13.586 13.586a1 1 0 0 0 1.414 0l2.586-2.586a1 1 0 0 0 0-1.414L7.707 3.707a1 1 0 0 0-1.414 0z" stroke={color} {...sw} /><Path d="m3 3 7.5 2L13 8l-5-1.5z" stroke={color} {...sw} /></I>;
+}
+function BatteryLowIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Rect x={2} y={7} width={16} height={10} rx={2} stroke={color} {...sw} /><Path d="M22 11v2" stroke={color} {...sw} /><Path d="M6 11v2" stroke={color} {...sw} /></I>;
+}
+function CpuIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Rect x={4} y={4} width={16} height={16} rx={2} stroke={color} {...sw} /><Rect x={9} y={9} width={6} height={6} stroke={color} {...sw} /><Path d="M15 2v2M9 2v2M2 15h2M2 9h2M15 20v2M9 20v2M20 15h2M20 9h2" stroke={color} {...sw} /></I>;
+}
+function SettingsIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" stroke={color} {...sw} /><Circle cx={12} cy={12} r={3} stroke={color} {...sw} /></I>;
+}
+function LogOutIcon({ color, size = 18 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke={color} {...sw} /><Polyline points="16 17 21 12 16 7" stroke={color} {...sw} /><Line x1={21} y1={12} x2={9} y2={12} stroke={color} {...sw} /></I>;
+}
+function XIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return <I size={size}><Path d="M18 6 6 18M6 6l12 12" stroke={color} {...sw} /></I>;
 }
 
-export default function ProfileScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { user, logout, updateUser } = useAuth();
+// ── Mock user ──────────────────────────────────────────────────────────────
+type UserDraft = { firstName: string; lastName: string; phone: string; location: string };
 
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [editFields, setEditFields] = useState<ProfileUpdatePayload>({});
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-
-  const handlePickImage = () => {
-    Alert.alert('Foto de perfil', 'Elige una opción', [
-      {
-        text: 'Tomar foto',
-        onPress: async () => {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Permiso requerido', 'Se necesita acceso a la cámara.');
-            return;
-          }
-          const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-          });
-          if (!result.canceled) setProfileImage(result.assets[0].uri);
-        },
-      },
-      {
-        text: 'Elegir de galería',
-        onPress: async () => {
-          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Permiso requerido', 'Se necesita acceso a la galería.');
-            return;
-          }
-          const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-          });
-          if (!result.canceled) setProfileImage(result.assets[0].uri);
-        },
-      },
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
-  };
-
-  const { data: profile, loading, refetch } = useApi<ProfileData>(
-    () => apiClient.get<ProfileData>('/profile').then(r => r.data)
-  );
-
-  const displayUser = profile ?? user;
-
-  const fullName = displayUser
-    ? `${displayUser.firstName ?? ''} ${displayUser.lastName ?? ''}`.trim() || displayUser.email
-    : 'Cargando...';
-
-  const handleOpenEdit = () => {
-    setEditFields({
-      firstName: displayUser?.firstName ?? '',
-      lastName: displayUser?.lastName ?? '',
-      phone: displayUser?.phone ?? '',
-      location: displayUser?.location ?? '',
-    });
-    setEditModalVisible(true);
-  };
-
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
-    try {
-      await apiClient.put('/profile', editFields);
-      updateUser(editFields);
-      setEditModalVisible(false);
-      refetch();
-    } catch (err) {
-      Alert.alert('Error', getErrorMessage(err));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleLogout = () => setLogoutModalVisible(true);
-
+// ── Reusable sub-components ───────────────────────────────────────────────
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        backgroundColor: colors.surface,
-      }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.textPrimary }}>Mi Perfil</Text>
-        <TouchableOpacity
-          onPress={toggleTheme}
-          style={{
-            width: 38, height: 38, borderRadius: 10,
-            backgroundColor: colors.surfaceElevated,
-            borderWidth: 1, borderColor: colors.border,
-            justifyContent: 'center', alignItems: 'center',
-          }}
-        >
-          <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.accent} />
-        }
-      >
-        {/* Profile card */}
-        <View style={styles.profileCard}>
-          <View style={styles.banner} />
-          <View style={styles.profileBottom}>
-            <View style={styles.avatarWrap}>
-              <View>
-                <View style={styles.avatarBox}>
-                  {loading
-                    ? <ActivityIndicator color={colors.accent} />
-                    : profileImage
-                      ? <Image source={{ uri: profileImage }} style={{ width: 70, height: 70, borderRadius: 13 }} />
-                      : <Ionicons name="person" size={36} color={colors.lavenderGrey} />}
-                </View>
-                <TouchableOpacity style={styles.cameraBtn} onPress={handlePickImage}>
-                  <Ionicons name="camera" size={12} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={styles.editBtn} onPress={handleOpenEdit}>
-                <Ionicons name="pencil" size={14} color="#FFFFFF" />
-                <Text style={styles.editBtnText}>Editar perfil</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.userName}>{fullName}</Text>
-            <Text style={styles.userHandle}>
-              {displayUser?.email ?? '—'} · Miembro Horus
-            </Text>
-          </View>
-        </View>
-
-        {/* Personal info */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>INFORMACIÓN PERSONAL</Text>
-          </View>
-
-          <InfoRow icon="mail-outline" label="Email" value={displayUser?.email ?? '—'} colors={colors} styles={styles} />
-          <InfoRow icon="call-outline" label="Teléfono" value={displayUser?.phone ?? '—'} muted={!displayUser?.phone} styles={styles} colors={colors} />
-          <InfoRow icon="location-outline" label="Ubicación" value={displayUser?.location ?? '—'} muted={!displayUser?.location} styles={styles} colors={colors} />
-          <InfoRow icon="water-outline" label="Tipo de sangre" value={displayUser?.bloodType ?? '—'} muted={!displayUser?.bloodType} styles={styles} colors={colors} />
-          <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-            <View style={styles.infoIconWrap}>
-              <Ionicons name="calendar-outline" size={17} color={colors.accent} />
-            </View>
-            <View style={styles.infoTextWrap}>
-              <Text style={styles.infoLabel}>Fecha de nacimiento</Text>
-              <Text style={displayUser?.dateOfBirth ? styles.infoValue : styles.infoValueMuted}>
-                {displayUser?.dateOfBirth
-                  ? new Date(displayUser.dateOfBirth).toLocaleDateString('es-MX')
-                  : '—'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Device info */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>MI MANILLA HORUS</Text>
-          </View>
-          <View style={styles.deviceRow}>
-            <View style={styles.deviceIconWrap}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
-            </View>
-            <View>
-              <Text style={styles.deviceName}>Manilla Horus</Text>
-              <Text style={styles.deviceId}>
-                {displayUser?.nfcTagId ? `NFC: ${displayUser.nfcTagId}` : 'Sin NFC registrado'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCell}>
-              <Text style={styles.statLabel}>NFC</Text>
-              <Text style={displayUser?.nfcTagId ? styles.statValueGreen : styles.statValue}>
-                {displayUser?.nfcTagId ? 'Activo' : '—'}
-              </Text>
-            </View>
-            <View style={[styles.statCell, styles.statCellNoRight]}>
-              <Text style={styles.statLabel}>GPS</Text>
-              <Text style={styles.statValue}>—</Text>
-            </View>
-            <View style={[styles.statCell, styles.statCellNoBorder]}>
-              <Text style={styles.statLabel}>Batería</Text>
-              <Text style={styles.statValue}>—</Text>
-            </View>
-            <View style={[styles.statCell, styles.statCellNoRight, styles.statCellNoBorder]}>
-              <Text style={styles.statLabel}>Firmware</Text>
-              <Text style={styles.statValue}>—</Text>
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')}>
-          <View style={styles.settingsBtnLeft}>
-            <View style={styles.settingsBtnIconWrap}>
-              <Ionicons name="settings-outline" size={20} color={colors.textSecondary} />
-            </View>
-            <View>
-              <Text style={styles.settingsBtnText}>Configuración</Text>
-              <Text style={styles.settingsBtnSub}>Notificaciones, privacidad, dispositivo</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={19} color={colors.accent} />
-          <Text style={styles.logoutText}>Cerrar sesión</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Logout confirmation modal */}
-      <Modal visible={logoutModalVisible} transparent animationType="fade" onRequestClose={() => setLogoutModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Cerrar sesión</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 14, marginBottom: 24 }}>
-              ¿Estás seguro que deseas cerrar sesión?
-            </Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setLogoutModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={() => { setLogoutModalVisible(false); logout(); }}
-              >
-                <Text style={styles.saveBtnText}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit profile modal */}
-      <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar perfil</Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Nombre</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={editFields.firstName}
-                onChangeText={v => setEditFields(p => ({ ...p, firstName: v }))}
-                placeholder="Nombre"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Apellido</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={editFields.lastName}
-                onChangeText={v => setEditFields(p => ({ ...p, lastName: v }))}
-                placeholder="Apellido"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Teléfono</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={editFields.phone}
-                onChangeText={v => setEditFields(p => ({ ...p, phone: v }))}
-                placeholder="+57 300 000 0000"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
-              />
-            </View>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Ubicación</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={editFields.location}
-                onChangeText={v => setEditFields(p => ({ ...p, location: v }))}
-                placeholder="Ciudad, País"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile} disabled={isSaving}>
-                {isSaving
-                  ? <ActivityIndicator color="#FFFFFF" size="small" />
-                  : <Text style={styles.saveBtnText}>Guardar</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-}
-
-function InfoRow({
-  icon, label, value, muted, styles, colors,
-}: {
-  icon: string; label: string; value: string; muted?: boolean;
-  styles: ReturnType<typeof makeStyles>; colors: AppColors;
-}) {
-  return (
-    <View style={styles.infoRow}>
-      <View style={styles.infoIconWrap}>
-        <Ionicons name={icon as any} size={17} color={colors.accent} />
-      </View>
-      <View style={styles.infoTextWrap}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={muted ? styles.infoValueMuted : styles.infoValue}>{value}</Text>
+    <View style={s.infoRow}>
+      <View style={s.infoIcon}>{icon}</View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={s.infoLabel}>{label}</Text>
+        <Text style={s.infoValue} numberOfLines={1}>{value}</Text>
       </View>
     </View>
   );
 }
+
+function DeviceStat({ icon, label, value, bg, fg }: { icon: React.ReactNode; label: string; value: string; bg: string; fg: string }) {
+  return (
+    <View style={s.statCard}>
+      <View style={[s.statIcon, { backgroundColor: bg }]}>{icon}</View>
+      <Text style={s.statLabel}>{label}</Text>
+      <Text style={[s.statValue, { color: fg === GREEN_FG ? PRIMARY : PRIMARY }]}>{value}</Text>
+    </View>
+  );
+}
+
+function SheetField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={s.sheetField}>
+      <Text style={s.sheetFieldLabel}>{label}</Text>
+      <TextInput style={s.sheetFieldInput} value={value} onChangeText={onChange} />
+    </View>
+  );
+}
+
+// ── Screen ─────────────────────────────────────────────────────────────────
+export default function ProfileScreen() {
+  const { user, logout } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  const defaultUser: UserDraft = {
+    firstName: user?.firstName ?? 'Mateo',
+    lastName:  user?.lastName  ?? 'Restrepo',
+    phone:     '+57 301 555 0142',
+    location:  'Medellín, Colombia',
+  };
+
+  const [u, setU]               = useState(defaultUser);
+  const [draft, setDraft]       = useState(defaultUser);
+  const [editOpen, setEditOpen] = useState(false);
+  const [logoutOpen, setLogout] = useState(false);
+
+  const email     = user?.email ?? 'mateo.restrepo@horus.health';
+  const initials  = `${u.firstName[0] ?? ''}${u.lastName[0] ?? ''}`.toUpperCase();
+
+  const handleLogout = async () => {
+    setLogout(false);
+    try { await logout(); } catch {}
+    router.replace('/login');
+  };
+
+  return (
+    <SafeAreaView style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <Text style={s.title}>Perfil</Text>
+
+        {/* ── Avatar card ─────────────────────────────────────────────── */}
+        <View style={s.avatarCard}>
+          <View style={s.avatarWrap}>
+            <View style={s.avatar}>
+              <Text style={s.avatarText}>{initials}</Text>
+            </View>
+            <TouchableOpacity style={s.cameraBtn} activeOpacity={0.85}>
+              <CameraIcon color="#FFFFFF" size={14} />
+            </TouchableOpacity>
+          </View>
+          <Text style={s.userName}>{u.firstName} {u.lastName}</Text>
+          <Text style={s.userEmail}>{email}</Text>
+          <TouchableOpacity style={s.editBtn} onPress={() => { setDraft(u); setEditOpen(true); }} activeOpacity={0.85}>
+            <PencilIcon color="#FFFFFF" size={14} />
+            <Text style={s.editBtnText}>Editar perfil</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Información personal ─────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Información personal</Text>
+        <View style={s.list}>
+          <InfoRow icon={<MailIcon    color={MUTED} />} label="Email"              value={email} />
+          <InfoRow icon={<PhoneIcon   color={MUTED} />} label="Teléfono"           value={u.phone} />
+          <InfoRow icon={<MapPinIcon  color={MUTED} />} label="Ubicación"          value={u.location} />
+          <InfoRow icon={<DropletIcon color={MUTED} />} label="Tipo de sangre"     value="O+" />
+          <InfoRow icon={<CalendarIcon color={MUTED} />} label="Fecha de nacimiento" value="1991-03-14 · 35 años" />
+        </View>
+
+        {/* ── Mi manilla Horus ─────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Mi manilla Horus</Text>
+        <View style={s.statGrid}>
+          <DeviceStat icon={<NfcIcon        color={GREEN_FG}  size={16} />} label="NFC"      value="Activo"  bg={GREEN}  fg={GREEN_FG}  />
+          <DeviceStat icon={<NavigationIcon color={BLUE_FG}   size={16} />} label="GPS"      value="—"       bg={BLUE}   fg={BLUE_FG}   />
+          <DeviceStat icon={<BatteryLowIcon color={PINK_FG}   size={16} />} label="Batería"  value="—"       bg={PINK}   fg={PINK_FG}   />
+          <DeviceStat icon={<CpuIcon        color={YELLOW_FG} size={16} />} label="Firmware" value="v2.4.1"  bg={YELLOW} fg={YELLOW_FG} />
+        </View>
+        <View style={s.nfcCard}>
+          <Text style={s.nfcLabel}>ID del tag NFC</Text>
+          <Text style={s.nfcValue}>04:A2:6B:9C:1D:80</Text>
+        </View>
+
+        {/* ── Acciones ─────────────────────────────────────────────────── */}
+        <View style={s.list}>
+          <TouchableOpacity style={s.actionRow} onPress={() => router.push('/settings')} activeOpacity={0.75}>
+            <SettingsIcon color={PRIMARY} size={18} />
+            <Text style={s.actionText}>Configuración</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionRow} onPress={() => setLogout(true)} activeOpacity={0.75}>
+            <LogOutIcon color={RED} size={18} />
+            <Text style={[s.actionText, { color: RED }]}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
+
+      </ScrollView>
+
+      {/* ── Edit bottom sheet ────────────────────────────────────────── */}
+      <Modal visible={editOpen} animationType="slide" transparent onRequestClose={() => setEditOpen(false)}>
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setEditOpen(false)}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Editar perfil</Text>
+              <TouchableOpacity style={s.sheetClose} onPress={() => setEditOpen(false)}>
+                <XIcon color={PRIMARY} size={16} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ gap: 10 }}>
+              <SheetField label="Nombre"   value={draft.firstName} onChange={v => setDraft({ ...draft, firstName: v })} />
+              <SheetField label="Apellido" value={draft.lastName}  onChange={v => setDraft({ ...draft, lastName: v })} />
+              <SheetField label="Teléfono" value={draft.phone}     onChange={v => setDraft({ ...draft, phone: v })} />
+              <SheetField label="Ubicación" value={draft.location} onChange={v => setDraft({ ...draft, location: v })} />
+            </View>
+            <View style={s.sheetBtns}>
+              <TouchableOpacity style={s.sheetBtnGrey} onPress={() => setEditOpen(false)} activeOpacity={0.85}>
+                <Text style={s.sheetBtnGreyText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.sheetBtnDark} onPress={() => { setU(draft); setEditOpen(false); }} activeOpacity={0.85}>
+                <Text style={s.sheetBtnDarkText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Logout confirm modal ─────────────────────────────────────── */}
+      <Modal visible={logoutOpen} animationType="fade" transparent onRequestClose={() => setLogout(false)}>
+        <TouchableOpacity style={s.logoutOverlay} activeOpacity={1} onPress={() => setLogout(false)}>
+          <TouchableOpacity style={s.logoutModal} activeOpacity={1}>
+            <View style={s.logoutIcon}>
+              <LogOutIcon color={RED} size={22} />
+            </View>
+            <Text style={s.logoutTitle}>¿Cerrar sesión?</Text>
+            <Text style={s.logoutSub}>Tendrás que iniciar sesión de nuevo.</Text>
+            <View style={s.logoutBtns}>
+              <TouchableOpacity style={s.logoutBtnGrey} onPress={() => setLogout(false)} activeOpacity={0.85}>
+                <Text style={s.logoutBtnGreyText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.logoutBtnRed} onPress={handleLogout} activeOpacity={0.85}>
+                <Text style={s.logoutBtnRedText}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+    </SafeAreaView>
+  );
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  scroll:    { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120, gap: 16 },
+
+  title: { fontSize: 26, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.52, paddingTop: 8 },
+
+  // Avatar card
+  avatarCard: {
+    backgroundColor: CARD, borderRadius: 28, paddingVertical: 24, paddingHorizontal: 20,
+    alignItems: 'center', gap: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  avatarWrap: { position: 'relative', marginBottom: 4 },
+  avatar: {
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: PINK, alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontSize: 32, fontFamily: FONT.displayBold, color: PINK_FG },
+  cameraBtn: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: CARD,
+  },
+  userName:  { fontSize: 20, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.4, marginTop: 4 },
+  userEmail: { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED },
+  editBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: PRIMARY, borderRadius: 20,
+    paddingHorizontal: 20, paddingVertical: 10, marginTop: 8,
+  },
+  editBtnText: { fontSize: 13, fontFamily: FONT.sansBold, color: '#FFFFFF' },
+
+  // Section title
+  sectionTitle: { fontSize: 17, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.34 },
+
+  // Info rows
+  list:    { gap: 8 },
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: CARD, borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  infoIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  infoLabel: { fontSize: 11, fontFamily: FONT.sansMedium, color: MUTED, marginBottom: 2 },
+  infoValue: { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+
+  // Device stats grid
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  statCard: {
+    flex: 1, minWidth: '44%',
+    backgroundColor: CARD, borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  statIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  statLabel: { fontSize: 11, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 8 },
+  statValue: { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY, marginTop: 2 },
+
+  // NFC card
+  nfcCard: {
+    backgroundColor: CARD, borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  nfcLabel: { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED },
+  nfcValue: { fontSize: 14, fontFamily: FONT.displayBold, color: PRIMARY, marginTop: 2 },
+
+  // Action rows
+  actionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: CARD, borderRadius: 20, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  actionText: { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY, flex: 1 },
+
+  // Modals
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(26,21,18,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: BG, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 24,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  sheetTitle:  { fontSize: 18, fontFamily: FONT.displayBold, color: PRIMARY },
+  sheetClose: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center',
+  },
+  sheetField: {
+    backgroundColor: CARD, borderRadius: 16,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  sheetFieldLabel: { fontSize: 11, fontFamily: FONT.sansMedium, color: MUTED, marginBottom: 2 },
+  sheetFieldInput: { fontSize: 15, fontFamily: FONT.sansMedium, color: PRIMARY },
+  sheetBtns: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  sheetBtnGrey: {
+    flex: 1, backgroundColor: MUTED_BG, borderRadius: 16,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  sheetBtnGreyText: { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+  sheetBtnDark: {
+    flex: 1, backgroundColor: PRIMARY, borderRadius: 16,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  sheetBtnDarkText: { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
+
+  // Logout modal
+  logoutOverlay: {
+    flex: 1, backgroundColor: 'rgba(26,21,18,0.5)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32,
+  },
+  logoutModal: {
+    backgroundColor: CARD, borderRadius: 28, width: '100%',
+    paddingHorizontal: 24, paddingTop: 28, paddingBottom: 24,
+    alignItems: 'center', gap: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18, shadowRadius: 24, elevation: 16,
+  },
+  logoutIcon: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: RED_BG, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  logoutTitle: { fontSize: 18, fontFamily: FONT.displayBold, color: PRIMARY, marginTop: 4 },
+  logoutSub:   { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED, textAlign: 'center', lineHeight: 18, marginBottom: 4 },
+  logoutBtns:        { flexDirection: 'row', gap: 10, marginTop: 16, width: '100%' },
+  logoutBtnGrey:     { flex: 1, backgroundColor: MUTED_BG, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  logoutBtnGreyText: { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+  logoutBtnRed:      { flex: 1, backgroundColor: RED, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  logoutBtnRedText:  { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
+});

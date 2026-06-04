@@ -1,0 +1,248 @@
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, useWindowDimensions, Animated,
+  TouchableWithoutFeedback, GestureResponderEvent,
+} from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { FONT } from '../constants/fonts';
+
+// ── Palette ────────────────────────────────────────────────────────────────
+export const RING_COLORS = {
+  pink:   '#FAB2D3',
+  yellow: '#FAD957',
+  blue:   '#A5CCF4',
+  green:  '#96C979',
+};
+
+const ICONS: Record<string, string> = {
+  heart:      'heart',
+  footprints: 'footsteps-outline',
+  flame:      'flame',
+  activity:   'pulse-outline',
+};
+
+// ── Geometry helpers ───────────────────────────────────────────────────────
+function polar(angleDeg: number, r: number, cx: number, cy: number) {
+  const a = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+}
+
+function arcPath(startDeg: number, endDeg: number, r: number, cx: number, cy: number) {
+  const s    = polar(startDeg, r, cx, cy);
+  const e    = polar(endDeg,   r, cx, cy);
+  const large = (endDeg - startDeg) > 180 ? 1 : 0;
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
+}
+
+// ── Types ──────────────────────────────────────────────────────────────────
+export type HealthMetric = {
+  key:   string;
+  label: string;
+  value: string | number;
+  unit:  string;
+  icon:  string;
+  color: keyof typeof RING_COLORS;
+};
+
+// ── HealthRing ─────────────────────────────────────────────────────────────
+export function HealthRing({
+  metrics,
+  score = '—',
+  selectedKey,
+  onSelectKey,
+}: {
+  metrics: HealthMetric[];
+  score?: string;
+  selectedKey?: string | null;
+  onSelectKey?: (key: string | null) => void;
+}) {
+  const { width: screenWidth } = useWindowDimensions();
+  const size    = Math.min(screenWidth - 40 - 32, 280);
+  const center  = size / 2;
+  const radius  = size * 0.369;
+  const base    = size * 0.112;
+  const expanded= size * 0.148;
+
+  const n        = metrics.length;
+  const GAP_DEG  = 3;   // gap mínimo entre segmentos
+  const segAngle = (360 - n * GAP_DEG) / n;
+
+  // strokeWidths[i] va de base a expanded al seleccionar
+  const [strokeWidths, setStrokeWidths] = useState<number[]>(
+    () => metrics.map(() => base)
+  );
+  // Re-sync cuando cambia el tamaño base (rotación / resize)
+  useEffect(() => {
+    setStrokeWidths(metrics.map((_, i) =>
+      selectedKey === metrics[i].key ? expanded : base
+    ));
+  }, [base]);
+  const animRef = useRef<Animated.Value>(new Animated.Value(0));
+
+  const selectSegment = (idx: number) => {
+    const key    = metrics[idx].key;
+    const already = selectedKey === key;
+    const next   = already ? null : key;
+    onSelectKey?.(next);
+
+    const anim = animRef.current;
+    anim.stopAnimation();
+
+    if (!already) {
+      anim.setValue(0);
+      const id = anim.addListener(({ value }) =>
+        setStrokeWidths(metrics.map((_, i) =>
+          i === idx ? base + (expanded - base) * value : base
+        ))
+      );
+      Animated.spring(anim, { toValue: 1, useNativeDriver: false, tension: 200, friction: 18 })
+        .start(() => anim.removeListener(id));
+    } else {
+      anim.setValue(1);
+      const id = anim.addListener(({ value }) =>
+        setStrokeWidths(metrics.map(() => base + (expanded - base) * value))
+      );
+      Animated.spring(anim, { toValue: 0, useNativeDriver: false, tension: 200, friction: 18 })
+        .start(() => anim.removeListener(id));
+    }
+  };
+
+  // Toque sobre el SVG → calcular ángulo → detectar segmento
+  const handleSvgPress = (evt: GestureResponderEvent) => {
+    const { locationX: lx, locationY: ly } = evt.nativeEvent;
+    const dx   = lx - center;
+    const dy   = ly - center;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Solo responder si el toque está en el área del anillo (con margen)
+    const inner = radius - expanded * 0.9;
+    const outer = radius + expanded * 0.9;
+    if (dist < inner || dist > outer) return;
+
+    // Calcular ángulo (0° = arriba, sentido horario)
+    const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360;
+
+    // Buscar qué segmento corresponde
+    const idx = metrics.findIndex((_, i) => {
+      const start = i * (segAngle + GAP_DEG) + GAP_DEG / 2;
+      const end   = start + segAngle;
+      return angle >= start && angle <= end;
+    });
+
+    if (idx !== -1) selectSegment(idx);
+  };
+
+  return (
+    <View style={{ width: size, alignSelf: 'center' }}>
+      <View style={{ width: size, height: size, position: 'relative' }}>
+        <TouchableWithoutFeedback onPress={handleSvgPress}>
+          <View>
+            <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+              {/* Track */}
+              <Circle
+                cx={center} cy={center} r={radius}
+                fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={expanded}
+              />
+              {/* Segments */}
+              {metrics.map((m, i) => {
+                const start = i * (segAngle + GAP_DEG) + GAP_DEG / 2;
+                const end   = start + segAngle;
+                return (
+                  <Path
+                    key={m.key}
+                    d={arcPath(start, end, radius, center, center)}
+                    fill="none"
+                    stroke={RING_COLORS[m.color]}
+                    strokeWidth={strokeWidths[i] ?? base}
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+            </Svg>
+          </View>
+        </TouchableWithoutFeedback>
+
+        {/* Icons at midpoint of each segment */}
+        {metrics.map((m, i) => {
+          const mid = i * (segAngle + GAP_DEG) + GAP_DEG / 2 + segAngle / 2;
+          const pos = polar(mid, radius, center, center);
+          const isSelected = selectedKey === m.key;
+          return (
+            <View
+              key={m.key}
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                left: pos.x - 14, top: pos.y - 14,
+                width: 28, height: 28,
+                alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Ionicons
+                name={ICONS[m.icon] as any ?? 'ellipse'}
+                size={isSelected ? 18 : 15}
+                color="#FFFFFF"
+              />
+            </View>
+          );
+        })}
+
+        {/* Center score */}
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={[c.score, { fontSize: size * 0.2 }]}>{score}</Text>
+            <Text style={c.label}>tu puntaje de salud  ⓘ</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const c = StyleSheet.create({
+  score: { fontFamily: FONT.displayBold, color: '#1A1512', letterSpacing: -2 },
+  label: { fontSize: 11, color: '#8C7F6E', fontFamily: FONT.sansMedium, marginTop: 4 },
+});
+
+// ── MetricChips ────────────────────────────────────────────────────────────
+export function MetricChips({ metrics, selectedKey }: { metrics: HealthMetric[]; selectedKey?: string | null }) {
+  return (
+    <View style={ch.grid}>
+      {metrics.map(m => {
+        const active = selectedKey === m.key;
+        return (
+          <View
+            key={m.key}
+            style={[ch.chip, active && { borderWidth: 1.5, borderColor: RING_COLORS[m.color] }]}
+          >
+            <View style={[ch.iconBox, { backgroundColor: RING_COLORS[m.color] }]}>
+              <Ionicons name={ICONS[m.icon] as any ?? 'ellipse'} size={16} color="#FFFFFF" />
+            </View>
+            <View style={ch.textCol}>
+              <Text style={ch.label} numberOfLines={1}>{m.label}</Text>
+              <Text style={ch.value}>
+                {m.value}<Text style={ch.unit}> {m.unit}</Text>
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const ch = StyleSheet.create({
+  grid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 },
+  chip:    {
+    flexBasis: '47%', flexGrow: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#F9F6ED', borderRadius: 16, padding: 12,
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  iconBox: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  textCol: { flex: 1, minWidth: 0 },
+  label:   { fontSize: 11, color: '#8C7F6E', fontFamily: FONT.sansMedium },
+  value:   { fontSize: 15, fontFamily: FONT.sansBold, color: '#1A1512', lineHeight: 20 },
+  unit:    { fontSize: 10, color: '#8C7F6E', fontFamily: FONT.sansRegular },
+});

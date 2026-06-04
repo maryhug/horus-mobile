@@ -1,415 +1,475 @@
-import React, { useMemo, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-  RefreshControl,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  Animated, Modal, RefreshControl, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useAuth } from '../../contexts/AuthContext';
+import Svg, { Path } from 'react-native-svg';
 import { useApi } from '../../hooks/useApi';
 import { apiClient } from '../../services/api';
 import type { DashboardData } from '../../types/api';
+import { EmotionShape } from '../../components/EmotionShape';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// ── NFC icon (4 arcs, igual que Lucide Nfc) ───────────────────────────────
+function NfcIcon({ size = 20, color = '#2D5016' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"  stroke={color} strokeWidth={2} strokeLinecap="round" />
+      <Path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58" stroke={color} strokeWidth={2} strokeLinecap="round" />
+      <Path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"  stroke={color} strokeWidth={2} strokeLinecap="round" />
+      <Path d="M16.37 2a20.16 20.16 0 0 1 0 20"  stroke={color} strokeWidth={2} strokeLinecap="round" />
+    </Svg>
+  );
+}
 
-const V = {
-  coral:    '#FF6B9D',
-  ocean:    '#4B8EF0',
-  tangerine:'#FF8C42',
-  mint:     '#34D399',
-  grape:    '#A78BFA',
-  sunshine: '#FCD34D',
-};
+// ── Palette ────────────────────────────────────────────────────────────────
+const BG      = '#F9F6ED';
+const CARD    = '#FFFFFF';
+const PRIMARY = '#1A1512';
+const MUTED   = '#8C7F6E';
+const MUTED_BG= '#F3EFE7';
+const GREEN   = '#96C979';
+const GREEN_FG= '#2D5016';
+const BLUE    = '#A5CCF4';
+const BLUE_FG = '#1A3A5C';
 
-const GLOBE_SIZE = 152;
-const MAP_HEIGHT  = 230;
-
-const PRODUCTS = [
-  { id: 'bracelet',   label: 'Brazalete',   icon: 'watch-outline', desc: 'Horus Pro · Negro', color: V.coral  },
-  { id: 'smartwatch', label: 'Smartwatch',  icon: 'time-outline',  desc: 'Horus Watch X',    color: V.ocean  },
-  { id: 'card',       label: 'Tarjeta NFC', icon: 'card-outline',  desc: 'Horus Card v2',    color: V.grape  },
+// ── Products ───────────────────────────────────────────────────────────────
+const INITIAL_PRODUCTS = [
+  { id: 'bracelet',   name: 'Brazalete Horus Pro',      desc: 'Sensor principal · NFC + GPS',     active: true  },
+  { id: 'smartwatch', name: 'Smartwatch Horus Watch X', desc: 'Pantalla AMOLED · ritmo cardíaco', active: false },
+  { id: 'card',       name: 'Tarjeta NFC Card v2',       desc: 'Tarjeta de respaldo · 13.56 MHz', active: true  },
 ];
 
-// Multi-color ring config for location globe
-const RINGS = [
-  { scale: 2.1,  color: V.coral,    opacity: 0.06 },
-  { scale: 1.75, color: V.grape,    opacity: 0.09 },
-  { scale: 1.45, color: V.ocean,    opacity: 0.13 },
-  { scale: 1.18, color: V.mint,     opacity: 0.18 },
-];
+// ── Ripple — scale 0.45→1.9, opacity 0.65→0, 3s ease-out (= horus-guardian ripple-soft)
+function Ripple({ delay }: { delay: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, {
+          toValue: 1, duration: 3000,
+          easing: t => 1 - Math.pow(1 - t, 3), // ease-out cubic
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+  const scale   = anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1.9]  });
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.65, 0]    });
+  const SIZE = 190;
+  return (
+    <Animated.View style={{
+      position: 'absolute',
+      width: SIZE, height: SIZE, borderRadius: SIZE / 2,
+      top:  (ORBIT_WRAP - SIZE) / 2,
+      left: (ORBIT_WRAP - SIZE) / 2,
+      backgroundColor: `${BLUE_FG}18`,
+      transform: [{ scale }], opacity,
+    }} />
+  );
+}
+
+const ORBIT_WRAP = 210; // tamaño del contenedor de órbitas
+
+// ── Orbiting dot — orbit-spin: 7s forward / 11s reverse linear
+function OrbitDot({ orbitSize, dotSize, duration, reverse }: {
+  orbitSize: number; dotSize: number; duration: number; reverse?: boolean;
+}) {
+  const rot = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(rot, {
+        toValue: 1, duration,
+        easing: t => t,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+  const rotate = rot.interpolate({
+    inputRange:  [0, 1],
+    outputRange: reverse ? ['0deg', '-360deg'] : ['0deg', '360deg'],
+  });
+  // Centrar la vista de órbita dentro del ORBIT_WRAP
+  const offset = (ORBIT_WRAP - orbitSize) / 2;
+  return (
+    <Animated.View style={{
+      position: 'absolute',
+      width: orbitSize,
+      height: orbitSize,
+      top: offset,
+      left: offset,
+      transform: [{ rotate }],
+    }}>
+      {/* Dot en el borde superior-centro del círculo */}
+      <View style={{
+        position: 'absolute',
+        top: -(dotSize / 2),
+        left: orbitSize / 2 - dotSize / 2,
+        width: dotSize,
+        height: dotSize,
+        borderRadius: dotSize / 2,
+        backgroundColor: reverse ? `${BLUE_FG}80` : BLUE_FG,
+        shadowColor: BLUE_FG,
+        shadowOpacity: 0.6,
+        shadowOffset: { width: 0, height: 0 },
+        shadowRadius: 4,
+        elevation: 5,
+      }} />
+    </Animated.View>
+  );
+}
 
 export default function MonitorScreen() {
-  const { isDark, toggleTheme } = useTheme();
-  const { user } = useAuth();
-  const [activeProducts, setActiveProducts] = useState<string[]>(['bracelet']);
-  const [activeTab, setActiveTab] = useState<'ubicacion' | 'nfc' | 'alertas'>('ubicacion');
+  const { width: screenW } = useWindowDimensions();
+  const [products, setProducts]       = useState(INITIAL_PRODUCTS);
+  const [modalProduct, setModalProduct] = useState<typeof INITIAL_PRODUCTS[0] | null>(null);
+  const blobFloat = useRef(new Animated.Value(0)).current;
 
-  const pulse1 = useRef(new Animated.Value(1)).current;
-  const pulse2 = useRef(new Animated.Value(1)).current;
-  const tabAnim = useRef(new Animated.Value(0)).current;
+  const pinBob = useRef(new Animated.Value(0)).current;
 
-  const { data: dashData, loading, refetch } = useApi<DashboardData>(
+  const { data, loading, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
   );
-
-  const lastSync = dashData?.timestamp
-    ? new Date(dashData.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-    : '—';
+  const syncTime = data?.timestamp
+    ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    : '10:41';
 
   useEffect(() => {
-    const makeLoop = (anim: Animated.Value, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1.3, duration: 1200, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 1,   duration: 1200, useNativeDriver: true }),
-        ])
-      ).start();
-    makeLoop(pulse1, 0);
-    makeLoop(pulse2, 600);
+    // Blob float
+    Animated.loop(Animated.sequence([
+      Animated.timing(blobFloat, { toValue: -8, duration: 1500, useNativeDriver: true }),
+      Animated.timing(blobFloat, { toValue:  0, duration: 1500, useNativeDriver: true }),
+    ])).start();
+
+    // Pin bob — translateY 0→-7→0, 2.4s ease-in-out (= horus-guardian pin-bob)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pinBob, { toValue: -7, duration: 1200, easing: t => Math.sin(t * Math.PI / 2), useNativeDriver: true }),
+        Animated.timing(pinBob, { toValue:  0, duration: 1200, easing: t => 1 - Math.cos(t * Math.PI / 2), useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
 
-  function toggleProduct(id: string) {
-    setActiveProducts(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+  const confirmToggle = () => {
+    if (!modalProduct) return;
+    setProducts(prev =>
+      prev.map(p => p.id === modalProduct.id ? { ...p, active: !p.active } : p)
     );
-  }
-
-  const locationDisplay = user?.location ?? 'El Poblado, Medellín';
-
-  // ── Theme tokens ──────────────────────────────────────────────────────
-  const bg     = isDark ? '#0E0F1A' : '#F7F8FF';
-  const cardBg = isDark ? '#181928' : '#FFFFFF';
-  const txt1   = isDark ? '#EEF2FF' : '#1A1B30';
-  const txt2   = isDark ? '#6B7299' : '#8891B8';
-  const border = isDark ? '#252640' : '#E8EAF6';
-  const globeBg = isDark ? '#060714' : '#0A0C1E';
+    setModalProduct(null);
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
-
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <View style={[s.header, { backgroundColor: cardBg, borderBottomColor: border }]}>
-        <View>
-          <Text style={[s.headerSub, { color: txt2 }]}>HORUS BRASLET</Text>
-          <Text style={[s.headerTitle, { color: txt1 }]}>Monitor</Text>
-        </View>
-        <TouchableOpacity
-          onPress={toggleTheme}
-          style={[s.iconBtn, { backgroundColor: isDark ? '#20213A' : '#EEF0FF', borderColor: border }]}
-        >
-          <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={txt2} />
-        </TouchableOpacity>
-      </View>
-
+    <SafeAreaView style={s.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 36 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={V.coral} />}
+        contentContainerStyle={s.scroll}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={GREEN} />}
       >
 
-        {/* ── Live Location card ───────────────────────────────────────── */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, marginBottom: 14 }}>
-          <View style={[s.bigCard, { backgroundColor: cardBg, borderColor: border, padding: 0, overflow: 'hidden' }]}>
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View style={{ gap: 2 }}>
+          <Text style={s.title}>Monitor</Text>
+          <Text style={s.subtitle}>Ubicación y conectividad en tiempo real</Text>
+        </View>
 
-            {/* Card header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={[s.iconPill, { backgroundColor: V.coral + '25' }]}>
-                  <Ionicons name="location" size={14} color={V.coral} />
-                </View>
-                <Text style={[s.cardTitle, { color: txt1 }]}>UBICACIÓN EN VIVO</Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="time-outline" size={12} color={txt2} />
-                <Text style={{ fontSize: 12, color: txt2, fontWeight: '600' }}>{lastSync}</Text>
-              </View>
+        {/* ── Live location card ───────────────────────────────────────── */}
+        <View style={[s.mapCard, { width: screenW - 40 }]}>
+          {/* Grid lines */}
+          {Array.from({ length: Math.ceil((screenW - 40) / 28) }).map((_, i) => (
+            <View key={`v${i}`} style={[s.gridLineV, { left: i * 28 }]} />
+          ))}
+          {Array.from({ length: 14 }).map((_, i) => (
+            <View key={`h${i}`} style={[s.gridLineH, { top: i * 28 }]} />
+          ))}
+
+          {/* Top row */}
+          <View style={s.mapTopRow}>
+            <View style={s.livePill}>
+              <Text style={s.livePillText}>Ubicación en vivo</Text>
             </View>
-
-            {/* Globe area */}
-            <View style={[s.globeWrap, { backgroundColor: globeBg, height: MAP_HEIGHT }]}>
-
-              {/* Multi-color rings */}
-              {RINGS.map((r, i) => (
-                <View
-                  key={i}
-                  style={{
-                    position: 'absolute',
-                    width:  GLOBE_SIZE * r.scale,
-                    height: GLOBE_SIZE * r.scale,
-                    borderRadius: GLOBE_SIZE * r.scale / 2,
-                    borderWidth: 1.5,
-                    borderColor: r.color,
-                    backgroundColor: r.color.replace('#', 'rgba(') + `,${r.opacity})`,
-                    opacity: r.opacity * 8,
-                  }}
-                />
-              ))}
-
-              {/* Animated pulsing rings */}
-              <Animated.View style={{
-                position: 'absolute',
-                width: GLOBE_SIZE * 0.55, height: GLOBE_SIZE * 0.55,
-                borderRadius: GLOBE_SIZE * 0.275,
-                borderWidth: 2, borderColor: V.coral + '80',
-                backgroundColor: V.coral + '10',
-                transform: [{ scale: pulse1 }],
-              }} />
-              <Animated.View style={{
-                position: 'absolute',
-                width: GLOBE_SIZE * 0.34, height: GLOBE_SIZE * 0.34,
-                borderRadius: GLOBE_SIZE * 0.17,
-                borderWidth: 2, borderColor: V.grape + '90',
-                backgroundColor: V.grape + '15',
-                transform: [{ scale: pulse2 }],
-              }} />
-
-              {/* Center pin */}
-              <View style={[s.pin, { backgroundColor: V.coral, shadowColor: V.coral }]}>
-                <Ionicons name="location" size={20} color="#FFF" />
-              </View>
-
-              {/* Location info overlay */}
-              <View style={[
-                s.locInfo,
-                { backgroundColor: isDark ? 'rgba(24,25,40,0.95)' : 'rgba(255,255,255,0.95)' }
-              ]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.locName, { color: txt1 }]}>{locationDisplay}</Text>
-                  <Text style={{ fontSize: 10, color: txt2, marginTop: 1 }}>Sin coordenadas GPS</Text>
-                </View>
-                <View style={[s.gpsBadge, { backgroundColor: V.mint + '25', borderColor: V.mint + '50' }]}>
-                  <Ionicons name="radio" size={11} color={V.mint} />
-                  <Text style={{ fontSize: 11, color: V.mint, fontWeight: '800' }}>GPS</Text>
-                </View>
-              </View>
+            <View style={s.timePill}>
+              <Ionicons name="time-outline" size={13} color={BLUE_FG} />
+              <Text style={s.timePillText}>{syncTime}</Text>
             </View>
+          </View>
+
+          {/* Orbit container */}
+          <View style={s.orbitWrap}>
+            {/* Ripple circles — delays 0s / 1s / 2s */}
+            <Ripple delay={0} />
+            <Ripple delay={1000} />
+            <Ripple delay={2000} />
+
+            {/* Dashed orbit rings — centradas explícitamente */}
+            {[{ size: 190 }, { size: 140 }].map(({ size }) => (
+              <View key={size} style={[s.dashedRing, {
+                width: size, height: size, borderRadius: size / 2,
+                top:  (ORBIT_WRAP - size) / 2,
+                left: (ORBIT_WRAP - size) / 2,
+              }]} />
+            ))}
+
+            {/* Orbiting dots — 7s forward / 11s reverse */}
+            <OrbitDot orbitSize={190} dotSize={13} duration={7000} />
+            <OrbitDot orbitSize={140} dotSize={9}  duration={11000} reverse />
+
+            {/* Teardrop pin with bob */}
+            <Animated.View style={{ transform: [{ translateY: pinBob }] }}>
+              <View style={s.pinOuter}>
+                <Ionicons name="location" size={26} color={BLUE} style={s.pinIcon} />
+              </View>
+            </Animated.View>
+          </View>
+
+          {/* Location text */}
+          <Text style={s.mapCity}>Medellín, Antioquia</Text>
+          <Text style={s.mapGps}>Esperando coordenadas GPS del dispositivo</Text>
+        </View>
+
+        {/* ── Estado NFC ──────────────────────────────────────────────── */}
+        <View style={s.card}>
+          <View style={s.nfcRow}>
+            <View style={s.nfcIconBox}>
+              <NfcIcon size={20} color={GREEN_FG} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardTitle}>Estado NFC</Text>
+              <Text style={s.cardSub}>Tag registrado y activo</Text>
+            </View>
+            <View style={s.activoBadge}>
+              <Text style={s.activoBadgeText}>Activo</Text>
+            </View>
+          </View>
+
+          <View style={s.chipGrid}>
+            {[
+              { label: 'Protocolo',  value: 'ISO 14443'         },
+              { label: 'Frecuencia', value: '13.56 MHz'          },
+              { label: 'Rango',      value: '≤ 10 cm'            },
+              { label: 'ID del tag', value: '04:A2:6B:9C:1D:80' },
+            ].map(c => (
+              <View key={c.label} style={s.chip}>
+                <Text style={s.chipLabel}>{c.label}</Text>
+                <Text style={s.chipValue}>{c.value}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
-        {/* ── Info cards row ──────────────────────────────────────────── */}
-        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 14 }}>
-          <View style={[s.miniCard, { flex: 1, backgroundColor: V.ocean + '18', borderColor: V.ocean + '35' }]}>
-            <View style={[s.miniIcon, { backgroundColor: V.ocean + '28' }]}>
-              <Ionicons name="scan-outline" size={16} color={V.ocean} />
-            </View>
-            <Text style={[s.miniLabel, { color: txt2 }]}>Último escaneo</Text>
-            <Text style={[s.miniValue, { color: txt1 }]}>{lastSync}</Text>
-            {dashData?.timestamp && (
-              <Text style={[s.miniSub, { color: txt2 }]}>
-                {new Date(dashData.timestamp).toLocaleDateString('es-MX')}
-              </Text>
-            )}
-          </View>
-
-          <View style={[s.miniCard, { flex: 1, backgroundColor: V.mint + '18', borderColor: V.mint + '35' }]}>
-            <View style={[s.miniIcon, { backgroundColor: V.mint + '28' }]}>
-              <Ionicons name="wifi-outline" size={16} color={V.mint} />
-            </View>
-            <Text style={[s.miniLabel, { color: txt2 }]}>Estado NFC</Text>
-            <Text style={[s.miniValue, { color: user?.nfcTagId ? V.mint : txt1 }]}>
-              {user?.nfcTagId ? 'Activo' : '—'}
-            </Text>
-            <Text style={[s.miniSub, { color: txt2 }]}>
-              {user?.nfcTagId ? 'Lectura OK' : 'Sin registrar'}
-            </Text>
-          </View>
-
-          <View style={[s.miniCard, { flex: 1, backgroundColor: V.grape + '18', borderColor: V.grape + '35' }]}>
-            <View style={[s.miniIcon, { backgroundColor: V.grape + '28' }]}>
-              <Ionicons name="pulse-outline" size={16} color={V.grape} />
-            </View>
-            <Text style={[s.miniLabel, { color: txt2 }]}>Estado</Text>
-            <Text style={[s.miniValue, { color: V.grape }]}>Online</Text>
-            <Text style={[s.miniSub, { color: txt2 }]}>Braslet</Text>
-          </View>
+        {/* ── Notificaciones recientes ─────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Notificaciones recientes</Text>
+        <View style={[s.card, s.emptyCard]}>
+          <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
+            <EmotionShape kind="flower" color="pink" size={60} eyes />
+          </Animated.View>
+          <Text style={s.emptyTitle}>Sin notificaciones</Text>
+          <Text style={s.emptySub}>No hay alertas del dispositivo</Text>
         </View>
 
-        {/* ── NFC Details ─────────────────────────────────────────────── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>
-          <View style={[s.bigCard, { backgroundColor: cardBg, borderColor: border }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={[s.miniIcon, { backgroundColor: V.tangerine + '28' }]}>
-                  <Ionicons name="radio-outline" size={16} color={V.tangerine} />
+        {/* ── Productos activos ────────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Productos activos</Text>
+        <View style={{ gap: 8 }}>
+          {products.map(p => (
+            <TouchableOpacity
+              key={p.id}
+              style={s.productCard}
+              onPress={() => setModalProduct(p)}
+              activeOpacity={0.78}
+            >
+              <View style={s.productIconWrap}>
+                <Ionicons name="radio-outline" size={20} color={PRIMARY} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.productName}>{p.name}</Text>
+                <Text style={s.productDesc}>{p.desc}</Text>
+              </View>
+              {p.active ? (
+                <View style={s.checkCircle}>
+                  <Ionicons name="checkmark" size={14} color={CARD} strokeWidth={3} />
                 </View>
-                <Text style={[s.cardTitle, { color: txt1 }]}>Detalles NFC</Text>
-              </View>
-              <View style={[
-                s.activeBadge,
-                { backgroundColor: V.mint + '20', borderColor: V.mint + '45' }
-              ]}>
-                <View style={[s.liveBlip, { backgroundColor: V.mint }]} />
-                <Text style={{ fontSize: 11, color: V.mint, fontWeight: '800' }}>
-                  {user?.nfcTagId ? 'Conectado' : 'Sin registrar'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {[
-                { label: 'Protocolo', value: 'ISO 14443', color: V.coral  },
-                { label: 'Frecuencia', value: '13.56 MHz', color: V.ocean  },
-                { label: 'Rango', value: '≤ 10 cm', color: V.mint  },
-                { label: 'ID Tag', value: user?.nfcTagId ? user.nfcTagId.slice(0, 8) + '…' : '—', color: V.grape },
-              ].map((item, i) => (
-                <View key={i} style={[
-                  s.nfcCell,
-                  { backgroundColor: item.color + '14', borderColor: item.color + '30' }
-                ]}>
-                  <Text style={{ fontSize: 9, color: item.color, fontWeight: '800', letterSpacing: 0.5 }}>
-                    {item.label.toUpperCase()}
-                  </Text>
-                  <Text style={{ fontSize: 14, fontWeight: '900', color: txt1, marginTop: 4 }}>
-                    {item.value}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* ── Recent notifications ─────────────────────────────────────── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>
-          <View style={[s.bigCard, { backgroundColor: cardBg, borderColor: border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <View style={[s.miniIcon, { backgroundColor: V.sunshine + '28' }]}>
-                <Ionicons name="notifications-outline" size={16} color={V.sunshine} />
-              </View>
-              <Text style={[s.cardTitle, { color: txt1 }]}>Notificaciones</Text>
-            </View>
-            <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
-              <View style={[s.emptyCircle, { backgroundColor: V.sunshine + '20' }]}>
-                <Ionicons name="checkmark-circle" size={30} color={V.sunshine} />
-              </View>
-              <Text style={{ color: txt2, fontSize: 13 }}>Sin notificaciones recientes</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Active products ──────────────────────────────────────────── */}
-        <View style={{ paddingHorizontal: 20 }}>
-          <View style={[s.bigCard, { backgroundColor: cardBg, borderColor: border }]}>
-            <View style={{ marginBottom: 16 }}>
-              <Text style={[s.cardTitle, { color: txt1 }]}>Productos activos</Text>
-              <Text style={{ color: txt2, fontSize: 12, marginTop: 2 }}>
-                {activeProducts.length === 0
-                  ? 'Ningún dispositivo'
-                  : `${activeProducts.length} dispositivo${activeProducts.length > 1 ? 's' : ''} activo${activeProducts.length > 1 ? 's' : ''}`}
-              </Text>
-            </View>
-            <View style={{ gap: 8 }}>
-              {PRODUCTS.map((p) => {
-                const isActive = activeProducts.includes(p.id);
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    onPress={() => toggleProduct(p.id)}
-                    activeOpacity={0.75}
-                    style={[
-                      s.productRow,
-                      {
-                        backgroundColor: isActive ? p.color + '15' : isDark ? '#1C1E32' : '#F5F6FF',
-                        borderColor: isActive ? p.color + '55' : border,
-                      }
-                    ]}
-                  >
-                    <View style={[s.productIcon, { backgroundColor: p.color + (isActive ? '30' : '18') }]}>
-                      <Ionicons name={p.icon as any} size={22} color={p.color} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.productName, { color: isActive ? p.color : txt1 }]}>{p.label}</Text>
-                      <Text style={[s.productDesc, { color: txt2 }]}>{p.desc}</Text>
-                    </View>
-                    <View style={[
-                      s.checkbox,
-                      { borderColor: isActive ? p.color : border, backgroundColor: isActive ? p.color : 'transparent' }
-                    ]}>
-                      {isActive && <Ionicons name="checkmark" size={13} color="#FFF" />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+              ) : (
+                <View style={s.emptyCircle} />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
 
       </ScrollView>
+
+      {/* ── Modal ───────────────────────────────────────────────────────── */}
+      <Modal visible={!!modalProduct} transparent animationType="fade" onRequestClose={() => setModalProduct(null)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setModalProduct(null)}>
+          <TouchableOpacity activeOpacity={1} style={s.modalBox} onPress={() => {}}>
+            <View style={s.modalIconWrap}>
+              <Ionicons name="radio-outline" size={28} color={PRIMARY} />
+            </View>
+            <Text style={s.modalTitle}>{modalProduct?.name}</Text>
+            <Text style={s.modalSub}>
+              {modalProduct?.active
+                ? '¿Deseas desactivar este dispositivo?'
+                : '¿Deseas activar este dispositivo?'}
+            </Text>
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.btnCancel} onPress={() => setModalProduct(null)}>
+                <Text style={s.btnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.btnConfirm, { backgroundColor: modalProduct?.active ? '#EF4444' : GREEN }]}
+                onPress={confirmToggle}
+              >
+                <Text style={s.btnConfirmText}>{modalProduct?.active ? 'Desactivar' : 'Activar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  header: {
+  container: { flex: 1, backgroundColor: BG },
+  scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 120, gap: 16 },
+
+  title:    { fontSize: 26, fontWeight: '800', color: PRIMARY, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: MUTED, fontWeight: '500' },
+
+  // Map
+  mapCard: {
+    backgroundColor: BLUE, borderRadius: 28, overflow: 'hidden',
+    paddingHorizontal: 24, paddingTop: 18, paddingBottom: 24,
+    alignItems: 'center',
+  },
+  gridLineV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: `${BLUE_FG}25` },
+  gridLineH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: `${BLUE_FG}25` },
+  mapTopRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 22, paddingVertical: 16, borderBottomWidth: 1,
+    width: '100%', marginBottom: 20, zIndex: 1,
   },
-  headerSub: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-  headerTitle: { fontSize: 26, fontWeight: '900', marginTop: 1 },
-  iconBtn: {
-    width: 40, height: 40, borderRadius: 14,
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1,
+  livePill: {
+    backgroundColor: 'rgba(255,255,255,0.75)', borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 5,
   },
-  bigCard: { borderRadius: 24, padding: 18, borderWidth: 1.5 },
-  cardTitle: { fontSize: 15, fontWeight: '900', letterSpacing: 0.2 },
-  iconPill: { width: 28, height: 28, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
-
-  // Globe
-  globeWrap: { justifyContent: 'center', alignItems: 'center' },
-  pin: {
-    width: 44, height: 44, borderRadius: 22,
-    justifyContent: 'center', alignItems: 'center',
-    shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 20, elevation: 14,
-  },
-  locInfo: {
-    position: 'absolute', bottom: 14, left: 16, right: 16,
-    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
-  locName: { fontSize: 13, fontWeight: '700' },
-  gpsBadge: {
+  livePillText: { fontSize: 12, fontWeight: '700', color: BLUE_FG },
+  timePill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.75)', borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  timePillText: { fontSize: 12, fontWeight: '600', color: BLUE_FG },
+
+  orbitWrap: { width: ORBIT_WRAP, height: ORBIT_WRAP, alignItems: 'center', justifyContent: 'center' },
+  dashedRing: {
+    position: 'absolute',
+    top: undefined, left: undefined, // posicionado desde el centro con offset externo
+    borderWidth: 1.5,
+    borderColor: `${BLUE_FG}45`,
+    borderStyle: 'dashed',
+    // centrado dentro de ORBIT_WRAP manualmente en el JSX
   },
 
-  // Mini cards
-  miniCard: { borderRadius: 18, padding: 14, borderWidth: 1.5 },
-  miniIcon: { width: 34, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  miniLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  miniValue: { fontSize: 16, fontWeight: '900', marginTop: 3 },
-  miniSub: { fontSize: 9, marginTop: 2 },
+  // Teardrop pin (circle + no bottom-left corner + rotated)
+  pinOuter: {
+    width: 56, height: 56,
+    borderRadius: 28, borderBottomLeftRadius: 0,
+    backgroundColor: PRIMARY,
+    alignItems: 'center', justifyContent: 'center',
+    transform: [{ rotate: '45deg' }],
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 10,
+  },
+  pinIcon: { transform: [{ rotate: '-45deg' }] },
 
-  // NFC cells
-  nfcCell: {
-    flex: 1, minWidth: '45%', borderRadius: 14, padding: 12, borderWidth: 1.5,
+  mapCity: { fontSize: 20, fontWeight: '700', color: BLUE_FG, textAlign: 'center', marginTop: 20, zIndex: 1 },
+  mapGps:  { fontSize: 12, color: `${BLUE_FG}99`, textAlign: 'center', marginTop: 2, zIndex: 1 },
+
+  // NFC card
+  card: {
+    backgroundColor: CARD, borderRadius: 28, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  nfcRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  nfcIconBox: {
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center',
+  },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: PRIMARY },
+  cardSub:   { fontSize: 12, color: MUTED, marginTop: 1 },
+  activoBadge: {
+    backgroundColor: `${GREEN}30`, borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 5,
+  },
+  activoBadgeText: { fontSize: 12, fontWeight: '700', color: GREEN_FG },
+
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  chip: {
+    flexBasis: '47%', flexGrow: 1,
+    backgroundColor: MUTED_BG, borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  chipLabel: { fontSize: 11, color: MUTED, marginBottom: 3 },
+  chipValue: { fontSize: 13, fontWeight: '700', color: PRIMARY },
+
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
+
+  emptyCard:  { alignItems: 'center', paddingVertical: 32, gap: 10 },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: PRIMARY },
+  emptySub:   { fontSize: 12, color: MUTED },
+
+  // Products — cada uno es su propia card
+  productCard: {
+    backgroundColor: CARD, borderRadius: 20, padding: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+  },
+  productIconWrap: {
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: MUTED_BG,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  productName: { fontSize: 14, fontWeight: '700', color: PRIMARY },
+  productDesc: { fontSize: 12, color: MUTED, marginTop: 1 },
+  checkCircle: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: GREEN,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyCircle: {
+    width: 26, height: 26, borderRadius: 13,
+    borderWidth: 2, borderColor: '#D9D3C7',
   },
 
-  // Badges
-  activeBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1.5,
-  },
-  liveBlip: { width: 7, height: 7, borderRadius: 3.5 },
-
-  // Products
-  productRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 16, padding: 12, borderWidth: 1.5,
-  },
-  productIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  productName: { fontSize: 14, fontWeight: '800' },
-  productDesc: { fontSize: 12, marginTop: 1 },
-  checkbox: {
-    width: 24, height: 24, borderRadius: 8, borderWidth: 2,
+  // Modal
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 32,
   },
-
-  emptyCircle: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+  modalBox: {
+    backgroundColor: CARD, borderRadius: 28, padding: 28,
+    width: '100%', alignItems: 'center', gap: 8,
+  },
+  modalIconWrap: {
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: MUTED_BG,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: PRIMARY, textAlign: 'center' },
+  modalSub:   { fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 },
+  modalBtns:  { flexDirection: 'row', gap: 12, marginTop: 12, width: '100%' },
+  btnCancel: {
+    flex: 1, height: 48, borderRadius: 16,
+    backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center',
+  },
+  btnCancelText:  { fontSize: 14, fontWeight: '600', color: MUTED },
+  btnConfirm: {
+    flex: 1, height: 48, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  btnConfirmText: { fontSize: 14, fontWeight: '700', color: CARD },
 });

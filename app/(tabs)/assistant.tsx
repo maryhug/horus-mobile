@@ -1,317 +1,340 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ListRenderItem,
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  StyleSheet, KeyboardAvoidingView, Platform, Animated,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../contexts/ThemeContext';
 import { apiClient, getErrorMessage } from '../../services/api';
-import { AppColors } from '../../constants/colors';
+import { EmotionShape } from '../../components/EmotionShape';
 import type { ChatResponse } from '../../types/api';
 
-type Message = { id: string; role: 'bot' | 'user'; text: string; error?: boolean };
+// ── Palette ────────────────────────────────────────────────────────────────
+const BG      = '#F9F6ED';
+const CARD    = '#FFFFFF';
+const PRIMARY = '#1A1512';
+const MUTED   = '#6E6862';
+const MUTED_BG= '#F1EEE7';
+const GREEN   = '#96C979';
+const BLUE    = '#A5CCF4';
 
-const INITIAL_MESSAGES: Message[] = [
-  { id: '1', role: 'bot', text: 'Hola 👋 Soy tu asistente Horus. Pregúntame sobre tu actividad, sensores o alertas recientes.' },
-];
-
+// ── Suggested prompts ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
   '¿Cómo va mi actividad esta semana?',
   'Resumen de alertas de seguridad',
   'Estado de la batería y sincronización',
 ];
 
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    flex: { flex: 1 },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
-    },
-    headerAvatar: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1.5,
-      borderColor: c.accent20,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    headerInfo: { flex: 1 },
-    headerTitle: { fontSize: 16, fontWeight: '700', color: c.textPrimary },
-    headerAccent: { color: c.accent },
-    headerActions: { flexDirection: 'row', gap: 8 },
-    themeBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1,
-      borderColor: c.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-    onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.success },
-    onlineText: { fontSize: 11, color: c.textSecondary },
-    msgList: { paddingHorizontal: 16, paddingVertical: 16 },
-    msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 12 },
-    msgRowBot: { justifyContent: 'flex-start' },
-    msgRowUser: { justifyContent: 'flex-end' },
-    botIcon: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: c.surfaceElevated,
-      borderWidth: 1,
-      borderColor: c.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-      flexShrink: 0,
-    },
-    bubble: { maxWidth: '78%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 11 },
-    bubbleBot: {
-      backgroundColor: c.surface,
-      borderTopLeftRadius: 4,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    bubbleUser: { backgroundColor: c.accent, borderTopRightRadius: 4 },
-    bubbleError: { borderColor: 'rgba(239,35,60,0.35)', backgroundColor: 'rgba(239,35,60,0.08)' },
-    bubbleText: { fontSize: 14, lineHeight: 20 },
-    bubbleTextBot: { color: c.textPrimary },
-    bubbleTextUser: { color: '#FFFFFF', fontWeight: '500' },
-    bubbleTextError: { color: '#EF233C' },
-    typingBubble: { paddingVertical: 14, paddingHorizontal: 16 },
-    typingDots: { flexDirection: 'row', gap: 5, alignItems: 'center' },
-    typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.textSecondary },
-    suggestionsWrap: { borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.background },
-    chipsList: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-    chip: {
-      backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 20,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-    },
-    chipText: { fontSize: 12, color: c.textSecondary },
-    inputBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-      gap: 10,
-      backgroundColor: c.background,
-    },
-    input: {
-      flex: 1,
-      backgroundColor: c.surface,
-      borderRadius: 22,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      color: c.textPrimary,
-      fontSize: 14,
-      borderWidth: 1,
-      borderColor: c.border,
-      maxHeight: 100,
-    },
-    sendBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: c.surfaceElevated,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    sendBtnActive: {
-      backgroundColor: c.accent,
-      shadowColor: c.accent,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      elevation: 6,
-    },
-  });
-}
+const CANNED = 'Aún no recibo datos del sensor de tu manilla, así que no puedo mostrar métricas reales todavía. En cuanto se sincronice, podré darte un resumen detallado de tu actividad, alertas y batería.';
 
-// TODO: ajustar según la respuesta real de la API — extraer el texto del mensaje de la respuesta del chat
-function extractResponseText(data: ChatResponse): string {
-  return data.message ?? data.response ?? data.content ?? 'Respuesta recibida.';
+// ── Types ──────────────────────────────────────────────────────────────────
+type Msg = { id: string; role: 'user' | 'bot' | 'error'; text: string };
+
+// ── Typing dots ───────────────────────────────────────────────────────────
+function TypingDots() {
+  const d0 = useRef(new Animated.Value(0)).current;
+  const d1 = useRef(new Animated.Value(0)).current;
+  const d2 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const bounce = (d: Animated.Value, delay: number) => {
+      const loop = () =>
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(d, { toValue: -6, duration: 280, useNativeDriver: true }),
+          Animated.timing(d, { toValue: 0,  duration: 280, useNativeDriver: true }),
+          Animated.delay(600),
+        ]).start(({ finished }) => { if (finished) loop(); });
+      loop();
+    };
+    bounce(d0, 0);
+    bounce(d1, 160);
+    bounce(d2, 320);
+    return () => { d0.stopAnimation(); d1.stopAnimation(); d2.stopAnimation(); };
+  }, []);
+
+  return (
+    <View style={td.wrap}>
+      {[d0, d1, d2].map((d, i) => (
+        <Animated.View key={i} style={[td.dot, { transform: [{ translateY: d }] }]} />
+      ))}
+    </View>
+  );
+}
+const td = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, paddingVertical: 14 },
+  dot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: MUTED },
+});
+
+// ── Animated avatar for welcome card ──────────────────────────────────────
+function FloatingAvatar() {
+  const float = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.timing(float, { toValue: -8, duration: 1500, useNativeDriver: true }),
+      Animated.timing(float, { toValue:  0, duration: 1500, useNativeDriver: true }),
+    ])).start();
+  }, []);
+  return (
+    <Animated.View style={{ transform: [{ translateY: float }] }}>
+      <EmotionShape kind="blob" color="blue" size={72} eyes />
+    </Animated.View>
+  );
 }
 
 export default function AssistantScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
+  // Tab bar height: bar content ~65px + bottom safe area (min 12px Android / 16px iOS)
+  const TAB_H = 65 + Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12);
 
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
-  const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const flatListRef = useRef<FlatList<Message>>(null);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [input, setInput]       = useState('');
+  const [typing, setTyping]     = useState(false);
+  const listRef  = useRef<FlatList>(null);
+  const idRef    = useRef(0);
 
-  const sendMessage = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || isTyping) return;
+  const scrollToBottom = () =>
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: trimmed };
+  const send = useCallback((text: string) => {
+    const value = text.trim();
+    if (!value) return;
+    idRef.current++;
+    const userMsg: Msg = { id: `${idRef.current}`, role: 'user', text: value };
     setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setIsTyping(true);
+    setInput('');
+    setTyping(true);
+    scrollToBottom();
 
-    try {
-      const { data } = await apiClient.post<ChatResponse>('/chat', { message: trimmed });
-      const botText = extractResponseText(data);
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'bot',
-        text: botText,
-      }]);
-    } catch (err) {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'bot',
-        text: getErrorMessage(err),
-        error: true,
-      }]);
-    } finally {
-      setIsTyping(false);
-    }
-  }, [isTyping]);
+    // Try real API, fall back to canned
+    apiClient.post<ChatResponse>('/assistant/chat', { message: value })
+      .then(res => {
+        setTyping(false);
+        idRef.current++;
+        setMessages(prev => [...prev, { id: `${idRef.current}`, role: 'bot', text: res.data?.reply ?? CANNED }]);
+        scrollToBottom();
+      })
+      .catch(() => {
+        setTyping(false);
+        idRef.current++;
+        setMessages(prev => [...prev, { id: `${idRef.current}`, role: 'bot', text: CANNED }]);
+        scrollToBottom();
+      });
+  }, []);
 
-  const renderMessage: ListRenderItem<Message> = ({ item }) => {
-    const isUser = item.role === 'user';
-    return (
-      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowBot]}>
-        {!isUser && (
-          <View style={styles.botIcon}>
-            <Ionicons name="sparkles" size={13} color={colors.accent} />
-          </View>
-        )}
-        <View style={[
-          styles.bubble,
-          isUser ? styles.bubbleUser : styles.bubbleBot,
-          item.error && styles.bubbleError,
-        ]}>
-          <Text style={[
-            styles.bubbleText,
-            isUser ? styles.bubbleTextUser : styles.bubbleTextBot,
-            item.error && styles.bubbleTextError,
-          ]}>
-            {item.text}
-          </Text>
-        </View>
-      </View>
-    );
-  };
+  const isEmpty = messages.length === 0 && !typing;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.header}>
-          <View style={styles.headerAvatar}>
-            <Ionicons name="sparkles" size={22} color={colors.accent} />
+    <SafeAreaView style={s.container}>
+      <KeyboardAvoidingView
+        style={s.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View style={s.header}>
+          <View style={s.headerAvatar}>
+            <EmotionShape kind="blob" color="blue" size={48} eyes />
           </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>
-              Asistente <Text style={styles.headerAccent}>Horus AI</Text>
-            </Text>
-            <View style={styles.onlineRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>En línea · responde en tiempo real</Text>
+          <View>
+            <Text style={s.headerTitle}>Foca · Horus AI</Text>
+            <View style={s.onlineRow}>
+              <View style={s.onlineDot} />
+              <Text style={s.onlineText}>En línea</Text>
             </View>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme}>
-              <Ionicons
-                name={isDark ? 'sunny-outline' : 'moon-outline'}
-                size={18}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
           </View>
         </View>
 
+        {/* ── Messages list ────────────────────────────────────────────── */}
         <FlatList
-          ref={flatListRef}
+          ref={listRef}
           data={messages}
-          keyExtractor={item => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.msgList}
+          keyExtractor={m => m.id}
+          contentContainerStyle={[s.listContent, isEmpty && s.listEmpty, { paddingBottom: TAB_H + 110 }]}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          ListFooterComponent={
-            isTyping ? (
-              <View style={[styles.msgRow, styles.msgRowBot]}>
-                <View style={styles.botIcon}>
-                  <Ionicons name="sparkles" size={13} color={colors.accent} />
-                </View>
-                <View style={[styles.bubble, styles.bubbleBot, styles.typingBubble]}>
-                  <View style={styles.typingDots}>
-                    <View style={[styles.typingDot, { opacity: 1 }]} />
-                    <View style={[styles.typingDot, { opacity: 0.6 }]} />
-                    <View style={[styles.typingDot, { opacity: 0.3 }]} />
-                  </View>
-                </View>
+          onContentSizeChange={scrollToBottom}
+          ListHeaderComponent={isEmpty ? (
+            <View style={s.welcomeWrap}>
+              {/* Welcome card */}
+              <View style={s.welcomeCard}>
+                <FloatingAvatar />
+                <Text style={s.welcomeTitle}>Hola, soy Foca</Text>
+                <Text style={s.welcomeSub}>
+                  Pregúntame sobre tu actividad, alertas o el estado de tu dispositivo.
+                </Text>
               </View>
-            ) : null
-          }
+
+              {/* Suggestion chips */}
+              <View style={s.suggestions}>
+                {SUGGESTIONS.map(p => (
+                  <TouchableOpacity key={p} style={s.suggestionBtn} onPress={() => send(p)} activeOpacity={0.75}>
+                    <Text style={s.suggestionText}>{p}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
+          renderItem={({ item: m }) => (
+            <View style={[s.msgRow, m.role === 'user' ? s.msgRowRight : s.msgRowLeft]}>
+              <View style={[
+                s.bubble,
+                m.role === 'user'  && s.bubbleUser,
+                m.role === 'bot'   && s.bubbleBot,
+                m.role === 'error' && s.bubbleError,
+              ]}>
+                <Text style={[s.bubbleText, m.role === 'user' && s.bubbleTextUser]}>
+                  {m.text}
+                </Text>
+              </View>
+            </View>
+          )}
+          ListFooterComponent={typing ? (
+            <View style={s.msgRowLeft}>
+              <View style={s.bubbleBot}>
+                <TypingDots />
+              </View>
+            </View>
+          ) : null}
         />
 
-        {messages.length === 1 && (
-          <View style={styles.suggestionsWrap}>
-            <FlatList
-              horizontal
-              data={SUGGESTIONS}
-              keyExtractor={(_, i) => i.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.chip} onPress={() => sendMessage(item)} activeOpacity={0.75}>
-                  <Text style={styles.chipText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-              contentContainerStyle={styles.chipsList}
-              showsHorizontalScrollIndicator={false}
-            />
-          </View>
-        )}
+        {/* ── Input bar — flota sobre la tab bar ───────────────────────── */}
+        <View style={[s.inputWrap, { bottom: TAB_H + 14 }]}>
+          <View style={s.inputRow}>
 
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            placeholder="Pregunta sobre los datos de tu manilla..."
-            placeholderTextColor={colors.textMuted}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={500}
-            editable={!isTyping}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (inputText.trim() && !isTyping) ? styles.sendBtnActive : null]}
-            onPress={() => sendMessage(inputText)}
-            disabled={!inputText.trim() || isTyping}
-          >
-            <Ionicons name="send" size={15} color={(inputText.trim() && !isTyping) ? '#FFFFFF' : colors.textMuted} />
-          </TouchableOpacity>
+            {/* Píldora: + botón + campo de texto */}
+            <View style={s.inputPill}>
+              <TouchableOpacity style={s.plusBtn} activeOpacity={0.7}>
+                <Ionicons name="add" size={22} color={PRIMARY} />
+              </TouchableOpacity>
+              <TextInput
+                style={s.inputField}
+                value={input}
+                onChangeText={t => setInput(t)}
+                placeholder="Escribe un mensaje…"
+                placeholderTextColor={`${MUTED}90`}
+                multiline
+                returnKeyType="send"
+                blurOnSubmit
+                onSubmitEditing={() => send(input)}
+              />
+            </View>
+
+            {/* Botón circular externo */}
+            <TouchableOpacity
+              style={[s.sendCircle, input.trim() ? s.sendCircleActive : s.sendCircleIdle]}
+              onPress={() => send(input)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={input.trim() ? 'send' : 'mic-outline'}
+                size={22}
+                color={input.trim() ? '#FFFFFF' : PRIMARY}
+              />
+            </TouchableOpacity>
+
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  flex:      { flex: 1 },
+
+  // Header
+  header: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
+  },
+  headerAvatar: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: BLUE + '30',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  headerTitle: { fontSize: 19, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
+  onlineRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  onlineDot:   { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  onlineText:  { fontSize: 13, color: GREEN, fontWeight: '600' },
+
+  // List
+  listContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  listEmpty:   { flex: 1 },
+
+  // Welcome
+  welcomeWrap: { gap: 16, paddingTop: 12 },
+  welcomeCard: {
+    backgroundColor: CARD, borderRadius: 32, padding: 28,
+    alignItems: 'center', gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  welcomeTitle: { fontSize: 17, fontWeight: '700', color: PRIMARY, marginTop: 6 },
+  welcomeSub:   { fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 },
+  suggestions:  { gap: 10 },
+  suggestionBtn: {
+    backgroundColor: CARD, borderRadius: 22,
+    paddingHorizontal: 20, paddingVertical: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  suggestionText: { fontSize: 13, fontWeight: '500', color: PRIMARY },
+
+  // Messages
+  msgRow:      { marginBottom: 10 },
+  msgRowRight: { alignItems: 'flex-end' },
+  msgRowLeft:  { alignItems: 'flex-start' },
+  bubble: {
+    maxWidth: '82%', borderRadius: 24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+  },
+  bubbleUser:  { backgroundColor: PRIMARY, borderBottomRightRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
+  bubbleBot:   { backgroundColor: CARD, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
+  bubbleError: { backgroundColor: '#EA3C3F18', borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
+  bubbleText:     { fontSize: 14, color: PRIMARY, lineHeight: 20 },
+  bubbleTextUser: { color: '#FAF8F5' },
+
+  // Input — position absolute sobre la tab bar
+  inputWrap: {
+    position: 'absolute', left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
+    backgroundColor: BG,
+  },
+  inputRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+  },
+  // Píldora izquierda
+  inputPill: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: CARD, borderRadius: 22,
+    paddingLeft: 6, paddingRight: 10,
+    height: 44,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 14, elevation: 5,
+  },
+  plusBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: MUTED_BG,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  inputField: {
+    flex: 1, fontSize: 14, color: PRIMARY,
+    paddingHorizontal: 10, paddingVertical: 0,
+    height: 44, maxHeight: 120, lineHeight: 44,
+    textAlignVertical: 'center',
+  },
+  // Botón circular externo
+  sendCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15, shadowRadius: 10, elevation: 6,
+  },
+  sendCircleActive: { backgroundColor: PRIMARY },
+  sendCircleIdle:   { backgroundColor: '#E8E4DC' },
+});

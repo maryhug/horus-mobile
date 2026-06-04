@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,145 +9,24 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Image,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../services/api';
-import { AppColors } from '../constants/colors';
-
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    flex: { flex: 1 },
-    scrollContent: {
-      flexGrow: 1,
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-      paddingVertical: 32,
-    },
-    card: {
-      backgroundColor: c.surface,
-      borderRadius: 24,
-      padding: 28,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    logoWrap: { alignItems: 'center', marginBottom: 22 },
-    logoImg: {
-      width: 88,
-      height: 88,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
-    },
-    title: { textAlign: 'center', fontSize: 26, fontWeight: '700', marginBottom: 8 },
-    titleAccent: { color: c.accent, fontWeight: '700' },
-    titleBold: { color: c.textPrimary, fontWeight: '700' },
-    subtitle: {
-      textAlign: 'center',
-      color: c.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-      marginBottom: 28,
-    },
-    inputGroup: { marginBottom: 16 },
-    label: { color: c.textSecondary, fontSize: 13, fontWeight: '500', marginBottom: 8 },
-    inputBox: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: c.surfaceElevated,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.border,
-      paddingHorizontal: 14,
-      height: 50,
-    },
-    inputBoxError: { borderColor: c.strawberryRed ?? '#EF233C' },
-    inputIcon: { marginRight: 10 },
-    input: { flex: 1, color: c.textPrimary, fontSize: 15 },
-    eyeBtn: { padding: 4 },
-    row: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 24,
-    },
-    checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    checkbox: {
-      width: 18,
-      height: 18,
-      borderRadius: 4,
-      borderWidth: 1.5,
-      borderColor: c.borderLight,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    checkboxActive: { backgroundColor: c.accent, borderColor: c.accent },
-    checkLabel: { color: c.textSecondary, fontSize: 13 },
-    forgotLink: { color: c.accent, fontSize: 13, fontWeight: '500' },
-    loginBtn: {
-      backgroundColor: c.accent,
-      borderRadius: 14,
-      height: 52,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 20,
-      shadowColor: c.accent,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.4,
-      shadowRadius: 16,
-      elevation: 8,
-    },
-    loginBtnDisabled: { opacity: 0.7 },
-    loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-    errorBox: {
-      backgroundColor: 'rgba(239,35,60,0.10)',
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: 'rgba(239,35,60,0.25)',
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      marginBottom: 18,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    errorText: { color: '#EF233C', fontSize: 13, flex: 1, lineHeight: 18 },
-    signupRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-    signupText: { color: c.textSecondary, fontSize: 14 },
-    signupLink: { color: c.accent, fontSize: 14, fontWeight: '600' },
-    successBox: {
-      backgroundColor: 'rgba(76,175,80,0.10)',
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: 'rgba(76,175,80,0.25)',
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      marginBottom: 18,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    successText: { color: '#4CAF50', fontSize: 13, flex: 1, lineHeight: 18 },
-  });
-}
+import { EmotionShape } from '../components/EmotionShape';
 
 export default function LoginScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { width, height } = useWindowDimensions();
+  const isSmall = height < 700;
+
   const { login } = useAuth();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -171,111 +50,114 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+
+        {/* Decorative shapes */}
+        <EmotionShape kind="blob" color="yellow" size={isSmall ? 90 : 120} rotate={-12} style={styles.shapeYellow} />
+        <EmotionShape kind="star" color="pink"   size={isSmall ? 54 : 70}  rotate={8}   style={styles.shapeStar} />
+        <EmotionShape kind="blob" color="blue"   size={isSmall ? 50 : 64}  rotate={20}  style={styles.shapeBlue} />
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.card}>
-            <View style={styles.logoWrap}>
-              <Image
-                source={require('../assets/icon.png')}
-                style={styles.logoImg}
-                resizeMode="contain"
-              />
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoBox}>
+              <Ionicons name="shield-checkmark" size={20} color="#FAFAF7" />
             </View>
+            <Text style={styles.logoText}>Horus</Text>
+          </View>
 
-            <Text style={styles.title}>
-              <Text style={styles.titleAccent}>Horus </Text>
-              <Text style={styles.titleBold}>Braslet</Text>
-            </Text>
+          {/* Title block — offset clears the tallest shape (star at ~top:176+size:70 = 246px) */}
+          <View style={[styles.titleBlock, { marginTop: isSmall ? 140 : 170 }]}>
+            <Text style={styles.title}>Bienvenido{'\n'}de vuelta</Text>
             <Text style={styles.subtitle}>
-              Inicia sesión para conectar con tu manilla inteligente
+              Monitorea tu salud y seguridad con tu manilla Horus.
             </Text>
+          </View>
+
+          {/* Form */}
+          <View style={styles.form}>
 
             {registered === '1' && (
               <View style={styles.successBox}>
-                <Ionicons name="checkmark-circle-outline" size={16} color="#4CAF50" />
+                <Ionicons name="checkmark-circle-outline" size={15} color="#4CAF50" />
                 <Text style={styles.successText}>¡Cuenta creada! Ya puedes iniciar sesión.</Text>
               </View>
             )}
 
             {errorMsg && (
               <View style={styles.errorBox}>
-                <Ionicons name="alert-circle-outline" size={16} color="#EF233C" />
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
             )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Correo electrónico</Text>
-              <View style={[styles.inputBox, errorMsg ? styles.inputBoxError : null]}>
-                <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="tu@correo.com"
-                  placeholderTextColor={colors.textMuted}
-                  value={email}
-                  onChangeText={v => { setEmail(v); setErrorMsg(null); }}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isLoading}
-                />
-              </View>
+            {/* Email */}
+            <View style={styles.inputCard}>
+              <Text style={styles.inputLabel}>Correo</Text>
+              <TextInput
+                style={styles.inputField}
+                placeholder="tu@correo.com"
+                placeholderTextColor="rgba(136,130,110,0.6)"
+                value={email}
+                onChangeText={v => { setEmail(v); setErrorMsg(null); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+              />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Contraseña</Text>
-              <View style={[styles.inputBox, errorMsg ? styles.inputBoxError : null]}>
-                <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
+            {/* Password */}
+            <View style={styles.inputCard}>
+              <Text style={styles.inputLabel}>Contraseña</Text>
+              <View style={styles.passwordRow}>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.inputField, { flex: 1 }]}
                   placeholder="••••••••"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor="rgba(136,130,110,0.6)"
                   value={password}
                   onChangeText={v => { setPassword(v); setErrorMsg(null); }}
                   secureTextEntry={!showPassword}
                   editable={!isLoading}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn}>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(p => !p)}
+                  style={styles.eyeBtn}
+                >
                   <Ionicons
                     name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={18}
-                    color={colors.textMuted}
+                    size={16}
+                    color="#88826E"
                   />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={styles.row}>
-              <TouchableOpacity style={styles.checkRow} onPress={() => setRememberMe(v => !v)}>
-                <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
-                  {rememberMe && <Ionicons name="checkmark" size={11} color="#FFFFFF" />}
-                </View>
-                <Text style={styles.checkLabel}>Recordarme</Text>
-              </TouchableOpacity>
-              <TouchableOpacity>
-                <Text style={styles.forgotLink}>¿Olvidaste tu contraseña?</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Forgot password */}
+            <TouchableOpacity style={styles.forgotWrap}>
+              <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+            </TouchableOpacity>
 
+            {/* Submit */}
             <TouchableOpacity
-              style={[styles.loginBtn, isLoading && styles.loginBtnDisabled]}
+              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
               onPress={handleLogin}
-              activeOpacity={0.85}
+              activeOpacity={0.88}
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color="#FAFAF7" />
               ) : (
                 <>
-                  <Text style={styles.loginBtnText}>Iniciar Sesión</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                  <Text style={styles.submitBtnText}>Iniciar sesión</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FAFAF7" />
                 </>
               )}
             </TouchableOpacity>
 
+            {/* Sign up */}
             <View style={styles.signupRow}>
               <Text style={styles.signupText}>¿No tienes cuenta? </Text>
               <TouchableOpacity onPress={() => router.push('/register')}>
@@ -288,3 +170,165 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
+
+const BG = '#F9F6ED';
+const CARD = '#FFFFFF';
+const PRIMARY = '#1A1512';
+const MUTED = '#8C7F6E';
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1 },
+
+  // Shapes — top values relative to SafeAreaView top
+  shapeYellow: { position: 'absolute', right: -6,  top: 56,  zIndex: 0 },
+  shapeStar:   { position: 'absolute', left: 20,   top: 130, zIndex: 0 },
+  shapeBlue:   { position: 'absolute', right: 36,  top: 170, zIndex: 0 },
+
+  scrollContent: { flexGrow: 1, paddingBottom: 48 },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    zIndex: 1,
+  },
+  logoBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: PRIMARY,
+    letterSpacing: -0.5,
+  },
+
+  // Title — marginTop set dynamically in JSX
+  titleBlock: {
+    paddingHorizontal: 24,
+    zIndex: 1,
+  },
+  title: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: PRIMARY,
+    lineHeight: 42,
+    letterSpacing: -1,
+  },
+  subtitle: {
+    marginTop: 12,
+    fontSize: 15,
+    color: MUTED,
+    lineHeight: 22,
+    maxWidth: 280,
+  },
+
+  // Form
+  form: {
+    paddingHorizontal: 24,
+    marginTop: 32,
+    gap: 12,
+    zIndex: 1,
+  },
+
+  // Input card
+  inputCard: {
+    backgroundColor: CARD,
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  inputLabel: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    fontSize: 12,
+    fontWeight: '600',
+    color: MUTED,
+  },
+  inputField: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 4,
+    fontSize: 15,
+    fontWeight: '500',
+    color: PRIMARY,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eyeBtn: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 4,
+  },
+
+  // Forgot
+  forgotWrap: { alignItems: 'flex-end', marginTop: -4 },
+  forgotText: { fontSize: 13, fontWeight: '600', color: MUTED },
+
+  // Submit button
+  submitBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 20,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: {
+    color: '#FAFAF7',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  // Sign up
+  signupRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  signupText: { fontSize: 14, color: MUTED },
+  signupLink: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PRIMARY,
+    textDecorationLine: 'underline',
+  },
+
+  // Alerts
+  errorBox: {
+    backgroundColor: 'rgba(220,38,38,0.08)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  errorText: { color: '#DC2626', fontSize: 13, fontWeight: '500' },
+  successBox: {
+    backgroundColor: 'rgba(76,175,80,0.08)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  successText: { color: '#4CAF50', fontSize: 13, fontWeight: '500', flex: 1 },
+});
