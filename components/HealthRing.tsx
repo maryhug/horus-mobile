@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, useWindowDimensions, Animated,
-  TouchableWithoutFeedback, GestureResponderEvent,
 } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -108,60 +107,51 @@ export function HealthRing({
     }
   };
 
-  // Toque sobre el SVG → calcular ángulo → detectar segmento
-  const handleSvgPress = (evt: GestureResponderEvent) => {
-    const { locationX: lx, locationY: ly } = evt.nativeEvent;
+  const handleTouch = (lx: number, ly: number) => {
     const dx   = lx - center;
     const dy   = ly - center;
     const dist = Math.sqrt(dx * dx + dy * dy);
-
-    // Solo responder si el toque está en el área del anillo (con margen)
-    const inner = radius - expanded * 0.9;
-    const outer = radius + expanded * 0.9;
+    const inner = radius - expanded * 0.85;
+    const outer = radius + expanded * 0.85;
     if (dist < inner || dist > outer) return;
-
-    // Calcular ángulo (0° = arriba, sentido horario)
     const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360;
-
-    // Buscar qué segmento corresponde
     const idx = metrics.findIndex((_, i) => {
       const start = i * (segAngle + GAP_DEG) + GAP_DEG / 2;
       const end   = start + segAngle;
       return angle >= start && angle <= end;
     });
-
     if (idx !== -1) selectSegment(idx);
   };
 
   return (
     <View style={{ width: size, alignSelf: 'center' }}>
-      <View style={{ width: size, height: size, position: 'relative' }}>
-        <TouchableWithoutFeedback onPress={handleSvgPress}>
-          <View>
-            <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-              {/* Track */}
-              <Circle
-                cx={center} cy={center} r={radius}
-                fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={expanded}
+      <View
+        style={{ width: size, height: size, position: 'relative' }}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={evt => handleTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY)}
+      >
+        <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          {/* Track */}
+          <Circle
+            cx={center} cy={center} r={radius}
+            fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={expanded}
+          />
+          {/* Segments */}
+          {metrics.map((m, i) => {
+            const start = i * (segAngle + GAP_DEG) + GAP_DEG / 2;
+            const end   = start + segAngle;
+            return (
+              <Path
+                key={m.key}
+                d={arcPath(start, end, radius, center, center)}
+                fill="none"
+                stroke={RING_COLORS[m.color]}
+                strokeWidth={strokeWidths[i] ?? base}
+                strokeLinecap="round"
               />
-              {/* Segments */}
-              {metrics.map((m, i) => {
-                const start = i * (segAngle + GAP_DEG) + GAP_DEG / 2;
-                const end   = start + segAngle;
-                return (
-                  <Path
-                    key={m.key}
-                    d={arcPath(start, end, radius, center, center)}
-                    fill="none"
-                    stroke={RING_COLORS[m.color]}
-                    strokeWidth={strokeWidths[i] ?? base}
-                    strokeLinecap="round"
-                  />
-                );
-              })}
-            </Svg>
-          </View>
-        </TouchableWithoutFeedback>
+            );
+          })}
+        </Svg>
 
         {/* Icons at midpoint of each segment */}
         {metrics.map((m, i) => {
