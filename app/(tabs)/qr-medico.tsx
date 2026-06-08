@@ -240,7 +240,7 @@ function makeStyles(
     btnRow: { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
     btnDark: {
       flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 8, backgroundColor: PRIMARY, borderRadius: 18, paddingVertical: 14,
+      gap: 8, backgroundColor: '#1A1512', borderRadius: 18, paddingVertical: 14,
     },
     btnDarkText:   { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
     btnYellow: {

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Modal, Alert, useWindowDimensions,
+  TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle, Rect, Line, Polyline, G } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { apiClient } from '../../services/api';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
@@ -67,8 +68,12 @@ function XIcon({ color, size = 16 }: { color: string; size?: number }) {
   return <I size={size}><Path d="M18 6 6 18M6 6l12 12" stroke={color} {...sw} /></I>;
 }
 
-// ── Mock user ──────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 type UserDraft = { firstName: string; lastName: string; phone: string; location: string };
+type ProfileData = {
+  firstName: string; lastName: string; email: string;
+  bloodType?: string; dateOfBirth?: string; nfcTagId?: string;
+};
 
 // ── Reusable sub-components ───────────────────────────────────────────────
 type Styles = ReturnType<typeof makeStyles>;
@@ -112,9 +117,20 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
 
+  // ── API profile data ───────────────────────────────────────────────────
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    apiClient.get<ProfileData>('/profile')
+      .then(r => setProfile(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingProfile(false));
+  }, []);
+
   const defaultUser: UserDraft = {
-    firstName: user?.firstName ?? 'Mateo',
-    lastName:  user?.lastName  ?? 'Restrepo',
+    firstName: profile?.firstName ?? user?.firstName ?? '—',
+    lastName:  profile?.lastName  ?? user?.lastName  ?? '—',
     phone:     '+57 301 555 0142',
     location:  'Medellín, Colombia',
   };
@@ -124,8 +140,34 @@ export default function ProfileScreen() {
   const [editOpen, setEditOpen] = useState(false);
   const [logoutOpen, setLogout] = useState(false);
 
-  const email     = user?.email ?? 'mateo.restrepo@horus.health';
-  const initials  = `${u.firstName[0] ?? ''}${u.lastName[0] ?? ''}`.toUpperCase();
+  // Actualiza los campos cuando llegan los datos de la API
+  useEffect(() => {
+    if (!profile) return;
+    const updated = {
+      firstName: profile.firstName || user?.firstName || '—',
+      lastName:  profile.lastName  || user?.lastName  || '—',
+      phone:     u.phone,
+      location:  u.location,
+    };
+    setU(updated);
+    setDraft(updated);
+  }, [profile]);
+
+  const email     = profile?.email ?? user?.email ?? '—';
+  const bloodType = profile?.bloodType ?? '—';
+  const nfcTagId  = profile?.nfcTagId  ?? '—';
+
+  // Calcular edad a partir de dateOfBirth
+  const dobStr    = profile?.dateOfBirth;
+  const dobFormatted = (() => {
+    if (!dobStr) return '—';
+    const dob  = new Date(dobStr);
+    const age  = new Date().getFullYear() - dob.getFullYear();
+    const label = dobStr.split('T')[0] ?? dobStr;
+    return `${label} · ${age} años`;
+  })();
+
+  const initials = `${u.firstName[0] ?? ''}${u.lastName[0] ?? ''}`.toUpperCase();
 
   const handleLogout = async () => {
     setLogout(false);
@@ -144,7 +186,10 @@ export default function ProfileScreen() {
         <View style={s.avatarCard}>
           <View style={s.avatarWrap}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>{initials}</Text>
+              {loadingProfile
+                ? <ActivityIndicator color={PINK_FG} />
+                : <Text style={s.avatarText}>{initials}</Text>
+              }
             </View>
             <TouchableOpacity style={s.cameraBtn} activeOpacity={0.85}>
               <CameraIcon color="#FFFFFF" size={14} />
@@ -164,8 +209,8 @@ export default function ProfileScreen() {
           <InfoRow s={s} icon={<MailIcon    color={MUTED} />} label="Email"              value={email} />
           <InfoRow s={s} icon={<PhoneIcon   color={MUTED} />} label="Teléfono"           value={u.phone} />
           <InfoRow s={s} icon={<MapPinIcon  color={MUTED} />} label="Ubicación"          value={u.location} />
-          <InfoRow s={s} icon={<DropletIcon color={MUTED} />} label="Tipo de sangre"     value="O+" />
-          <InfoRow s={s} icon={<CalendarIcon color={MUTED} />} label="Fecha de nacimiento" value="1991-03-14 · 35 años" />
+          <InfoRow s={s} icon={<DropletIcon color={MUTED} />} label="Tipo de sangre"     value={bloodType} />
+          <InfoRow s={s} icon={<CalendarIcon color={MUTED} />} label="Fecha de nacimiento" value={dobFormatted} />
         </View>
 
         {/* ── Mi manilla Horus ─────────────────────────────────────────── */}
@@ -178,7 +223,7 @@ export default function ProfileScreen() {
         </View>
         <View style={s.nfcCard}>
           <Text style={s.nfcLabel}>ID del tag NFC</Text>
-          <Text style={s.nfcValue}>04:A2:6B:9C:1D:80</Text>
+          <Text style={s.nfcValue}>{nfcTagId}</Text>
         </View>
 
         {/* ── Acciones ─────────────────────────────────────────────────── */}

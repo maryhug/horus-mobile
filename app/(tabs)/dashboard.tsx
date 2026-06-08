@@ -20,7 +20,7 @@ import type { HealthMetric } from '../../components/HealthRing';
 import { EmotionShape } from '../../components/EmotionShape';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
-const ASSIST_BG = '#FAECEA';
+// ASSIST_BG se calcula dinámicamente dentro del componente
 
 const STATIC_METRICS: HealthMetric[] = [
   { key: 'heart',     label: 'Frecuencia cardíaca', value: '—', unit: 'bpm',   icon: 'heart',      color: 'pink'   },
@@ -57,6 +57,7 @@ const BAR_HEIGHTS = Array.from({ length: 24 }, (_, i) => 8 + ((i * 37 + 19) % 60
 
 export default function DashboardScreen() {
   const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, RED, RED_BG, isDark, toggleTheme } = useAppTheme();
+  const ASSIST_BG = isDark ? '#2D1520' : '#FAECEA';
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, GREEN, PINK, YELLOW, BLUE, ASSIST_BG), [isDark]);
 
   const { user } = useAuth();
