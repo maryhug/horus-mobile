@@ -37,7 +37,7 @@ const QrCodeIcon   = ({ c }: { c: string }) => <Icon><Rect x={3} y={3} width={5}
 const WatchIcon    = ({ c }: { c: string }) => <Icon size={64}><Rect x={5} y={2} width={14} height={20} rx={7} stroke={c} {...sw} /><Path d="M16 2h-2l-1-2h-2l-1 2H8M16 22h-2l-1 2h-2l-1-2H8M12 12v-4M12 12h3" stroke={c} {...sw} /></Icon>;
 
 // ── Custom Toggle ──────────────────────────────────────────────────────────
-function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
+function Toggle({ value, onToggle, green, mutedBg }: { value: boolean; onToggle: () => void; green: string; mutedBg: string }) {
   const anim = React.useRef(new Animated.Value(value ? 1 : 0)).current;
   const handle = () => {
     Animated.timing(anim, { toValue: value ? 0 : 1, duration: 180, useNativeDriver: true }).start();
@@ -46,7 +46,7 @@ function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
   const tx = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
   return (
     <TouchableOpacity onPress={handle} activeOpacity={0.85}
-      style={[ts.track, { backgroundColor: value ? GREEN : MUTED_BG }]}>
+      style={[ts.track, { backgroundColor: value ? green : mutedBg }]}>
       <Animated.View style={[ts.thumb, { transform: [{ translateX: tx }] }]} />
     </TouchableOpacity>
   );
@@ -65,7 +65,8 @@ const ASSISTANTS = [
 ];
 
 // ── Reusable Row ───────────────────────────────────────────────────────────
-function Row({ icon, label, right }: { icon: React.ReactNode; label: string; right: React.ReactNode }) {
+type SType = ReturnType<typeof makeStyles>;
+function Row({ icon, label, right, s }: { icon: React.ReactNode; label: string; right: React.ReactNode; s: SType }) {
   return (
     <View style={s.row}>
       <View style={s.rowIcon}>{icon}</View>
@@ -147,7 +148,7 @@ export default function SettingsScreen() {
         {/* ── Apariencia ──────────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>Apariencia</Text>
         <View style={s.list}>
-          <Row
+          <Row s={s}
             icon={theme === 'dark' ? <MoonIcon c={MUTED} /> : <SunIcon c={MUTED} />}
             label="Tema"
             right={
@@ -162,7 +163,7 @@ export default function SettingsScreen() {
             }
           />
           <TouchableOpacity onPress={() => setLangOpen(true)} activeOpacity={0.75}>
-            <Row icon={<GlobeIcon c={MUTED} />} label="Idioma"
+            <Row s={s} icon={<GlobeIcon c={MUTED} />} label="Idioma"
               right={<Text style={s.rowMuted}>{lang === 'es' ? 'Español' : 'English'}</Text>} />
           </TouchableOpacity>
         </View>
@@ -194,28 +195,28 @@ export default function SettingsScreen() {
         {/* ── Notificaciones ──────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>Notificaciones</Text>
         <View style={s.list}>
-          <Row icon={<BellIcon   c={MUTED} />} label="Push notifications"   right={<Toggle value={notifs.push}   onToggle={() => flipN('push')}   />} />
-          <Row icon={<MapPinIcon c={MUTED} />} label="Alertas de ubicación" right={<Toggle value={notifs.loc}    onToggle={() => flipN('loc')}    />} />
-          <Row icon={<HeartPulse c={MUTED} />} label="Alertas de salud"     right={<Toggle value={notifs.health} onToggle={() => flipN('health')} />} />
+          <Row s={s} icon={<BellIcon   c={MUTED} />} label="Push notifications"   right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.push}   onToggle={() => flipN('push')}   />} />
+          <Row s={s} icon={<MapPinIcon c={MUTED} />} label="Alertas de ubicación" right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.loc}    onToggle={() => flipN('loc')}    />} />
+          <Row s={s} icon={<HeartPulse c={MUTED} />} label="Alertas de salud"     right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.health} onToggle={() => flipN('health')} />} />
         </View>
 
         {/* ── Privacidad y seguridad ───────────────────────────────────── */}
         <Text style={s.sectionTitle}>Privacidad y seguridad</Text>
         <View style={s.list}>
-          <Row icon={<Fingerprint c={MUTED} />} label="Autenticación biométrica"  right={<Toggle value={privacy.bio}  onToggle={() => flipP('bio')}  />} />
-          <Row icon={<Share2Icon  c={MUTED} />} label="Compartir datos anónimos"  right={<Toggle value={privacy.anon} onToggle={() => flipP('anon')} />} />
+          <Row s={s} icon={<Fingerprint c={MUTED} />} label="Autenticación biométrica"  right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.bio}  onToggle={() => flipP('bio')}  />} />
+          <Row s={s} icon={<Share2Icon  c={MUTED} />} label="Compartir datos anónimos"  right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.anon} onToggle={() => flipP('anon')} />} />
           <TouchableOpacity activeOpacity={0.75}
             onPress={() => Alert.alert('Cambiar contraseña', 'Próximamente disponible.')}>
-            <Row icon={<KeyRoundIcon c={MUTED} />} label="Cambiar contraseña" right={<ChevronRight c={MUTED} />} />
+            <Row s={s} icon={<KeyRoundIcon c={MUTED} />} label="Cambiar contraseña" right={<ChevronRight c={MUTED} />} />
           </TouchableOpacity>
         </View>
 
         {/* ── Dispositivo ─────────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>Dispositivo</Text>
         <View style={s.list}>
-          <Row icon={<CpuIcon    c={MUTED} />} label="Firmware" right={<Text style={s.rowMuted}>v2.4.1</Text>} />
+          <Row s={s} icon={<CpuIcon    c={MUTED} />} label="Firmware" right={<Text style={s.rowMuted}>v2.4.1</Text>} />
           <TouchableOpacity activeOpacity={0.75} onPress={handleSync}>
-            <Row icon={<RefreshIcon c={MUTED} />} label="Sincronizar manilla"
+            <Row s={s} icon={<RefreshIcon c={MUTED} />} label="Sincronizar manilla"
               right={
                 <View style={s.syncBadge}>
                   <Text style={s.syncText}>{syncing ? 'Sincronizando…' : 'Sincronizar'}</Text>
@@ -224,7 +225,7 @@ export default function SettingsScreen() {
             />
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.75} onPress={() => { setDeviceCode(null); setCodeOpen(true); }}>
-            <Row icon={<QrCodeIcon c={MUTED} />} label="Generar código de manilla"
+            <Row s={s} icon={<QrCodeIcon c={MUTED} />} label="Generar código de manilla"
               right={<ChevronRight c={MUTED} />}
             />
           </TouchableOpacity>
@@ -283,7 +284,7 @@ export default function SettingsScreen() {
               >
                 {codeLoading
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={s.btnRedText}>{deviceCode ? 'Nuevo código' : 'Generar código'}</Text>
+                  : <Text style={s.btnPrimaryText}>{deviceCode ? 'Nuevo código' : 'Generar código'}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -305,7 +306,7 @@ export default function SettingsScreen() {
               <TouchableOpacity key={l} style={[s.langRow, lang === l && s.langRowActive]}
                 onPress={() => { setLang(l); setLangOpen(false); }} activeOpacity={0.8}>
                 <Text style={[s.langText, lang === l && s.langTextActive]}>{l === 'es' ? 'Español' : 'English'}</Text>
-                {lang === l && <CheckIcon c="#FFF" />}
+                {lang === l && <CheckIcon c={BG} />}
               </TouchableOpacity>
             ))}
           </TouchableOpacity>
@@ -364,18 +365,18 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
   segBtnActiveDark:  { backgroundColor: PRIMARY },
   segText:           { fontSize: 12, fontFamily: FONT.sansBold, color: MUTED },
   segTextActiveLight:{ color: PRIMARY },
-  segTextActiveDark: { color: '#FFFFFF' },
+  segTextActiveDark: { color: BG },
 
   assistRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   assistRowActive: { backgroundColor: PRIMARY },
   assistAvatar:    { width: 56, height: 56, borderRadius: 16, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   assistName:      { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY },
-  assistNameActive:{ color: '#FFFFFF' },
+  assistNameActive:{ color: BG },
   assistTag:       { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 2 },
-  assistTagActive: { color: '#FFFFFF90' },
-  checkCircle:     { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center' },
-  checkActive:     { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
+  assistTagActive: { color: BG + 'BB' },
+  checkCircle:     { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: MUTED + '60', alignItems: 'center', justifyContent: 'center' },
+  checkActive:     { backgroundColor: BG, borderColor: BG },
 
   syncBadge: { backgroundColor: BLUE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
   syncText:  { fontSize: 12, fontFamily: FONT.sansBold, color: BLUE_FG },
@@ -393,7 +394,7 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   langRowActive:  { backgroundColor: PRIMARY },
   langText:       { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
-  langTextActive: { color: '#FFFFFF' },
+  langTextActive: { color: BG },
 
   deleteModal:   { backgroundColor: BG, borderRadius: 28, padding: 24, alignItems: 'center' },
   deleteIconWrap:{ width: 48, height: 48, borderRadius: 14, backgroundColor: RED_BG, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
@@ -404,6 +405,7 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
   btnGreyText:   { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
   btnRed:        { flex: 1, backgroundColor: RED, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
   btnRedText:    { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
+  btnPrimaryText:{ fontSize: 14, fontFamily: FONT.sansBold, color: BG },
 
   codeDesc:        { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED, lineHeight: 18, marginBottom: 8 },
   codePill:        { backgroundColor: MUTED_BG, borderRadius: 16, paddingVertical: 20, alignItems: 'center', marginVertical: 8 },

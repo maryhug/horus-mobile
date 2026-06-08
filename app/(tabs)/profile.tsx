@@ -326,7 +326,7 @@ function makeStyles(
     userEmail: { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED },
     editBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
-      backgroundColor: PRIMARY, borderRadius: 20,
+      backgroundColor: '#1A1512', borderRadius: 20,
       paddingHorizontal: 20, paddingVertical: 10, marginTop: 8,
     },
     editBtnText: { fontSize: 13, fontFamily: FONT.sansBold, color: '#FFFFFF' },

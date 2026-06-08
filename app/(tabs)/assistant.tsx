@@ -335,6 +335,6 @@ function makeStyles(
       shadowOpacity: 0.15, shadowRadius: 10, elevation: 6,
     },
     sendCircleActive: { backgroundColor: PRIMARY },
-    sendCircleIdle:   { backgroundColor: '#E8E4DC' },
+    sendCircleIdle:   { backgroundColor: MUTED_BG },
   });
 }

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '../../contexts/AuthContext';
+import { apiClient } from '../../services/api';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
@@ -62,11 +63,28 @@ export default function QrMedicoScreen() {
   const [open, setOpen]       = useState(false);
   const [saved, setSaved]     = useState(false);
 
+  // Edad y tipo de sangre desde API
+  const [ageLabel,   setAgeLabel]   = useState<string>('—');
+  const [bloodType,  setBloodType]  = useState<string>('—');
+
+  React.useEffect(() => {
+    apiClient.get<{ dateOfBirth?: string; bloodType?: string; firstName?: string; lastName?: string }>('/profile')
+      .then(r => {
+        if (r.data.dateOfBirth) {
+          const dob = new Date(r.data.dateOfBirth);
+          const age = new Date().getFullYear() - dob.getFullYear();
+          setAgeLabel(`${age} años`);
+        }
+        if (r.data.bloodType) setBloodType(r.data.bloodType);
+      })
+      .catch(() => {});
+  }, []);
+
   // Animation values
   const slideAnim  = useRef(new Animated.Value(0)).current;
   const arrowAnim  = useRef(new Animated.Value(0)).current;
 
-  const fullName    = user ? `${user.firstName} ${user.lastName}` : 'Mateo Restrepo';
+  const fullName    = user ? `${user.firstName} ${user.lastName}` : '—';
   const emergencyUrl= `https://app.horus.health/emergency/${user?.id ?? 'demo'}`;
 
   const flip = (key: string) =>
@@ -123,14 +141,14 @@ export default function QrMedicoScreen() {
             <Animated.View style={[s.qrAnimWrap, { opacity: qrOpacity, transform: [{ translateY: qrTranslateY }] }]}>
               <Text style={s.userName}>{fullName}</Text>
               <View style={s.metaRow}>
-                <Text style={s.metaAge}>35 años</Text>
+                <Text style={s.metaAge}>{ageLabel}</Text>
                 <View style={s.dot} />
                 <View style={s.bloodBadge}>
-                  <Text style={s.bloodText}>O+</Text>
+                  <Text style={s.bloodText}>{bloodType}</Text>
                 </View>
               </View>
               <View style={s.qrBox}>
-                <QRCode value={emergencyUrl} size={180} color={PRIMARY} backgroundColor="#FFFFFF" />
+                <QRCode value={emergencyUrl} size={180} color="#1A1512" backgroundColor="#FFFFFF" />
               </View>
               <View style={s.btnRow}>
                 <TouchableOpacity style={s.btnDark} onPress={handleShare} activeOpacity={0.85}>

@@ -200,7 +200,7 @@ export default function DashboardScreen() {
               activeOpacity={0.82}
             >
               <View style={[s.quickIcon, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon as any} size={22} color={PRIMARY} />
+                <Ionicons name={item.icon as any} size={22} color="#1A1512" />
               </View>
               <Text style={s.quickLabel}>{item.label}</Text>
             </TouchableOpacity>

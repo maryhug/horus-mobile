@@ -352,10 +352,10 @@ function makeStyles(
     cardTitle: { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY },
     cardSub:   { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 1 },
     activoBadge: {
-      backgroundColor: `${GREEN}30`, borderRadius: 999,
+      backgroundColor: `${GREEN}25`, borderRadius: 999,
       paddingHorizontal: 12, paddingVertical: 5,
     },
-    activoBadgeText: { fontSize: 12, fontWeight: '700', color: GREEN_FG },
+    activoBadgeText: { fontSize: 12, fontWeight: '700', color: GREEN },
     chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     chip: {
       flexBasis: '47%', flexGrow: 1,
