@@ -16,7 +16,7 @@ export const RING_COLORS = {
 };
 
 const ICONS: Record<string, string> = {
-  heart:      'heart',
+  heart:      'heart-outline',
   footprints: 'footsteps-outline',
   flame:      'flame',
   activity:   'pulse-outline',
@@ -175,7 +175,7 @@ export function HealthRing({
             >
               <Ionicons
                 name={ICONS[m.icon] as any ?? 'ellipse'}
-                size={isSelected ? 18 : 15}
+                size={isSelected ? 24 : 20}
                 color="#1A1512"
               />
             </View>

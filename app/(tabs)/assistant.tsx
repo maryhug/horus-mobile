@@ -294,7 +294,7 @@ function makeStyles(
     bubbleBot:   { backgroundColor: CARD, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
     bubbleError: { backgroundColor: '#EA3C3F18', borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
     bubbleText:     { fontSize: 14, color: PRIMARY, lineHeight: 20 },
-    bubbleTextUser: { color: '#FAF8F5' },
+    bubbleTextUser: { color: BG },
 
     // Input — position absolute sobre la tab bar
     inputWrap: {

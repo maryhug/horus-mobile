@@ -3,15 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { useAppTheme } from '../hooks/useAppTheme';
 
-const YELLOW  = '#FAD957';
-const DARK    = '#191512';
-const WHITE   = '#FFFFFF';
-const ICON_ON = '#1A1512';       // icono sobre fondo amarillo
-const ICON_OFF= WHITE + 'AA';    // icono inactivo (~67% opacidad)
+const YELLOW   = '#FAD957';
+const ICON_ON  = '#1A1512';   // icono activo → siempre sobre fondo amarillo
 
-// ── SVG icons (Lucide paths, exactos del proyecto de referencia) ───────────
-
+// ── SVG icons ──────────────────────────────────────────────────────────────
 function ActivityIcon({ color }: { color: string }) {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
@@ -90,7 +87,6 @@ function UserIcon({ color }: { color: string }) {
 }
 
 // ── Tab definitions ────────────────────────────────────────────────────────
-
 type TabDef = { name: string; label: string; Icon: React.FC<{ color: string }> };
 
 const TABS: TabDef[] = [
@@ -103,19 +99,32 @@ const TABS: TabDef[] = [
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
-
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const insets    = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12);
 
+  const { PRIMARY, MUTED, isDark } = useAppTheme();
+
+  // Invertidos: tema claro → navbar oscuro · tema oscuro → navbar crema
+  // PRIMARY es crema en dark (#F5EFE6) y oscuro en light (#1A1512)
+  // BG es oscuro en dark (#1A1510) y crema en light (#F9F6ED)
+  const barBg    = isDark ? PRIMARY    : '#191512';
+  const iconOff  = isDark ? '#7A6A58' : 'rgba(255,255,255,0.55)';
+  const labelOff = isDark ? '#7A6A58' : 'rgba(255,255,255,0.45)';
+  const labelOn  = isDark ? '#1A1510' : '#FFFFFF';
+
   return (
     <View style={[s.wrapper, { paddingBottom: bottomPad }]}>
-      <View style={s.bar}>
+      <View style={[s.bar, { backgroundColor: barBg }]}>
         {TABS.map((tab, idx) => {
           const active  = state.index === idx;
-          const color   = active ? ICON_ON : ICON_OFF;
+          const color   = active ? ICON_ON : iconOff;
           const onPress = () => {
-            const event = navigation.emit({ type: 'tabPress', target: state.routes[idx]?.key, canPreventDefault: true });
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: state.routes[idx]?.key,
+              canPreventDefault: true,
+            });
             if (!event.defaultPrevented) navigation.navigate(tab.name);
           };
           return (
@@ -123,7 +132,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               <View style={[s.iconWrap, active && s.iconWrapActive]}>
                 <tab.Icon color={color} />
               </View>
-              <Text style={[s.label, active && s.labelActive]}>{tab.label}</Text>
+              <Text style={[s.label, { color: labelOff }, active && { color: labelOn }]}>
+                {tab.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -141,14 +152,13 @@ const s = StyleSheet.create({
   } as any,
   bar: {
     flexDirection: 'row',
-    backgroundColor: DARK,
     borderRadius: 28,
     paddingHorizontal: 10,
     paddingVertical: 10,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.18,
     shadowRadius: 24,
     elevation: 20,
   },
@@ -168,10 +178,6 @@ const s = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: '600',
-    color: WHITE + '70',
     letterSpacing: -0.3,
-  },
-  labelActive: {
-    color: WHITE,
   },
 });

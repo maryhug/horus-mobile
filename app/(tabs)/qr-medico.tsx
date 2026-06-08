@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Share, Animated,
@@ -67,18 +68,34 @@ export default function QrMedicoScreen() {
   const [ageLabel,   setAgeLabel]   = useState<string>('—');
   const [bloodType,  setBloodType]  = useState<string>('—');
 
-  React.useEffect(() => {
-    apiClient.get<{ dateOfBirth?: string; bloodType?: string; firstName?: string; lastName?: string }>('/profile')
-      .then(r => {
-        if (r.data.dateOfBirth) {
-          const dob = new Date(r.data.dateOfBirth);
-          const age = new Date().getFullYear() - dob.getFullYear();
-          setAgeLabel(`${age} años`);
-        }
-        if (r.data.bloodType) setBloodType(r.data.bloodType);
-      })
-      .catch(() => {});
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      apiClient.get<{ dateOfBirth?: string; bloodType?: string }>('/profile')
+        .then(r => {
+          if (r.data.dateOfBirth) {
+            const today = new Date();
+            const dob   = new Date(r.data.dateOfBirth + 'T00:00:00');
+            let age = today.getFullYear() - dob.getFullYear();
+            // Restar 1 si todavía no pasó el cumpleaños este año
+            if (
+              today.getMonth() < dob.getMonth() ||
+              (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())
+            ) age -= 1;
+            setAgeLabel(`${age} años`);
+          }
+          if (r.data.bloodType) {
+            const labels: Record<string, string> = {
+              A_POSITIVE: 'A+',  A_NEGATIVE: 'A-',
+              B_POSITIVE: 'B+',  B_NEGATIVE: 'B-',
+              AB_POSITIVE: 'AB+',AB_NEGATIVE: 'AB-',
+              O_POSITIVE: 'O+',  O_NEGATIVE: 'O-',
+            };
+            setBloodType(labels[r.data.bloodType] ?? r.data.bloodType);
+          }
+        })
+        .catch(() => {});
+    }, [])
+  );
 
   // Animation values
   const slideAnim  = useRef(new Animated.Value(0)).current;
