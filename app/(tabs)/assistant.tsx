@@ -9,15 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiClient, getErrorMessage } from '../../services/api';
 import { EmotionShape } from '../../components/EmotionShape';
 import type { ChatResponse } from '../../types/api';
-
-// ── Palette ────────────────────────────────────────────────────────────────
-const BG      = '#F9F6ED';
-const CARD    = '#FFFFFF';
-const PRIMARY = '#1A1512';
-const MUTED   = '#6E6862';
-const MUTED_BG= '#F1EEE7';
-const GREEN   = '#96C979';
-const BLUE    = '#A5CCF4';
+import { useAppTheme } from '../../hooks/useAppTheme';
 
 // ── Suggested prompts ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
@@ -32,7 +24,7 @@ const CANNED = 'Aún no recibo datos del sensor de tu manilla, así que no puedo
 type Msg = { id: string; role: 'user' | 'bot' | 'error'; text: string };
 
 // ── Typing dots ───────────────────────────────────────────────────────────
-function TypingDots() {
+function TypingDots({ muted }: { muted: string }) {
   const d0 = useRef(new Animated.Value(0)).current;
   const d1 = useRef(new Animated.Value(0)).current;
   const d2 = useRef(new Animated.Value(0)).current;
@@ -57,14 +49,14 @@ function TypingDots() {
   return (
     <View style={td.wrap}>
       {[d0, d1, d2].map((d, i) => (
-        <Animated.View key={i} style={[td.dot, { transform: [{ translateY: d }] }]} />
+        <Animated.View key={i} style={[td.dot, { backgroundColor: muted, transform: [{ translateY: d }] }]} />
       ))}
     </View>
   );
 }
 const td = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, paddingVertical: 14 },
-  dot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: MUTED },
+  dot:  { width: 8, height: 8, borderRadius: 4 },
 });
 
 // ── Animated avatar for welcome card ──────────────────────────────────────
@@ -84,6 +76,9 @@ function FloatingAvatar() {
 }
 
 export default function AssistantScreen() {
+  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, isDark } = useAppTheme();
+  const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE), [isDark]);
+
   const insets = useSafeAreaInsets();
   // Tab bar height: bar content ~65px + bottom safe area (min 12px Android / 16px iOS)
   const TAB_H = 65 + Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12);
@@ -192,7 +187,7 @@ export default function AssistantScreen() {
           ListFooterComponent={typing ? (
             <View style={s.msgRowLeft}>
               <View style={s.bubbleBot}>
-                <TypingDots />
+                <TypingDots muted={MUTED} />
               </View>
             </View>
           ) : null}
@@ -240,101 +235,106 @@ export default function AssistantScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  flex:      { flex: 1 },
+function makeStyles(
+  BG: string, CARD: string, PRIMARY: string, MUTED: string,
+  MUTED_BG: string, GREEN: string, BLUE: string,
+) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: BG },
+    flex:      { flex: 1 },
 
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
-  },
-  headerAvatar: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: BLUE + '30',
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-  },
-  headerTitle: { fontSize: 19, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
-  onlineRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  onlineDot:   { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
-  onlineText:  { fontSize: 13, color: GREEN, fontWeight: '600' },
+    // Header
+    header: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
+    },
+    headerAvatar: {
+      width: 52, height: 52, borderRadius: 26,
+      backgroundColor: BLUE + '30',
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    headerTitle: { fontSize: 19, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
+    onlineRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+    onlineDot:   { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+    onlineText:  { fontSize: 13, color: GREEN, fontWeight: '600' },
 
-  // List
-  listContent: { paddingHorizontal: 20, paddingBottom: 20 },
-  listEmpty:   { flex: 1 },
+    // List
+    listContent: { paddingHorizontal: 20, paddingBottom: 20 },
+    listEmpty:   { flex: 1 },
 
-  // Welcome
-  welcomeWrap: { gap: 16, paddingTop: 12 },
-  welcomeCard: {
-    backgroundColor: CARD, borderRadius: 32, padding: 28,
-    alignItems: 'center', gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-  },
-  welcomeTitle: { fontSize: 17, fontWeight: '700', color: PRIMARY, marginTop: 6 },
-  welcomeSub:   { fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 },
-  suggestions:  { gap: 10 },
-  suggestionBtn: {
-    backgroundColor: CARD, borderRadius: 22,
-    paddingHorizontal: 20, paddingVertical: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  suggestionText: { fontSize: 13, fontWeight: '500', color: PRIMARY },
+    // Welcome
+    welcomeWrap: { gap: 16, paddingTop: 12 },
+    welcomeCard: {
+      backgroundColor: CARD, borderRadius: 32, padding: 28,
+      alignItems: 'center', gap: 10,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    },
+    welcomeTitle: { fontSize: 17, fontWeight: '700', color: PRIMARY, marginTop: 6 },
+    welcomeSub:   { fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 },
+    suggestions:  { gap: 10 },
+    suggestionBtn: {
+      backgroundColor: CARD, borderRadius: 22,
+      paddingHorizontal: 20, paddingVertical: 16,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    },
+    suggestionText: { fontSize: 13, fontWeight: '500', color: PRIMARY },
 
-  // Messages
-  msgRow:      { marginBottom: 10 },
-  msgRowRight: { alignItems: 'flex-end' },
-  msgRowLeft:  { alignItems: 'flex-start' },
-  bubble: {
-    maxWidth: '82%', borderRadius: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  bubbleUser:  { backgroundColor: PRIMARY, borderBottomRightRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
-  bubbleBot:   { backgroundColor: CARD, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
-  bubbleError: { backgroundColor: '#EA3C3F18', borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
-  bubbleText:     { fontSize: 14, color: PRIMARY, lineHeight: 20 },
-  bubbleTextUser: { color: '#FAF8F5' },
+    // Messages
+    msgRow:      { marginBottom: 10 },
+    msgRowRight: { alignItems: 'flex-end' },
+    msgRowLeft:  { alignItems: 'flex-start' },
+    bubble: {
+      maxWidth: '82%', borderRadius: 24,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    },
+    bubbleUser:  { backgroundColor: PRIMARY, borderBottomRightRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
+    bubbleBot:   { backgroundColor: CARD, borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
+    bubbleError: { backgroundColor: '#EA3C3F18', borderBottomLeftRadius: 6, paddingHorizontal: 16, paddingVertical: 12 },
+    bubbleText:     { fontSize: 14, color: PRIMARY, lineHeight: 20 },
+    bubbleTextUser: { color: '#FAF8F5' },
 
-  // Input — position absolute sobre la tab bar
-  inputWrap: {
-    position: 'absolute', left: 0, right: 0,
-    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
-    backgroundColor: BG,
-  },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
-  // Píldora izquierda
-  inputPill: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: CARD, borderRadius: 22,
-    paddingLeft: 6, paddingRight: 10,
-    height: 44,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 14, elevation: 5,
-  },
-  plusBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: MUTED_BG,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  inputField: {
-    flex: 1, fontSize: 14, color: PRIMARY,
-    paddingHorizontal: 10, paddingVertical: 0,
-    height: 44, maxHeight: 120, lineHeight: 44,
-    textAlignVertical: 'center',
-  },
-  // Botón circular externo
-  sendCircle: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15, shadowRadius: 10, elevation: 6,
-  },
-  sendCircleActive: { backgroundColor: PRIMARY },
-  sendCircleIdle:   { backgroundColor: '#E8E4DC' },
-});
+    // Input — position absolute sobre la tab bar
+    inputWrap: {
+      position: 'absolute', left: 0, right: 0,
+      paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
+      backgroundColor: BG,
+    },
+    inputRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+    },
+    // Píldora izquierda
+    inputPill: {
+      flex: 1, flexDirection: 'row', alignItems: 'center',
+      backgroundColor: CARD, borderRadius: 22,
+      paddingLeft: 6, paddingRight: 10,
+      height: 44,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08, shadowRadius: 14, elevation: 5,
+    },
+    plusBtn: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: MUTED_BG,
+      alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    },
+    inputField: {
+      flex: 1, fontSize: 14, color: PRIMARY,
+      paddingHorizontal: 10, paddingVertical: 0,
+      height: 44, maxHeight: 120, lineHeight: 44,
+      textAlignVertical: 'center',
+    },
+    // Botón circular externo
+    sendCircle: {
+      width: 44, height: 44, borderRadius: 22,
+      alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.15, shadowRadius: 10, elevation: 6,
+    },
+    sendCircleActive: { backgroundColor: PRIMARY },
+    sendCircleIdle:   { backgroundColor: '#E8E4DC' },
+  });
+}

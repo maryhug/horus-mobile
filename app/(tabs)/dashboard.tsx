@@ -18,15 +18,8 @@ import type { DashboardData } from '../../types/api';
 import { HealthRing, MetricChips } from '../../components/HealthRing';
 import type { HealthMetric } from '../../components/HealthRing';
 import { EmotionShape } from '../../components/EmotionShape';
+import { useAppTheme } from '../../hooks/useAppTheme';
 
-const BG      = '#F9F6ED';
-const CARD    = '#FFFFFF';
-const PRIMARY = '#1A1512';
-const MUTED   = '#8C7F6E';
-const PINK    = '#FAB2D3';
-const YELLOW  = '#FAD957';
-const BLUE    = '#A5CCF4';
-const GREEN   = '#96C979';
 const ASSIST_BG = '#FAECEA';
 
 const STATIC_METRICS: HealthMetric[] = [
@@ -38,9 +31,16 @@ const STATIC_METRICS: HealthMetric[] = [
 
 // Ring + chips with shared selected state
 function RingCard() {
+  const { CARD, PRIMARY } = useAppTheme();
+  const cardStyle = {
+    backgroundColor: CARD, borderRadius: 32,
+    padding: 16, paddingBottom: 20,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 16, elevation: 3,
+  };
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
   return (
-    <View style={s.card}>
+    <View style={cardStyle}>
       <HealthRing
         metrics={STATIC_METRICS}
         score="—"
@@ -56,6 +56,9 @@ function RingCard() {
 const BAR_HEIGHTS = Array.from({ length: 24 }, (_, i) => 8 + ((i * 37 + 19) % 60));
 
 export default function DashboardScreen() {
+  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, RED, RED_BG, isDark, toggleTheme } = useAppTheme();
+  const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, GREEN, PINK, YELLOW, BLUE, ASSIST_BG), [isDark]);
+
   const { user } = useAuth();
   const livePulse  = useRef(new Animated.Value(1)).current;
   const blobFloat  = useRef(new Animated.Value(0)).current;
@@ -108,8 +111,8 @@ export default function DashboardScreen() {
               <Animated.View style={[s.liveDot, { transform: [{ scale: livePulse }] }]} />
               <Text style={s.liveText}>En vivo</Text>
             </View>
-            <TouchableOpacity style={s.themeBtn}>
-              <Ionicons name="sunny-outline" size={18} color={MUTED} />
+            <TouchableOpacity style={s.themeBtn} onPress={toggleTheme}>
+              <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={MUTED} />
             </TouchableOpacity>
           </View>
         </View>
@@ -218,103 +221,108 @@ export default function DashboardScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 120, gap: 16 },
+function makeStyles(
+  BG: string, CARD: string, PRIMARY: string, MUTED: string,
+  GREEN: string, PINK: string, YELLOW: string, BLUE: string, ASSIST_BG: string,
+) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: BG },
+    scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 120, gap: 16 },
 
-  // Header
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  greeting:    { fontSize: 14, fontWeight: '500', color: MUTED },
-  name:        { fontSize: 26, fontWeight: '800', color: PRIMARY, letterSpacing: -0.5 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  livePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: CARD, borderRadius: 999,
-    paddingHorizontal: 12, paddingVertical: 7,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
-  },
-  liveDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
-  liveText: { fontSize: 12, fontWeight: '700', color: PRIMARY },
-  themeBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: CARD, alignItems: 'center', justifyContent: 'center',
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
-  },
+    // Header
+    header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    greeting:    { fontSize: 14, fontWeight: '500', color: MUTED },
+    name:        { fontSize: 26, fontWeight: '800', color: PRIMARY, letterSpacing: -0.5 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    livePill: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: CARD, borderRadius: 999,
+      paddingHorizontal: 12, paddingVertical: 7,
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    },
+    liveDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
+    liveText: { fontSize: 12, fontWeight: '700', color: PRIMARY },
+    themeBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: CARD, alignItems: 'center', justifyContent: 'center',
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    },
 
-  // Assistant strip
-  assistantStrip: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: ASSIST_BG, borderRadius: 24,
-    padding: 12, paddingRight: 16,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
-  },
-  assistantAvatarWrap: {
-    width: 52, height: 52,
-    borderRadius: 26,
-    backgroundColor: PINK + '30',
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  assistantText:    { flex: 1, minWidth: 0 },
-  assistantName:    { fontSize: 15, fontWeight: '700', color: PRIMARY },
-  assistantTagline: { fontSize: 12, color: MUTED, marginTop: 1 },
+    // Assistant strip
+    assistantStrip: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: ASSIST_BG, borderRadius: 24,
+      padding: 12, paddingRight: 16,
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
+    },
+    assistantAvatarWrap: {
+      width: 52, height: 52,
+      borderRadius: 26,
+      backgroundColor: PINK + '30',
+      alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    },
+    assistantText:    { flex: 1, minWidth: 0 },
+    assistantName:    { fontSize: 15, fontWeight: '700', color: PRIMARY },
+    assistantTagline: { fontSize: 12, color: MUTED, marginTop: 1 },
 
-  // Section header
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle:  { fontSize: 17, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
-  sensorPill: {
-    backgroundColor: 'rgba(136,130,110,0.12)',
-    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
-  },
-  sensorText: { fontSize: 11, fontWeight: '600', color: MUTED },
+    // Section header
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sectionTitle:  { fontSize: 17, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
+    sensorPill: {
+      backgroundColor: 'rgba(136,130,110,0.12)',
+      borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    sensorText: { fontSize: 11, fontWeight: '600', color: MUTED },
 
-  // Card
-  card: {
-    backgroundColor: CARD, borderRadius: 32,
-    padding: 16, paddingBottom: 20,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 16, elevation: 3,
-  },
+    // Card
+    card: {
+      backgroundColor: CARD, borderRadius: 32,
+      padding: 16, paddingBottom: 20,
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.07, shadowRadius: 16, elevation: 3,
+    },
 
-  // Device status
-  statusRow: { flexDirection: 'row', gap: 10 },
-  statCard: {
-    flex: 1, backgroundColor: CARD, borderRadius: 24, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
-  },
-  statIcon: {
-    width: 40, height: 40, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
-  },
-  statLabel: { fontSize: 11, color: MUTED, fontWeight: '500', marginBottom: 2 },
-  statValue: { fontSize: 16, fontWeight: '800', color: PRIMARY, lineHeight: 20 },
-  statSub:   { fontSize: 10, color: MUTED, marginTop: 2 },
+    // Device status
+    statusRow: { flexDirection: 'row', gap: 10 },
+    statCard: {
+      flex: 1, backgroundColor: CARD, borderRadius: 24, padding: 14,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    },
+    statIcon: {
+      width: 40, height: 40, borderRadius: 14,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    },
+    statLabel: { fontSize: 11, color: MUTED, fontWeight: '500', marginBottom: 2 },
+    statValue: { fontSize: 16, fontWeight: '800', color: PRIMARY, lineHeight: 20 },
+    statSub:   { fontSize: 10, color: MUTED, marginTop: 2 },
 
-  // Chart
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 2 },
-  bar:  { flex: 1, backgroundColor: 'rgba(136,130,110,0.2)', borderRadius: 4 },
-  chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  chartLabel:  { fontSize: 10, color: MUTED, fontWeight: '500' },
+    // Chart
+    chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    bars: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 2 },
+    bar:  { flex: 1, backgroundColor: 'rgba(136,130,110,0.2)', borderRadius: 4 },
+    chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+    chartLabel:  { fontSize: 10, color: MUTED, fontWeight: '500' },
 
-  // Quick actions
-  quickRow:  { flexDirection: 'row', gap: 10 },
-  quickItem: { flex: 1, alignItems: 'center', gap: 8 },
-  quickIcon: {
-    width: '100%',
-    height: 58,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickLabel: { fontSize: 11, fontWeight: '600', color: PRIMARY, textAlign: 'center' },
+    // Quick actions
+    quickRow:  { flexDirection: 'row', gap: 10 },
+    quickItem: { flex: 1, alignItems: 'center', gap: 8 },
+    quickIcon: {
+      width: '100%',
+      height: 58,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickLabel: { fontSize: 11, fontWeight: '600', color: PRIMARY, textAlign: 'center' },
 
-  // Alerts
-  alertEmpty: { alignItems: 'center', paddingVertical: 24, gap: 8 },
-  alertTitle: { fontSize: 14, fontWeight: '600', color: PRIMARY },
-  alertSub:   { fontSize: 12, color: MUTED },
-});
+    // Alerts
+    alertEmpty: { alignItems: 'center', paddingVertical: 24, gap: 8 },
+    alertTitle: { fontSize: 14, fontWeight: '600', color: PRIMARY },
+    alertSub:   { fontSize: 12, color: MUTED },
+  });
+}

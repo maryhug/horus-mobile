@@ -6,19 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { FONT } from '../../constants/fonts';
+import { useAppTheme } from '../../hooks/useAppTheme';
 
-// ── Palette ────────────────────────────────────────────────────────────────
-const BG      = '#F9F6ED';
-const CARD    = '#FFFFFF';
-const PRIMARY = '#1A1512';
-const MUTED   = '#8C7F6E';
-const MUTED_BG= '#F3EFE7';
-const GREEN   = '#96C979';
-const YELLOW  = '#FAD957';
-const BLUE    = '#A5CCF4';
-const PINK    = '#FAB2D3';
-const RED_BG  = '#FDECEA';
-const RED_FG  = '#C0392B';
+// ── Stable accent colors (same in light & dark) ───────────────────────────
+const GREEN  = '#96C979';
+const YELLOW = '#FAD957';
+const BLUE   = '#A5CCF4';
+const PINK   = '#FAB2D3';
+const RED_FG = '#C0392B';
 
 // ── Type colors ────────────────────────────────────────────────────────────
 const TYPE_COLOR: Record<string, { bg: string; fg: string }> = {
@@ -97,6 +92,9 @@ function Trash2Icon({ color, size = 16 }: { color: string; size?: number }) {
 
 // ── Screen ─────────────────────────────────────────────────────────────────
 export default function FilesScreen() {
+  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, RED_BG, isDark } = useAppTheme();
+  const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, RED_BG), [isDark]);
+
   const [files, setFiles] = useState<FileItem[]>(INITIAL_FILES);
 
   const pct = Math.round((STORAGE_USED / STORAGE_LIMIT) * 100);
@@ -188,92 +186,97 @@ export default function FilesScreen() {
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  scroll:    { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120, gap: 20 },
+function makeStyles(
+  BG: string, CARD: string, PRIMARY: string, MUTED: string,
+  MUTED_BG: string, GREEN: string, YELLOW: string, RED_BG: string,
+) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: BG },
+    scroll:    { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120, gap: 20 },
 
-  // Header
-  header:   { gap: 3, paddingTop: 20 },
-  title:    { fontSize: 26, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.52 },
-  subtitle: { fontSize: 14, color: MUTED, fontFamily: FONT.sansRegular },
+    // Header
+    header:   { gap: 3, paddingTop: 20 },
+    title:    { fontSize: 26, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.52 },
+    subtitle: { fontSize: 14, color: MUTED, fontFamily: FONT.sansRegular },
 
-  // Upload zone — borde punteado visible
-  uploadZone: {
-    backgroundColor: CARD,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: '#C8C2B6',
-    borderStyle: 'dashed',
-    paddingVertical: 36,
-    alignItems: 'center',
-    gap: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
-  uploadIcon: {
-    width: 56, height: 56, borderRadius: 16,
-    backgroundColor: YELLOW,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8,
-  },
-  uploadTitle: { fontSize: 15, fontWeight: '700', color: PRIMARY },
-  uploadSub:   { fontSize: 12, color: MUTED, marginTop: 2 },
+    // Upload zone — borde punteado visible
+    uploadZone: {
+      backgroundColor: CARD,
+      borderRadius: 28,
+      borderWidth: 2,
+      borderColor: '#C8C2B6',
+      borderStyle: 'dashed',
+      paddingVertical: 36,
+      alignItems: 'center',
+      gap: 4,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    },
+    uploadIcon: {
+      width: 56, height: 56, borderRadius: 16,
+      backgroundColor: YELLOW,
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: 8,
+    },
+    uploadTitle: { fontSize: 15, fontWeight: '700', color: PRIMARY },
+    uploadSub:   { fontSize: 12, color: MUTED, marginTop: 2 },
 
-  // Storage card
-  storageCard: {
-    backgroundColor: CARD, borderRadius: 24, padding: 18,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-    gap: 12,
-  },
-  storageRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  storageLeft:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  storageLabel: { fontSize: 13, fontWeight: '700', color: PRIMARY },
-  storageValue: { fontSize: 12, color: MUTED },
-  barTrack: {
-    height: 10, backgroundColor: MUTED_BG,
-    borderRadius: 5, overflow: 'hidden',
-  },
-  barFill: { height: '100%', backgroundColor: GREEN, borderRadius: 5 },
+    // Storage card
+    storageCard: {
+      backgroundColor: CARD, borderRadius: 24, padding: 18,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+      gap: 12,
+    },
+    storageRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    storageLeft:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    storageLabel: { fontSize: 13, fontWeight: '700', color: PRIMARY },
+    storageValue: { fontSize: 12, color: MUTED },
+    barTrack: {
+      height: 10, backgroundColor: MUTED_BG,
+      borderRadius: 5, overflow: 'hidden',
+    },
+    barFill: { height: '100%', backgroundColor: GREEN, borderRadius: 5 },
 
-  // Section title
-  sectionTitle: { fontSize: 17, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.34 },
+    // Section title
+    sectionTitle: { fontSize: 17, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.34 },
 
-  // File list — cada fila es una card separada
-  fileList:  { gap: 8 },
-  fileRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: CARD, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  // ← CÍRCULOS (borderRadius = mitad del tamaño)
-  fileIcon: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  fileInfo:  { flex: 1, minWidth: 0 },
-  fileName:  { fontSize: 14, fontWeight: '700', color: PRIMARY },
-  fileMeta:  { fontSize: 12, color: MUTED, marginTop: 1 },
-  actionBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: MUTED_BG,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  actionBtnRed: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: RED_BG,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
+    // File list — cada fila es una card separada
+    fileList:  { gap: 8 },
+    fileRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: CARD, borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 12,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    },
+    // ← CÍRCULOS (borderRadius = mitad del tamaño)
+    fileIcon: {
+      width: 42, height: 42, borderRadius: 21,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    fileInfo:  { flex: 1, minWidth: 0 },
+    fileName:  { fontSize: 14, fontWeight: '700', color: PRIMARY },
+    fileMeta:  { fontSize: 12, color: MUTED, marginTop: 1 },
+    actionBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: MUTED_BG,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    actionBtnRed: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: RED_BG,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
 
-  // Empty state
-  emptyCard: {
-    backgroundColor: CARD, borderRadius: 24,
-    paddingVertical: 40, alignItems: 'center', gap: 6,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
-  emptyTitle: { fontSize: 14, fontWeight: '700', color: PRIMARY },
-  emptySub:   { fontSize: 12, color: MUTED },
-});
+    // Empty state
+    emptyCard: {
+      backgroundColor: CARD, borderRadius: 24,
+      paddingVertical: 40, alignItems: 'center', gap: 6,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    },
+    emptyTitle: { fontSize: 14, fontWeight: '700', color: PRIMARY },
+    emptySub:   { fontSize: 12, color: MUTED },
+  });
+}

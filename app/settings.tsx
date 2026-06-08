@@ -10,18 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { EmotionShape } from '../components/EmotionShape';
 import { FONT } from '../constants/fonts';
 import { apiClient, getErrorMessage } from '../services/api';
-
-// ── Palette ────────────────────────────────────────────────────────────────
-const BG      = '#F9F6ED';
-const CARD    = '#FFFFFF';
-const PRIMARY = '#1A1512';
-const MUTED   = '#8C7F6E';
-const MUTED_BG= '#F3EFE7';
-const GREEN   = '#96C979';
-const BLUE    = '#A5CCF4';
-const BLUE_FG = '#1A3A5C';
-const RED     = '#C0392B';
-const RED_BG  = '#FDECEA';
+import { useAppTheme } from '../hooks/useAppTheme';
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const sw = { strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -90,8 +79,11 @@ function Row({ icon, label, right }: { icon: React.ReactNode; label: string; rig
 export default function SettingsScreen() {
   const { logout } = useAuth();
   const insets = useSafeAreaInsets();
+  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, BLUE_FG, RED, RED_BG, isDark, toggleTheme } = useAppTheme();
 
-  const [theme,       setTheme]       = useState<'light'|'dark'>('light');
+  const theme = isDark ? 'dark' : 'light';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, BLUE, BLUE_FG, RED, RED_BG), [isDark]);
   const [lang,        setLang]        = useState<'es'|'en'>('es');
   const [assistantId, setAssistantId] = useState('foca');
   const [notifs,      setNotifs]      = useState({ push: true, loc: true, health: true });
@@ -160,10 +152,10 @@ export default function SettingsScreen() {
             label="Tema"
             right={
               <View style={s.segment}>
-                <TouchableOpacity style={[s.segBtn, theme === 'light' && s.segBtnActiveLight]} onPress={() => setTheme('light')} activeOpacity={0.75}>
+                <TouchableOpacity style={[s.segBtn, theme === 'light' && s.segBtnActiveLight]} onPress={() => isDark && toggleTheme()} activeOpacity={0.75}>
                   <Text style={[s.segText, theme === 'light' && s.segTextActiveLight]}>Claro</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.segBtn, theme === 'dark' && s.segBtnActiveDark]} onPress={() => setTheme('dark')} activeOpacity={0.75}>
+                <TouchableOpacity style={[s.segBtn, theme === 'dark' && s.segBtnActiveDark]} onPress={() => !isDark && toggleTheme()} activeOpacity={0.75}>
                   <Text style={[s.segText, theme === 'dark' && s.segTextActiveDark]}>Oscuro</Text>
                 </TouchableOpacity>
               </View>
@@ -344,8 +336,9 @@ export default function SettingsScreen() {
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
+// ── Styles (generated dynamically per theme) ───────────────────────────────
+function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MUTED_BG: string, BLUE: string, BLUE_FG: string, RED: string, RED_BG: string) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   scroll:    { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40, gap: 12 },
 
@@ -365,7 +358,6 @@ const s = StyleSheet.create({
   rowLabel: { flex: 1, fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
   rowMuted: { fontSize: 13, fontFamily: FONT.sansMedium, color: MUTED },
 
-  // Theme segment
   segment:           { flexDirection: 'row', backgroundColor: MUTED_BG, borderRadius: 20, padding: 3 },
   segBtn:            { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 16 },
   segBtnActiveLight: { backgroundColor: CARD, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
@@ -374,7 +366,6 @@ const s = StyleSheet.create({
   segTextActiveLight:{ color: PRIMARY },
   segTextActiveDark: { color: '#FFFFFF' },
 
-  // Assistant rows
   assistRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   assistRowActive: { backgroundColor: PRIMARY },
@@ -386,17 +377,14 @@ const s = StyleSheet.create({
   checkCircle:     { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center' },
   checkActive:     { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
 
-  // Sync
   syncBadge: { backgroundColor: BLUE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
   syncText:  { fontSize: 12, fontFamily: FONT.sansBold, color: BLUE_FG },
 
-  // Danger
   dangerRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: RED_BG, borderRadius: 20, padding: 16,
     borderWidth: 1, borderColor: RED + '30' },
   dangerText: { fontSize: 14, fontFamily: FONT.sansBold, color: RED },
 
-  // Overlay + sheet
-  overlay: { flex: 1, backgroundColor: 'rgba(26,21,18,0.45)', justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: 'rgba(26,21,18,0.6)', justifyContent: 'flex-end' },
   sheet:   { backgroundColor: BG, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 8 },
   sheetHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   sheetTitle: { fontSize: 18, fontFamily: FONT.displayBold, color: PRIMARY },
@@ -407,7 +395,6 @@ const s = StyleSheet.create({
   langText:       { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
   langTextActive: { color: '#FFFFFF' },
 
-  // Delete modal
   deleteModal:   { backgroundColor: BG, borderRadius: 28, padding: 24, alignItems: 'center' },
   deleteIconWrap:{ width: 48, height: 48, borderRadius: 14, backgroundColor: RED_BG, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   deleteTitle:   { fontSize: 18, fontFamily: FONT.displayBold, color: PRIMARY },
@@ -418,10 +405,10 @@ const s = StyleSheet.create({
   btnRed:        { flex: 1, backgroundColor: RED, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
   btnRedText:    { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
 
-  // Code modal
   codeDesc:        { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED, lineHeight: 18, marginBottom: 8 },
   codePill:        { backgroundColor: MUTED_BG, borderRadius: 16, paddingVertical: 20, alignItems: 'center', marginVertical: 8 },
   codeText:        { fontSize: 42, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: 10 },
   codeTimer:       { fontSize: 13, fontFamily: FONT.sansMedium, color: RED, textAlign: 'center', marginBottom: 8 },
   watchPlaceholder:{ alignItems: 'center', paddingVertical: 28 },
-});
+  });
+}
