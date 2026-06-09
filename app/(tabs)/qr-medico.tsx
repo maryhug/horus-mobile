@@ -149,7 +149,7 @@ export default function QrMedicoScreen() {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={{ gap: 2 }}>
           <Text style={s.title}>{t.qrTitle}</Text>
-          <Text style={s.subtitle}>Escaneable en emergencias, sin app</Text>
+          <Text style={s.subtitle}>{t.qrSubtitle}</Text>
         </View>
 
         {/* ── QR Card ──────────────────────────────────────────────────── */}
@@ -176,14 +176,14 @@ export default function QrMedicoScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity style={s.btnYellow} onPress={handleSave} activeOpacity={0.85}>
                   <Ionicons name={saved ? 'checkmark' : 'arrow-down-circle-outline'} size={17} color={YELLOW_FG} />
-                  <Text style={s.btnYellowText}>{saved ? 'Guardado' : 'Guardar'}</Text>
+                  <Text style={s.btnYellowText}>{saved ? t.qrSaved : t.qrSaveBtn}</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
           )}
 
           <TouchableOpacity style={[s.toggleRow, { marginTop: open ? 20 : 0 }]} onPress={handleToggleQR} activeOpacity={0.75}>
-            <Text style={s.generateLabel}>{open ? 'Comprimir QR' : 'Generar QR'}</Text>
+            <Text style={s.generateLabel}>{open ? t.qrCompress : t.qrGenerate}</Text>
             <View style={s.cornerArrow}>
               <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
                 <Ionicons name="chevron-down" size={16} color={MUTED} />
@@ -224,15 +224,10 @@ export default function QrMedicoScreen() {
         <View style={s.watchCard}>
           <View style={s.watchHeader}>
             <Ionicons name="watch-outline" size={18} color={BLUE_FG} />
-            <Text style={s.watchTitle}>Ponlo en tu reloj</Text>
+            <Text style={s.watchTitle}>{t.qrWatchTitle}</Text>
           </View>
           <View style={{ gap: 12, marginTop: 16 }}>
-            {[
-              'Guarda el QR como imagen en tu teléfono',
-              'Abre la app del smartwatch Horus Watch X',
-              'Selecciona Fondo de pantalla y elige el QR',
-              'Cualquier persona podrá escanearlo en una emergencia',
-            ].map((step, i) => (
+            {[t.qrWatchStep1, t.qrWatchStep2, t.qrWatchStep3, t.qrWatchStep4].map((step, i) => (
               <View key={i} style={s.step}>
                 <View style={s.stepNum}>
                   <Text style={s.stepNumText}>{i + 1}</Text>

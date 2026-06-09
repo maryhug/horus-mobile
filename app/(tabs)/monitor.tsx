@@ -11,6 +11,7 @@ import { apiClient } from '../../services/api';
 import type { DashboardData } from '../../types/api';
 import { EmotionShape } from '../../components/EmotionShape';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { FONT } from '../../constants/fonts';
 
 // ── Fixed accent colors (no cambian con el tema) ───────────────────────────
@@ -109,6 +110,7 @@ export default function MonitorScreen() {
     () => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN),
     [isDark]
   );
+  const { t } = useLanguage();
 
   const { width: screenW } = useWindowDimensions();
   const [products, setProducts]         = useState(INITIAL_PRODUCTS);
@@ -150,8 +152,8 @@ export default function MonitorScreen() {
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={{ gap: 2 }}>
-          <Text style={s.title}>Monitor</Text>
-          <Text style={s.subtitle}>Ubicación y conectividad en tiempo real</Text>
+          <Text style={s.title}>{t.monitorTitle}</Text>
+          <Text style={s.subtitle}>{t.monitorSubtitle}</Text>
         </View>
 
         {/* ── Live location card ───────────────────────────────────────── */}
@@ -165,7 +167,7 @@ export default function MonitorScreen() {
 
           <View style={s.mapTopRow}>
             <View style={s.livePill}>
-              <Text style={s.livePillText}>Ubicación en vivo</Text>
+              <Text style={s.livePillText}>{t.monitorLiveLocation}</Text>
             </View>
             <View style={s.timePill}>
               <Ionicons name="time-outline" size={13} color={BLUE_FG} />
@@ -194,7 +196,7 @@ export default function MonitorScreen() {
           </View>
 
           <Text style={s.mapCity}>Medellín, Antioquia</Text>
-          <Text style={s.mapGps}>Esperando coordenadas GPS del dispositivo</Text>
+          <Text style={s.mapGps}>{t.monitorWaitingGps}</Text>
         </View>
 
         {/* ── Estado NFC ──────────────────────────────────────────────── */}
@@ -204,19 +206,19 @@ export default function MonitorScreen() {
               <NfcIcon size={20} color={GREEN_FG} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.cardTitle}>Estado NFC</Text>
-              <Text style={s.cardSub}>Tag registrado y activo</Text>
+              <Text style={s.cardTitle}>{t.monitorNfcTitle}</Text>
+              <Text style={s.cardSub}>{t.monitorNfcSub}</Text>
             </View>
             <View style={s.activoBadge}>
-              <Text style={s.activoBadgeText}>Activo</Text>
+              <Text style={s.activoBadgeText}>{t.monitorActive}</Text>
             </View>
           </View>
           <View style={s.chipGrid}>
             {[
-              { label: 'Protocolo',  value: 'ISO 14443'         },
-              { label: 'Frecuencia', value: '13.56 MHz'          },
-              { label: 'Rango',      value: '≤ 10 cm'            },
-              { label: 'ID del tag', value: '04:A2:6B:9C:1D:80' },
+              { label: t.monitorProtocol,  value: 'ISO 14443'         },
+              { label: t.monitorFrequency, value: '13.56 MHz'          },
+              { label: t.monitorRange,     value: '≤ 10 cm'            },
+              { label: t.monitorTagId,     value: '04:A2:6B:9C:1D:80' },
             ].map(c => (
               <View key={c.label} style={s.chip}>
                 <Text style={s.chipLabel}>{c.label}</Text>
@@ -227,17 +229,17 @@ export default function MonitorScreen() {
         </View>
 
         {/* ── Notificaciones recientes ─────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Notificaciones recientes</Text>
+        <Text style={s.sectionTitle}>{t.monitorRecentNotifs}</Text>
         <View style={[s.card, s.emptyCard]}>
           <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
             <EmotionShape kind="flower" color="pink" size={60} eyes />
           </Animated.View>
-          <Text style={s.emptyTitle}>Sin notificaciones</Text>
-          <Text style={s.emptySub}>No hay alertas del dispositivo</Text>
+          <Text style={s.emptyTitle}>{t.monitorNoNotifs}</Text>
+          <Text style={s.emptySub}>{t.monitorNoNotifsDesc}</Text>
         </View>
 
         {/* ── Productos activos ────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Productos activos</Text>
+        <Text style={s.sectionTitle}>{t.monitorActiveProducts}</Text>
         <View style={{ gap: 8 }}>
           {products.map(p => (
             <TouchableOpacity
@@ -272,17 +274,17 @@ export default function MonitorScreen() {
             </View>
             <Text style={s.modalTitle}>{modalProduct?.name}</Text>
             <Text style={s.modalSub}>
-              {modalProduct?.active ? '¿Deseas desactivar este dispositivo?' : '¿Deseas activar este dispositivo?'}
+              {modalProduct?.active ? t.monitorDeactivate : t.monitorActivateDevice}
             </Text>
             <View style={s.modalBtns}>
               <TouchableOpacity style={s.btnCancel} onPress={() => setModalProduct(null)}>
-                <Text style={s.btnCancelText}>Cancelar</Text>
+                <Text style={s.btnCancelText}>{t.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.btnConfirm, { backgroundColor: modalProduct?.active ? '#EF4444' : GREEN }]}
                 onPress={confirmToggle}
               >
-                <Text style={s.btnConfirmText}>{modalProduct?.active ? 'Desactivar' : 'Activar'}</Text>
+                <Text style={s.btnConfirmText}>{modalProduct?.active ? t.monitorDeactivateBtn : t.monitorActivateBtn}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

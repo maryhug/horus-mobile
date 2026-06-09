@@ -123,7 +123,7 @@ export default function FilesScreen() {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={s.header}>
           <Text style={s.title}>{t.filesTitle}</Text>
-          <Text style={s.subtitle}>Documentos y reportes médicos</Text>
+          <Text style={s.subtitle}>{t.filesSubtitle}</Text>
         </View>
 
         {/* ── Upload zone ─────────────────────────────────────────────── */}
@@ -132,7 +132,7 @@ export default function FilesScreen() {
             <UploadCloudIcon color={PRIMARY} size={28} />
           </View>
           <Text style={s.uploadTitle}>{t.filesUpload}</Text>
-          <Text style={s.uploadSub}>PDF, CSV, JSON, PNG · máx. 25 MB</Text>
+          <Text style={s.uploadSub}>{t.filesUploadSub}</Text>
         </TouchableOpacity>
 
         {/* ── Storage bar ─────────────────────────────────────────────── */}
@@ -140,9 +140,9 @@ export default function FilesScreen() {
           <View style={s.storageRow}>
             <View style={s.storageLeft}>
               <HardDriveIcon color={MUTED} size={16} />
-              <Text style={s.storageLabel}>Almacenamiento</Text>
+              <Text style={s.storageLabel}>{t.filesStorage}</Text>
             </View>
-            <Text style={s.storageValue}>{STORAGE_USED} MB de {STORAGE_LIMIT} MB</Text>
+            <Text style={s.storageValue}>{STORAGE_USED} MB {t.filesOf} {STORAGE_LIMIT} MB</Text>
           </View>
           <View style={s.barTrack}>
             <View style={[s.barFill, { width: `${pct}%` as any }]} />
@@ -150,12 +150,12 @@ export default function FilesScreen() {
         </View>
 
         {/* ── File list ───────────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Archivos recientes</Text>
+        <Text style={s.sectionTitle}>{t.filesRecentTitle}</Text>
 
         {files.length === 0 ? (
           <View style={s.emptyCard}>
             <Text style={s.emptyTitle}>{t.filesNoFiles}</Text>
-            <Text style={s.emptySub}>Sube tu primer documento</Text>
+            <Text style={s.emptySub}>{t.filesUploadFirst}</Text>
           </View>
         ) : (
           <View style={s.fileList}>

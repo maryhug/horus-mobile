@@ -21,18 +21,21 @@ import { Image } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAssistant } from '../../hooks/useAssistant';
 import { useLanguage } from '../../contexts/LanguageContext';
+import type { T } from '../../contexts/LanguageContext';
 
 // ASSIST_BG se calcula dinámicamente dentro del componente
 
-const STATIC_METRICS: HealthMetric[] = [
-  { key: 'heart',     label: 'Frecuencia cardíaca', value: '—', unit: 'bpm',   icon: 'heart',      color: 'pink'   },
-  { key: 'steps',     label: 'Pasos',               value: '—', unit: 'pasos', icon: 'footprints', color: 'blue'   },
-  { key: 'calories',  label: 'Calorías',             value: '—', unit: 'kcal',  icon: 'flame',      color: 'yellow' },
-  { key: 'activity',  label: 'Actividad',            value: '—', unit: 'min',   icon: 'activity',   color: 'green'  },
-];
+function buildMetrics(t: T): HealthMetric[] {
+  return [
+    { key: 'heart',    label: t.dashMetricHeart,    value: '—', unit: 'bpm',               icon: 'heart',      color: 'pink'   },
+    { key: 'steps',    label: t.dashMetricSteps,    value: '—', unit: t.dashMetricStepsUnit,icon: 'footprints', color: 'blue'   },
+    { key: 'calories', label: t.dashMetricCalories, value: '—', unit: 'kcal',              icon: 'flame',      color: 'yellow' },
+    { key: 'activity', label: t.dashMetricActivity, value: '—', unit: 'min',               icon: 'activity',   color: 'green'  },
+  ];
+}
 
 // Ring + chips with shared selected state
-function RingCard() {
+function RingCard({ metrics }: { metrics: HealthMetric[] }) {
   const { CARD, PRIMARY } = useAppTheme();
   const cardStyle = {
     backgroundColor: CARD, borderRadius: 32,
@@ -44,12 +47,12 @@ function RingCard() {
   return (
     <View style={cardStyle}>
       <HealthRing
-        metrics={STATIC_METRICS}
+        metrics={metrics}
         score="—"
         selectedKey={selectedKey}
         onSelectKey={setSelectedKey}
       />
-      <MetricChips metrics={STATIC_METRICS} selectedKey={selectedKey} />
+      <MetricChips metrics={metrics} selectedKey={selectedKey} />
     </View>
   );
 }
@@ -65,6 +68,7 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const { assistant } = useAssistant();
   const { t } = useLanguage();
+  const metrics = React.useMemo(() => buildMetrics(t), [t]);
   const livePulse  = useRef(new Animated.Value(1)).current;
   const blobFloat  = useRef(new Animated.Value(0)).current;
 
@@ -148,7 +152,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <RingCard />
+        <RingCard metrics={metrics} />
 
         {/* ── Device status row ────────────────────────────────────────── */}
         <View style={s.statusRow}>

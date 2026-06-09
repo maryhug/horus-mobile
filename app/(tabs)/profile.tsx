@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { apiClient, getErrorMessage } from '../../services/api';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // ── Foreground colors ──────────────────────────────────────────────────────
 const GREEN_FG  = '#1A3D0A';
@@ -35,21 +36,6 @@ function bloodTypeLabel(value: string | null | undefined): string {
   return BLOOD_TYPES.find(b => b.value === value)?.label ?? value;
 }
 
-// ── Date picker data ───────────────────────────────────────────────────────
-const MONTHS_ES = [
-  { label: 'Enero',      value: '1'  },
-  { label: 'Febrero',    value: '2'  },
-  { label: 'Marzo',      value: '3'  },
-  { label: 'Abril',      value: '4'  },
-  { label: 'Mayo',       value: '5'  },
-  { label: 'Junio',      value: '6'  },
-  { label: 'Julio',      value: '7'  },
-  { label: 'Agosto',     value: '8'  },
-  { label: 'Septiembre', value: '9'  },
-  { label: 'Octubre',    value: '10' },
-  { label: 'Noviembre',  value: '11' },
-  { label: 'Diciembre',  value: '12' },
-];
 const DAYS = Array.from({ length: 31 }, (_, i) => ({
   label: String(i + 1), value: String(i + 1),
 }));
@@ -57,18 +43,6 @@ const CUR_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 100 }, (_, i) => ({
   label: String(CUR_YEAR - i), value: String(CUR_YEAR - i),
 }));
-const GENDERS = [
-  { label: 'Masculino',         value: 'MALE'             },
-  { label: 'Femenino',          value: 'FEMALE'           },
-  { label: 'Otro',              value: 'OTHER'            },
-  { label: 'Prefiero no decir', value: 'PREFER_NOT_TO_SAY'},
-];
-const ID_TYPES = [
-  { label: 'Cédula de ciudadanía',  value: 'CC' },
-  { label: 'Cédula de extranjería', value: 'CE' },
-  { label: 'Pasaporte',             value: 'PP' },
-  { label: 'Tarjeta de identidad',  value: 'TI' },
-];
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const I = (p: { children: React.ReactNode; size?: number }) => (
@@ -102,6 +76,8 @@ const LogOutIcon      = ({ color, size=18 }: { color: string; size?: number }) =
   <I size={size}><Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke={color} {...sw} /><Polyline points="16 17 21 12 16 7" stroke={color} {...sw} /><Line x1={21} y1={12} x2={9} y2={12} stroke={color} {...sw} /></I>;
 const XIcon           = ({ color, size=16 }: { color: string; size?: number }) =>
   <I size={size}><Path d="M18 6 6 18M6 6l12 12" stroke={color} {...sw} /></I>;
+const LockIcon        = ({ color, size=14 }: { color: string; size?: number }) =>
+  <I size={size}><Rect x={3} y={11} width={18} height={11} rx={2} stroke={color} {...sw} /><Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke={color} {...sw} /></I>;
 const ChevronDownIcon = ({ color, size=14 }: { color: string; size?: number }) =>
   <I size={size}><Path d="m6 9 6 6 6-6" stroke={color} {...sw} /></I>;
 const CheckIcon       = ({ color, size=14 }: { color: string; size?: number }) =>
@@ -126,20 +102,6 @@ type ProfileData = {
   identificationNumber?:  string;
 };
 
-const GENDER_LABELS: Record<string, string> = {
-  MALE:             'Masculino',
-  FEMALE:           'Femenino',
-  OTHER:            'Otro',
-  PREFER_NOT_TO_SAY:'Prefiero no decir',
-};
-const ID_TYPE_LABELS: Record<string, string> = {
-  CC: 'Cédula de ciudadanía',
-  CE: 'Cédula de extranjería',
-  PP: 'Pasaporte',
-  TI: 'Tarjeta de identidad',
-};
-function genderLabel(v?: string)  { return v ? (GENDER_LABELS[v]  ?? v) : '—'; }
-function idTypeLabel(v?: string)   { return v ? (ID_TYPE_LABELS[v] ?? v) : '—'; }
 
 type UserDraft = {
   firstName:          string;
@@ -181,31 +143,41 @@ function DeviceStat({ icon, label, value, bg, s }: { icon: React.ReactNode; labe
   );
 }
 
-function SheetField({ label, value, onChange, placeholder, s }: {
+function SheetField({ label, value, onChange, placeholder, s, locked }: {
   label: string; value: string; placeholder?: string;
-  onChange: (v: string) => void; s: Styles;
+  onChange: (v: string) => void; s: Styles; locked?: boolean;
 }) {
+  const { MUTED } = useAppTheme();
   return (
-    <View style={s.sheetField}>
+    <View style={[s.sheetField, locked && s.sheetFieldLocked]}>
       <Text style={s.sheetFieldLabel}>{label}</Text>
-      <TextInput
-        style={s.sheetFieldInput}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder ?? '—'}
-        placeholderTextColor={s.sheetFieldInput.color + '60'}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <TextInput
+          style={[s.sheetFieldInput, { flex: 1 }]}
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder ?? '—'}
+          placeholderTextColor={s.sheetFieldInput.color + '60'}
+          editable={!locked}
+        />
+        {locked && <LockIcon color={MUTED} size={14} />}
+      </View>
     </View>
   );
 }
 
 /** Tappable dropdown field — shows label + current value + chevron */
-function PickerField({ label, displayValue, onPress, s }: {
-  label: string; displayValue: string; onPress: () => void; s: Styles;
+function PickerField({ label, displayValue, onPress, s, locked }: {
+  label: string; displayValue: string; onPress: () => void; s: Styles; locked?: boolean;
 }) {
   const { MUTED } = useAppTheme();
+  const { t } = useLanguage();
   return (
-    <TouchableOpacity style={s.sheetField} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity
+      style={[s.sheetField, locked && s.sheetFieldLocked]}
+      onPress={locked ? undefined : onPress}
+      activeOpacity={locked ? 1 : 0.75}
+    >
       <Text style={s.sheetFieldLabel}>{label}</Text>
       <View style={s.pickerFieldRow}>
         <Text
@@ -213,9 +185,12 @@ function PickerField({ label, displayValue, onPress, s }: {
           numberOfLines={1}
           ellipsizeMode="tail"
         >
-          {displayValue || 'Seleccionar'}
+          {displayValue || t.select}
         </Text>
-        <ChevronDownIcon color={MUTED} size={14} />
+        {locked
+          ? <LockIcon color={MUTED} size={14} />
+          : <ChevronDownIcon color={MUTED} size={14} />
+        }
       </View>
     </TouchableOpacity>
   );
@@ -290,9 +265,40 @@ export default function ProfileScreen() {
   );
 
   const { user, logout, updateUser } = useAuth();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
+  // ── Translated picker arrays ──────────────────────────────────────────────
+  const GENDERS_T = React.useMemo(() => [
+    { label: t.genderMale,      value: 'MALE'             },
+    { label: t.genderFemale,    value: 'FEMALE'           },
+    { label: t.genderOther,     value: 'OTHER'            },
+    { label: t.genderPreferNot, value: 'PREFER_NOT_TO_SAY'},
+  ], [t]);
+
+  const ID_TYPES_T = React.useMemo(() => [
+    { label: t.idTypeCC, value: 'CC' },
+    { label: t.idTypeCE, value: 'CE' },
+    { label: t.idTypePP, value: 'PP' },
+    { label: t.idTypeTI, value: 'TI' },
+  ], [t]);
+
+  const MONTHS_T = React.useMemo(() =>
+    t.months.map((label, i) => ({ label, value: String(i + 1) })), [t]);
+
+  const genderLabel = (v?: string) => v ? (GENDERS_T.find(g => g.value === v)?.label ?? v) : '—';
+  const idTypeLabel = (v?: string) => v ? (ID_TYPES_T.find(d => d.value === v)?.label ?? v) : '—';
+
   const [profile,        setProfile]        = useState<ProfileData | null>(null);
+
+  // ── "Lock-once" — campos médicos bloqueados si ya tienen valor guardado ──
+  const medicalLocked = React.useMemo(() => ({
+    bloodType:            !!profile?.bloodType,
+    dob:                  !!profile?.dateOfBirth,
+    gender:               !!profile?.gender,
+    identificationType:   !!profile?.identificationType,
+    identificationNumber: !!profile?.identificationNumber,
+  }), [profile]);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saving,         setSaving]         = useState(false);
   const [editOpen,       setEditOpen]       = useState(false);
@@ -326,8 +332,8 @@ export default function ProfileScreen() {
     if (!dob) return '—';
     const d   = new Date(dob + 'T00:00:00');
     const age = new Date().getFullYear() - d.getFullYear();
-    const mon = MONTHS_ES[d.getMonth()]?.label ?? '';
-    return `${d.getDate()} ${mon} ${d.getFullYear()} · ${age} años`;
+    const mon = t.months[d.getMonth()] ?? '';
+    return `${d.getDate()} ${mon} ${d.getFullYear()} · ${age} ${t.years}`;
   })();
 
   // ── Open edit with current values ─────────────────────────────────────
@@ -355,7 +361,7 @@ export default function ProfileScreen() {
   // ── Save to API ───────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!draft.firstName.trim() || !draft.lastName.trim()) {
-      Alert.alert('Campos requeridos', 'Nombre y apellido no pueden estar vacíos.');
+      Alert.alert(t.profileRequiredFields, t.profileRequiredMsg);
       return;
     }
     setSaving(true);
@@ -364,11 +370,16 @@ export default function ProfileScreen() {
         firstName: draft.firstName.trim(),
         lastName:  draft.lastName.trim(),
       };
-      if (draft.bloodType)            payload.bloodType           = draft.bloodType;
-      if (draft.gender)               payload.gender              = draft.gender;
-      if (draft.identificationType)   payload.identificationType  = draft.identificationType;
-      if (draft.identificationNumber.trim()) payload.identificationNumber = draft.identificationNumber.trim();
-      if (draft.dobDay && draft.dobMonth && draft.dobYear) {
+      // Campos médicos: solo se envían si NO están bloqueados (primera vez que se llenan)
+      if (!medicalLocked.bloodType && draft.bloodType)
+        payload.bloodType = draft.bloodType;
+      if (!medicalLocked.gender && draft.gender)
+        payload.gender = draft.gender;
+      if (!medicalLocked.identificationType && draft.identificationType)
+        payload.identificationType = draft.identificationType;
+      if (!medicalLocked.identificationNumber && draft.identificationNumber.trim())
+        payload.identificationNumber = draft.identificationNumber.trim();
+      if (!medicalLocked.dob && draft.dobDay && draft.dobMonth && draft.dobYear) {
         const y = draft.dobYear.padStart(4, '0');
         const m = draft.dobMonth.padStart(2, '0');
         const d = draft.dobDay.padStart(2, '0');
@@ -379,7 +390,7 @@ export default function ProfileScreen() {
       updateUser({ firstName: data.firstName, lastName: data.lastName });
       setEditOpen(false);
     } catch (err) {
-      Alert.alert('Error al guardar', getErrorMessage(err));
+      Alert.alert(t.profileSaveError, getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -393,15 +404,15 @@ export default function ProfileScreen() {
 
   // ── Picker display labels ─────────────────────────────────────────────
   const bloodDisplay = bloodTypeLabel(draft.bloodType);
-  const dayDisplay   = draft.dobDay   ? `Día ${draft.dobDay}`                            : '';
-  const monthDisplay = draft.dobMonth ? (MONTHS_ES.find(m => m.value === draft.dobMonth)?.label ?? '') : '';
+  const dayDisplay   = draft.dobDay   ? `${t.profileDay} ${draft.dobDay}` : '';
+  const monthDisplay = draft.dobMonth ? (MONTHS_T.find(m => m.value === draft.dobMonth)?.label ?? '') : '';
   const yearDisplay  = draft.dobYear  || '';
 
   return (
     <SafeAreaView style={s.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-        <Text style={s.title}>Perfil</Text>
+        <Text style={s.title}>{t.profileTitle}</Text>
 
         {/* ── Avatar card ─────────────────────────────────────────────── */}
         <View style={s.avatarCard}>
@@ -420,28 +431,28 @@ export default function ProfileScreen() {
           <Text style={s.userEmail}>{email}</Text>
           <TouchableOpacity style={s.viewBtn} onPress={() => setViewOpen(true)} activeOpacity={0.85}>
             <UserIcon color={PRIMARY} size={14} />
-            <Text style={[s.viewBtnText, { color: PRIMARY }]}>Ver perfil</Text>
+            <Text style={[s.viewBtnText, { color: PRIMARY }]}>{t.profileView}</Text>
           </TouchableOpacity>
         </View>
 
         {/* ── Información personal ─────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Información personal</Text>
+        <Text style={s.sectionTitle}>{t.profilePersonal}</Text>
         <View style={s.list}>
-          <InfoRow s={s} icon={<MailIcon     color={MUTED} />} label="Email"               value={email} />
-          <InfoRow s={s} icon={<DropletIcon  color={MUTED} />} label="Tipo de sangre"      value={bloodTypeLabel(profile?.bloodType)} />
-          <InfoRow s={s} icon={<CalendarIcon color={MUTED} />} label="Fecha de nacimiento" value={dobFormatted} />
+          <InfoRow s={s} icon={<MailIcon     color={MUTED} />} label={t.profileEmail}     value={email} />
+          <InfoRow s={s} icon={<DropletIcon  color={MUTED} />} label={t.profileBloodType} value={bloodTypeLabel(profile?.bloodType)} />
+          <InfoRow s={s} icon={<CalendarIcon color={MUTED} />} label={t.profileDob}       value={dobFormatted} />
         </View>
 
         {/* ── Mi manilla Horus ─────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Mi manilla Horus</Text>
+        <Text style={s.sectionTitle}>{t.profileHorusDevice}</Text>
         <View style={s.statGrid}>
-          <DeviceStat s={s} icon={<NfcIcon        color={GREEN_FG}  size={16} />} label="NFC"      value="Activo"  bg={GREEN}  fg={GREEN_FG}  />
-          <DeviceStat s={s} icon={<NavigationIcon color={BLUE_FG}   size={16} />} label="GPS"      value="—"       bg={BLUE}   fg={BLUE_FG}   />
-          <DeviceStat s={s} icon={<BatteryLowIcon color={PINK_FG}   size={16} />} label="Batería"  value="—"       bg={PINK}   fg={PINK_FG}   />
-          <DeviceStat s={s} icon={<CpuIcon        color={YELLOW_FG} size={16} />} label="Firmware" value="v2.4.1"  bg={YELLOW} fg={YELLOW_FG} />
+          <DeviceStat s={s} icon={<NfcIcon        color={GREEN_FG}  size={16} />} label={t.profileNfc}         value={t.monitorActive} bg={GREEN}  fg={GREEN_FG}  />
+          <DeviceStat s={s} icon={<NavigationIcon color={BLUE_FG}   size={16} />} label="GPS"                  value="—"               bg={BLUE}   fg={BLUE_FG}   />
+          <DeviceStat s={s} icon={<BatteryLowIcon color={PINK_FG}   size={16} />} label={t.dashBattery}        value="—"               bg={PINK}   fg={PINK_FG}   />
+          <DeviceStat s={s} icon={<CpuIcon        color={YELLOW_FG} size={16} />} label={t.settingsFirmware}   value="v2.4.1"          bg={YELLOW} fg={YELLOW_FG} />
         </View>
         <View style={s.nfcCard}>
-          <Text style={s.nfcLabel}>ID del tag NFC</Text>
+          <Text style={s.nfcLabel}>{t.profileNfcId}</Text>
           <Text style={s.nfcValue}>{nfcTagId}</Text>
         </View>
 
@@ -449,11 +460,11 @@ export default function ProfileScreen() {
         <View style={s.list}>
           <TouchableOpacity style={s.actionRow} onPress={() => router.push('/settings')} activeOpacity={0.75}>
             <SettingsIcon color={PRIMARY} size={18} />
-            <Text style={s.actionText}>Configuración</Text>
+            <Text style={s.actionText}>{t.settingsTitle}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.actionRow} onPress={() => setLogout(true)} activeOpacity={0.75}>
             <LogOutIcon color={RED} size={18} />
-            <Text style={[s.actionText, { color: RED }]}>Cerrar sesión</Text>
+            <Text style={[s.actionText, { color: RED }]}>{t.profileLogout}</Text>
           </TouchableOpacity>
         </View>
 
@@ -464,7 +475,7 @@ export default function ProfileScreen() {
         <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => !saving && setEditOpen(false)}>
           <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
             <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Editar perfil</Text>
+              <Text style={s.sheetTitle}>{t.profileEditTitle}</Text>
               <TouchableOpacity style={s.sheetClose} onPress={() => !saving && setEditOpen(false)} disabled={saving}>
                 <XIcon color={PRIMARY} size={16} />
               </TouchableOpacity>
@@ -472,30 +483,31 @@ export default function ProfileScreen() {
 
             <View style={{ gap: 10 }}>
               {/* Nombre */}
-              <SheetField s={s} label="Nombre"   value={draft.firstName} onChange={v => setDraft(d => ({ ...d, firstName: v }))} />
+              <SheetField s={s} label={t.profileName}     value={draft.firstName} onChange={v => setDraft(d => ({ ...d, firstName: v }))} />
               {/* Apellido */}
-              <SheetField s={s} label="Apellido" value={draft.lastName}  onChange={v => setDraft(d => ({ ...d, lastName: v }))} />
+              <SheetField s={s} label={t.profileLastName} value={draft.lastName}  onChange={v => setDraft(d => ({ ...d, lastName: v }))} />
 
               {/* Tipo de sangre */}
               <PickerField
                 s={s}
-                label="Tipo de sangre"
+                label={t.profileBloodType}
                 displayValue={bloodDisplay === '—' ? '' : bloodDisplay}
                 onPress={() => setActivePicker('bloodType')}
+                locked={medicalLocked.bloodType}
               />
 
               {/* Fecha de nacimiento */}
               <View style={{ gap: 4 }}>
-                <Text style={[s.sheetFieldLabel, { paddingLeft: 4 }]}>Fecha de nacimiento</Text>
+                <Text style={[s.sheetFieldLabel, { paddingLeft: 4 }]}>{t.profileDob}</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <View style={{ flex: 1 }}>
-                    <PickerField s={s} label="Día"  displayValue={draft.dobDay}   onPress={() => setActivePicker('dobDay')} />
+                    <PickerField s={s} label={t.profileDay}   displayValue={dayDisplay}   onPress={() => setActivePicker('dobDay')}   locked={medicalLocked.dob} />
                   </View>
                   <View style={{ flex: 2 }}>
-                    <PickerField s={s} label="Mes"  displayValue={monthDisplay}   onPress={() => setActivePicker('dobMonth')} />
+                    <PickerField s={s} label={t.profileMonth} displayValue={monthDisplay} onPress={() => setActivePicker('dobMonth')} locked={medicalLocked.dob} />
                   </View>
                   <View style={{ flex: 2 }}>
-                    <PickerField s={s} label="Año"  displayValue={yearDisplay}    onPress={() => setActivePicker('dobYear')} />
+                    <PickerField s={s} label={t.profileYear}  displayValue={yearDisplay}  onPress={() => setActivePicker('dobYear')}  locked={medicalLocked.dob} />
                   </View>
                 </View>
               </View>
@@ -503,37 +515,40 @@ export default function ProfileScreen() {
               {/* Género */}
               <PickerField
                 s={s}
-                label="Género"
-                displayValue={GENDERS.find(g => g.value === draft.gender)?.label ?? ''}
+                label={t.profileGender}
+                displayValue={GENDERS_T.find(g => g.value === draft.gender)?.label ?? ''}
                 onPress={() => setActivePicker('gender')}
+                locked={medicalLocked.gender}
               />
 
               {/* Tipo de identificación */}
               <PickerField
                 s={s}
-                label="Tipo de identificación"
-                displayValue={ID_TYPES.find(t => t.value === draft.identificationType)?.label ?? ''}
+                label={t.profileIdType}
+                displayValue={ID_TYPES_T.find(d => d.value === draft.identificationType)?.label ?? ''}
                 onPress={() => setActivePicker('identificationType')}
+                locked={medicalLocked.identificationType}
               />
 
               {/* Número de identificación */}
               <SheetField
                 s={s}
-                label="Número de identificación"
+                label={t.profileIdNumber}
                 value={draft.identificationNumber}
                 onChange={v => setDraft(d => ({ ...d, identificationNumber: v }))}
                 placeholder="1234567890"
+                locked={medicalLocked.identificationNumber}
               />
             </View>
 
             <View style={s.sheetBtns}>
               <TouchableOpacity style={s.sheetBtnGrey} onPress={() => setEditOpen(false)} disabled={saving} activeOpacity={0.85}>
-                <Text style={s.sheetBtnGreyText}>Cancelar</Text>
+                <Text style={s.sheetBtnGreyText}>{t.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.sheetBtnDark, saving && { opacity: 0.7 }]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
                 {saving
                   ? <ActivityIndicator size="small" color="#FFFFFF" />
-                  : <Text style={s.sheetBtnDarkText}>Guardar</Text>
+                  : <Text style={s.sheetBtnDarkText}>{t.save}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -544,7 +559,7 @@ export default function ProfileScreen() {
       {/* ── Picker modals ────────────────────────────────────────────────── */}
       <PickerModal
         visible={activePicker === 'bloodType'}
-        title="Tipo de sangre"
+        title={t.profileBloodType}
         options={BLOOD_TYPES as unknown as PickerOption[]}
         selected={draft.bloodType}
         onSelect={v => setDraft(d => ({ ...d, bloodType: v }))}
@@ -552,7 +567,7 @@ export default function ProfileScreen() {
       />
       <PickerModal
         visible={activePicker === 'dobDay'}
-        title="Día"
+        title={t.profileDay}
         options={DAYS}
         selected={draft.dobDay}
         onSelect={v => setDraft(d => ({ ...d, dobDay: v }))}
@@ -560,15 +575,15 @@ export default function ProfileScreen() {
       />
       <PickerModal
         visible={activePicker === 'dobMonth'}
-        title="Mes"
-        options={MONTHS_ES}
+        title={t.profileMonth}
+        options={MONTHS_T}
         selected={draft.dobMonth}
         onSelect={v => setDraft(d => ({ ...d, dobMonth: v }))}
         onClose={() => setActivePicker(null)}
       />
       <PickerModal
         visible={activePicker === 'dobYear'}
-        title="Año"
+        title={t.profileYear}
         options={YEARS}
         selected={draft.dobYear}
         onSelect={v => setDraft(d => ({ ...d, dobYear: v }))}
@@ -576,16 +591,16 @@ export default function ProfileScreen() {
       />
       <PickerModal
         visible={activePicker === 'gender'}
-        title="Género"
-        options={GENDERS}
+        title={t.profileGender}
+        options={GENDERS_T}
         selected={draft.gender}
         onSelect={v => setDraft(d => ({ ...d, gender: v }))}
         onClose={() => setActivePicker(null)}
       />
       <PickerModal
         visible={activePicker === 'identificationType'}
-        title="Tipo de identificación"
-        options={ID_TYPES}
+        title={t.profileIdType}
+        options={ID_TYPES_T}
         selected={draft.identificationType}
         onSelect={v => setDraft(d => ({ ...d, identificationType: v }))}
         onClose={() => setActivePicker(null)}
@@ -597,7 +612,7 @@ export default function ProfileScreen() {
           <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
             {/* Header */}
             <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Información del perfil</Text>
+              <Text style={s.sheetTitle}>{t.profileViewTitle}</Text>
               <TouchableOpacity style={s.sheetClose} onPress={() => setViewOpen(false)}>
                 <XIcon color={PRIMARY} size={16} />
               </TouchableOpacity>
@@ -607,32 +622,32 @@ export default function ProfileScreen() {
 
               {/* Nombre completo */}
               <View style={s.viewSection}>
-                <Text style={s.viewSectionTitle}>Datos personales</Text>
+                <Text style={s.viewSectionTitle}>{t.profilePersonal}</Text>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><UserIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Nombre completo</Text>
+                    <Text style={s.viewLabel}>{t.profileFullName}</Text>
                     <Text style={s.viewValue}>{firstName} {lastName}</Text>
                   </View>
                 </View>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><MailIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Correo electrónico</Text>
+                    <Text style={s.viewLabel}>{t.profileEmail}</Text>
                     <Text style={s.viewValue}>{email}</Text>
                   </View>
                 </View>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><CalendarIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Fecha de nacimiento</Text>
+                    <Text style={s.viewLabel}>{t.profileDob}</Text>
                     <Text style={s.viewValue}>{dobFormatted}</Text>
                   </View>
                 </View>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><UsersIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Género</Text>
+                    <Text style={s.viewLabel}>{t.profileGender}</Text>
                     <Text style={s.viewValue}>{genderLabel(profile?.gender)}</Text>
                   </View>
                 </View>
@@ -640,11 +655,11 @@ export default function ProfileScreen() {
 
               {/* Datos médicos */}
               <View style={s.viewSection}>
-                <Text style={s.viewSectionTitle}>Datos médicos</Text>
+                <Text style={s.viewSectionTitle}>{t.profileMedical}</Text>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><DropletIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Tipo de sangre</Text>
+                    <Text style={s.viewLabel}>{t.profileBloodType}</Text>
                     <Text style={s.viewValue}>{bloodTypeLabel(profile?.bloodType)}</Text>
                   </View>
                 </View>
@@ -652,18 +667,18 @@ export default function ProfileScreen() {
 
               {/* Identificación */}
               <View style={s.viewSection}>
-                <Text style={s.viewSectionTitle}>Identificación</Text>
+                <Text style={s.viewSectionTitle}>{t.profileId}</Text>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><IdCardIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Tipo de documento</Text>
+                    <Text style={s.viewLabel}>{t.profileDocType}</Text>
                     <Text style={s.viewValue}>{idTypeLabel(profile?.identificationType)}</Text>
                   </View>
                 </View>
                 <View style={s.viewRow}>
                   <View style={[s.viewIcon, { backgroundColor: MUTED_BG }]}><IdCardIcon color={MUTED} size={16} /></View>
                   <View style={s.viewCol}>
-                    <Text style={s.viewLabel}>Número de documento</Text>
+                    <Text style={s.viewLabel}>{t.profileDocNumber}</Text>
                     <Text style={s.viewValue}>{profile?.identificationNumber ?? '—'}</Text>
                   </View>
                 </View>
@@ -678,7 +693,7 @@ export default function ProfileScreen() {
               activeOpacity={0.85}
             >
               <PencilIcon color="#FFFFFF" size={14} />
-              <Text style={s.sheetBtnDarkText}>Editar información</Text>
+              <Text style={s.sheetBtnDarkText}>{t.profileEdit}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -689,14 +704,14 @@ export default function ProfileScreen() {
         <TouchableOpacity style={s.logoutOverlay} activeOpacity={1} onPress={() => setLogout(false)}>
           <TouchableOpacity style={s.logoutModal} activeOpacity={1}>
             <View style={s.logoutIcon}><LogOutIcon color={RED} size={22} /></View>
-            <Text style={s.logoutTitle}>¿Cerrar sesión?</Text>
-            <Text style={s.logoutSub}>Tendrás que iniciar sesión de nuevo.</Text>
+            <Text style={s.logoutTitle}>{t.profileLogoutTitle}</Text>
+            <Text style={s.logoutSub}>{t.profileLogoutSub}</Text>
             <View style={s.logoutBtns}>
               <TouchableOpacity style={s.logoutBtnGrey} onPress={() => setLogout(false)} activeOpacity={0.85}>
-                <Text style={s.logoutBtnGreyText}>Cancelar</Text>
+                <Text style={s.logoutBtnGreyText}>{t.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.logoutBtnRed} onPress={handleLogout} activeOpacity={0.85}>
-                <Text style={s.logoutBtnRedText}>Cerrar sesión</Text>
+                <Text style={s.logoutBtnRedText}>{t.profileLogout}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -811,6 +826,7 @@ function makeStyles(
       paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12,
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
     },
+    sheetFieldLocked: { opacity: 0.55 },
     sheetFieldLabel: { fontSize: 11, fontFamily: FONT.sansMedium, color: MUTED, marginBottom: 2 },
     sheetFieldInput: { fontSize: 15, fontFamily: FONT.sansMedium, color: PRIMARY },
     pickerFieldRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },

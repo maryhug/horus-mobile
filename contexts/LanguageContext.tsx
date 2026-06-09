@@ -70,6 +70,13 @@ export interface T {
   registerBtn: string;
   registerHasAccount: string;
   registerSignIn: string;
+  registerDob: string;
+  registerTerms: string;
+  registerErrorName: string;
+  registerErrorEmail: string;
+  registerErrorPassword: string;
+  registerErrorMatch: string;
+  registerErrorTerms: string;
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   dashLive: string;
@@ -194,6 +201,75 @@ export interface T {
   settingsConfirmAssistantSub: string;
   settingsConfirmAssistantSub2: string;
   settingsChangeBtn: string;
+
+  // ── Dashboard metrics ─────────────────────────────────────────────────────
+  dashMetricHeart: string;
+  dashMetricSteps: string;
+  dashMetricCalories: string;
+  dashMetricActivity: string;
+  dashMetricStepsUnit: string;
+
+  // ── QR additional ─────────────────────────────────────────────────────────
+  qrSubtitle: string;
+  qrSaved: string;
+  qrSaveBtn: string;
+  qrCompress: string;
+  qrGenerate: string;
+  qrWatchTitle: string;
+  qrWatchStep1: string;
+  qrWatchStep2: string;
+  qrWatchStep3: string;
+  qrWatchStep4: string;
+
+  // ── Files additional ──────────────────────────────────────────────────────
+  filesSubtitle: string;
+  filesRecentTitle: string;
+  filesUploadSub: string;
+  filesUploadFirst: string;
+  filesOf: string;
+
+  // ── Profile additional ────────────────────────────────────────────────────
+  profileHorusDevice: string;
+  profileLogout: string;
+  profileLogoutTitle: string;
+  profileLogoutSub: string;
+  profileEditTitle: string;
+  profileViewTitle: string;
+  profileFullName: string;
+  profileDocType: string;
+  profileDocNumber: string;
+  profileNfcId: string;
+  profileRequiredFields: string;
+  profileRequiredMsg: string;
+  profileSaveError: string;
+
+  // ── Monitor ───────────────────────────────────────────────────────────────
+  monitorTitle: string;
+  monitorSubtitle: string;
+  monitorLiveLocation: string;
+  monitorWaitingGps: string;
+  monitorNfcTitle: string;
+  monitorNfcSub: string;
+  monitorActive: string;
+  monitorProtocol: string;
+  monitorFrequency: string;
+  monitorRange: string;
+  monitorTagId: string;
+  monitorRecentNotifs: string;
+  monitorNoNotifs: string;
+  monitorNoNotifsDesc: string;
+  monitorActiveProducts: string;
+  monitorDeactivate: string;
+  monitorActivateDevice: string;
+  monitorDeactivateBtn: string;
+  monitorActivateBtn: string;
+  // ── Navbar tabs ───────────────────────────────────────────────────────────
+  navHome: string;
+  navMonitor: string;
+  navId: string;
+  navAi: string;
+  navFiles: string;
+  navProfile: string;
 }
 
 // ── Spanish ────────────────────────────────────────────────────────────────
@@ -211,7 +287,7 @@ const es: T = {
   greetingMorning: 'Buenos días',
   greetingAfternoon: 'Buenas tardes',
   greetingEvening: 'Buenas noches',
-  months: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+  months: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
   genderMale: 'Masculino',
   genderFemale: 'Femenino',
   genderOther: 'Otro',
@@ -258,6 +334,13 @@ const es: T = {
   registerBtn: 'Crear cuenta',
   registerHasAccount: '¿Ya tienes cuenta?',
   registerSignIn: 'Inicia sesión',
+  registerDob: 'Fecha de nacimiento',
+  registerTerms: 'Acepto los Términos y la Política de privacidad de Horus.',
+  registerErrorName: 'Ingresa tu nombre y apellido.',
+  registerErrorEmail: 'Ingresa un correo válido.',
+  registerErrorPassword: 'La contraseña debe tener al menos 6 caracteres.',
+  registerErrorMatch: 'Las contraseñas no coinciden.',
+  registerErrorTerms: 'Debes aceptar los términos.',
 
   // Dashboard
   dashLive: 'En vivo',
@@ -382,6 +465,75 @@ const es: T = {
   settingsConfirmAssistantSub: '¿Estás seguro de que quieres cambiar a',
   settingsConfirmAssistantSub2: 'como tu compañero de salud?',
   settingsChangeBtn: 'Cambiar',
+
+  // Dashboard metrics
+  dashMetricHeart: 'Frecuencia cardíaca',
+  dashMetricSteps: 'Pasos',
+  dashMetricCalories: 'Calorías',
+  dashMetricActivity: 'Actividad',
+  dashMetricStepsUnit: 'pasos',
+
+  // QR additional
+  qrSubtitle: 'Escaneable en emergencias, sin app',
+  qrSaved: 'Guardado',
+  qrSaveBtn: 'Guardar',
+  qrCompress: 'Comprimir QR',
+  qrGenerate: 'Generar QR',
+  qrWatchTitle: 'Ponlo en tu reloj',
+  qrWatchStep1: 'Guarda el QR como imagen en tu teléfono',
+  qrWatchStep2: 'Abre la app del smartwatch Horus Watch X',
+  qrWatchStep3: 'Selecciona Fondo de pantalla y elige el QR',
+  qrWatchStep4: 'Cualquier persona podrá escanearlo en una emergencia',
+
+  // Files additional
+  filesSubtitle: 'Documentos y reportes médicos',
+  filesRecentTitle: 'Archivos recientes',
+  filesUploadSub: 'PDF, CSV, JSON, PNG · máx. 25 MB',
+  filesUploadFirst: 'Sube tu primer documento',
+  filesOf: 'de',
+
+  // Profile additional
+  profileHorusDevice: 'Mi manilla Horus',
+  profileLogout: 'Cerrar sesión',
+  profileLogoutTitle: '¿Cerrar sesión?',
+  profileLogoutSub: 'Tendrás que iniciar sesión de nuevo.',
+  profileEditTitle: 'Editar perfil',
+  profileViewTitle: 'Información del perfil',
+  profileFullName: 'Nombre completo',
+  profileDocType: 'Tipo de documento',
+  profileDocNumber: 'Número de documento',
+  profileNfcId: 'ID del tag NFC',
+  profileRequiredFields: 'Campos requeridos',
+  profileRequiredMsg: 'Nombre y apellido no pueden estar vacíos.',
+  profileSaveError: 'Error al guardar',
+
+  // Monitor
+  monitorTitle: 'Monitor',
+  monitorSubtitle: 'Ubicación y conectividad en tiempo real',
+  monitorLiveLocation: 'Ubicación en vivo',
+  monitorWaitingGps: 'Esperando coordenadas GPS del dispositivo',
+  monitorNfcTitle: 'Estado NFC',
+  monitorNfcSub: 'Tag registrado y activo',
+  monitorActive: 'Activo',
+  monitorProtocol: 'Protocolo',
+  monitorFrequency: 'Frecuencia',
+  monitorRange: 'Rango',
+  monitorTagId: 'ID del tag',
+  monitorRecentNotifs: 'Notificaciones recientes',
+  monitorNoNotifs: 'Sin notificaciones',
+  monitorNoNotifsDesc: 'No hay alertas del dispositivo',
+  monitorActiveProducts: 'Productos activos',
+  monitorDeactivate: '¿Deseas desactivar este dispositivo?',
+  monitorActivateDevice: '¿Deseas activar este dispositivo?',
+  monitorDeactivateBtn: 'Desactivar',
+  monitorActivateBtn: 'Activar',
+  // Navbar
+  navHome: 'Inicio',
+  navMonitor: 'Monitor',
+  navId: 'ID',
+  navAi: 'IA',
+  navFiles: 'Archivos',
+  navProfile: 'Perfil',
 };
 
 // ── English ────────────────────────────────────────────────────────────────
@@ -399,7 +551,7 @@ const en: T = {
   greetingMorning: 'Good morning',
   greetingAfternoon: 'Good afternoon',
   greetingEvening: 'Good evening',
-  months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+  months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   genderMale: 'Male',
   genderFemale: 'Female',
   genderOther: 'Other',
@@ -446,6 +598,13 @@ const en: T = {
   registerBtn: 'Create account',
   registerHasAccount: 'Already have an account?',
   registerSignIn: 'Sign in',
+  registerDob: 'Date of birth',
+  registerTerms: 'I accept the Horus Terms and Privacy Policy.',
+  registerErrorName: 'Enter your first and last name.',
+  registerErrorEmail: 'Enter a valid email address.',
+  registerErrorPassword: 'Password must be at least 6 characters.',
+  registerErrorMatch: 'Passwords do not match.',
+  registerErrorTerms: 'You must accept the terms.',
 
   // Dashboard
   dashLive: 'Live',
@@ -570,6 +729,75 @@ const en: T = {
   settingsConfirmAssistantSub: 'Are you sure you want to change to',
   settingsConfirmAssistantSub2: 'as your health companion?',
   settingsChangeBtn: 'Change',
+
+  // Dashboard metrics
+  dashMetricHeart: 'Heart rate',
+  dashMetricSteps: 'Steps',
+  dashMetricCalories: 'Calories',
+  dashMetricActivity: 'Activity',
+  dashMetricStepsUnit: 'steps',
+
+  // QR additional
+  qrSubtitle: 'Scannable in emergencies, no app needed',
+  qrSaved: 'Saved',
+  qrSaveBtn: 'Save',
+  qrCompress: 'Collapse QR',
+  qrGenerate: 'Generate QR',
+  qrWatchTitle: 'Put it on your watch',
+  qrWatchStep1: 'Save the QR as an image on your phone',
+  qrWatchStep2: 'Open the Horus Watch X smartwatch app',
+  qrWatchStep3: 'Select Wallpaper and choose the QR',
+  qrWatchStep4: 'Anyone can scan it in an emergency',
+
+  // Files additional
+  filesSubtitle: 'Documents and medical reports',
+  filesRecentTitle: 'Recent files',
+  filesUploadSub: 'PDF, CSV, JSON, PNG · max. 25 MB',
+  filesUploadFirst: 'Upload your first document',
+  filesOf: 'of',
+
+  // Profile additional
+  profileHorusDevice: 'My Horus bracelet',
+  profileLogout: 'Log out',
+  profileLogoutTitle: 'Log out?',
+  profileLogoutSub: 'You will need to sign in again.',
+  profileEditTitle: 'Edit profile',
+  profileViewTitle: 'Profile information',
+  profileFullName: 'Full name',
+  profileDocType: 'Document type',
+  profileDocNumber: 'Document number',
+  profileNfcId: 'NFC tag ID',
+  profileRequiredFields: 'Required fields',
+  profileRequiredMsg: 'First and last name cannot be empty.',
+  profileSaveError: 'Save error',
+
+  // Monitor
+  monitorTitle: 'Monitor',
+  monitorSubtitle: 'Real-time location and connectivity',
+  monitorLiveLocation: 'Live location',
+  monitorWaitingGps: 'Waiting for GPS coordinates from device',
+  monitorNfcTitle: 'NFC Status',
+  monitorNfcSub: 'Tag registered and active',
+  monitorActive: 'Active',
+  monitorProtocol: 'Protocol',
+  monitorFrequency: 'Frequency',
+  monitorRange: 'Range',
+  monitorTagId: 'Tag ID',
+  monitorRecentNotifs: 'Recent notifications',
+  monitorNoNotifs: 'No notifications',
+  monitorNoNotifsDesc: 'No device alerts',
+  monitorActiveProducts: 'Active products',
+  monitorDeactivate: 'Do you want to deactivate this device?',
+  monitorActivateDevice: 'Do you want to activate this device?',
+  monitorDeactivateBtn: 'Deactivate',
+  monitorActivateBtn: 'Activate',
+  // Navbar
+  navHome: 'Home',
+  navMonitor: 'Monitor',
+  navId: 'ID',
+  navAi: 'AI',
+  navFiles: 'Files',
+  navProfile: 'Profile',
 };
 
 // ── Portuguese (Brazilian) ─────────────────────────────────────────────────
@@ -587,7 +815,7 @@ const pt: T = {
   greetingMorning: 'Bom dia',
   greetingAfternoon: 'Boa tarde',
   greetingEvening: 'Boa noite',
-  months: ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'],
+  months: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
   genderMale: 'Masculino',
   genderFemale: 'Feminino',
   genderOther: 'Outro',
@@ -634,6 +862,13 @@ const pt: T = {
   registerBtn: 'Criar conta',
   registerHasAccount: 'Já tem uma conta?',
   registerSignIn: 'Entrar',
+  registerDob: 'Data de nascimento',
+  registerTerms: 'Aceito os Termos e a Política de Privacidade do Horus.',
+  registerErrorName: 'Digite seu nome e sobrenome.',
+  registerErrorEmail: 'Digite um e-mail válido.',
+  registerErrorPassword: 'A senha deve ter pelo menos 6 caracteres.',
+  registerErrorMatch: 'As senhas não coincidem.',
+  registerErrorTerms: 'Você deve aceitar os termos.',
 
   // Dashboard
   dashLive: 'Ao vivo',
@@ -724,8 +959,8 @@ const pt: T = {
   settingsTheme: 'Tema',
   settingsDark: 'Escuro',
   settingsLight: 'Claro',
-  settingsLanguage: 'Idioma',
-  settingsLanguageTitle: 'Idioma',
+  settingsLanguage: 'Língua',
+  settingsLanguageTitle: 'Língua',
   settingsAssistant: 'Seu assistente',
   settingsAssistantSub: 'Escolha seu companheiro de saúde. Aparecerá na tela inicial e no chat com a IA.',
   settingsNotifications: 'Notificações',
@@ -758,6 +993,75 @@ const pt: T = {
   settingsConfirmAssistantSub: 'Tem certeza de que deseja mudar para',
   settingsConfirmAssistantSub2: 'como seu companheiro de saúde?',
   settingsChangeBtn: 'Mudar',
+
+  // Dashboard metrics
+  dashMetricHeart: 'Freq. cardíaca',
+  dashMetricSteps: 'Passos',
+  dashMetricCalories: 'Calorias',
+  dashMetricActivity: 'Atividade',
+  dashMetricStepsUnit: 'passos',
+
+  // QR additional
+  qrSubtitle: 'Escaneável em emergências, sem app',
+  qrSaved: 'Salvo',
+  qrSaveBtn: 'Salvar',
+  qrCompress: 'Recolher QR',
+  qrGenerate: 'Gerar QR',
+  qrWatchTitle: 'Coloque no seu relógio',
+  qrWatchStep1: 'Salve o QR como imagem no seu celular',
+  qrWatchStep2: 'Abra o app do smartwatch Horus Watch X',
+  qrWatchStep3: 'Selecione Plano de fundo e escolha o QR',
+  qrWatchStep4: 'Qualquer pessoa pode escaneá-lo em uma emergência',
+
+  // Files additional
+  filesSubtitle: 'Documentos e relatórios médicos',
+  filesRecentTitle: 'Arquivos recentes',
+  filesUploadSub: 'PDF, CSV, JSON, PNG · máx. 25 MB',
+  filesUploadFirst: 'Envie seu primeiro documento',
+  filesOf: 'de',
+
+  // Profile additional
+  profileHorusDevice: 'Minha pulseira Horus',
+  profileLogout: 'Sair',
+  profileLogoutTitle: 'Sair?',
+  profileLogoutSub: 'Você precisará fazer login novamente.',
+  profileEditTitle: 'Editar perfil',
+  profileViewTitle: 'Informações do perfil',
+  profileFullName: 'Nome completo',
+  profileDocType: 'Tipo de documento',
+  profileDocNumber: 'Número do documento',
+  profileNfcId: 'ID da tag NFC',
+  profileRequiredFields: 'Campos obrigatórios',
+  profileRequiredMsg: 'Nome e sobrenome não podem estar vazios.',
+  profileSaveError: 'Erro ao salvar',
+
+  // Monitor
+  monitorTitle: 'Monitor',
+  monitorSubtitle: 'Localização e conectividade em tempo real',
+  monitorLiveLocation: 'Localização ao vivo',
+  monitorWaitingGps: 'Aguardando coordenadas GPS do dispositivo',
+  monitorNfcTitle: 'Status NFC',
+  monitorNfcSub: 'Tag registrada e ativa',
+  monitorActive: 'Ativo',
+  monitorProtocol: 'Protocolo',
+  monitorFrequency: 'Frequência',
+  monitorRange: 'Alcance',
+  monitorTagId: 'ID da tag',
+  monitorRecentNotifs: 'Notificações recentes',
+  monitorNoNotifs: 'Sem notificações',
+  monitorNoNotifsDesc: 'Sem alertas do dispositivo',
+  monitorActiveProducts: 'Produtos ativos',
+  monitorDeactivate: 'Deseja desativar este dispositivo?',
+  monitorActivateDevice: 'Deseja ativar este dispositivo?',
+  monitorDeactivateBtn: 'Desativar',
+  monitorActivateBtn: 'Ativar',
+  // Navbar
+  navHome: 'Início',
+  navMonitor: 'Monitor',
+  navId: 'ID',
+  navAi: 'IA',
+  navFiles: 'Arquivos',
+  navProfile: 'Perfil',
 };
 
 const all = { es, en, pt };
@@ -771,7 +1075,7 @@ type LanguageContextType = {
 
 const LanguageContext = createContext<LanguageContextType>({
   language: 'es',
-  setLanguage: () => {},
+  setLanguage: () => { },
   t: es,
 });
 

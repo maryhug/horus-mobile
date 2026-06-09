@@ -4,6 +4,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const YELLOW   = '#FAD957';
 const ICON_ON  = '#1A1512';   // icono activo → siempre sobre fondo amarillo
@@ -89,21 +90,22 @@ function UserIcon({ color }: { color: string }) {
 // ── Tab definitions ────────────────────────────────────────────────────────
 type TabDef = { name: string; label: string; Icon: React.FC<{ color: string }> };
 
-const TABS: TabDef[] = [
-  { name: 'dashboard', label: 'Inicio',   Icon: ActivityIcon },
-  { name: 'monitor',   label: 'Monitor',  Icon: RadarIcon    },
-  { name: 'qr-medico', label: 'ID',       Icon: QrIcon       },
-  { name: 'assistant', label: 'IA',       Icon: MessageIcon  },
-  { name: 'files',     label: 'Archivos', Icon: FolderIcon   },
-  { name: 'profile',   label: 'Perfil',   Icon: UserIcon     },
-];
-
 // ── Component ──────────────────────────────────────────────────────────────
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const insets    = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12);
 
   const { PRIMARY, MUTED, isDark } = useAppTheme();
+  const { t } = useLanguage();
+
+  const TABS = React.useMemo<TabDef[]>(() => [
+    { name: 'dashboard', label: t.navHome,    Icon: ActivityIcon },
+    { name: 'monitor',   label: t.navMonitor, Icon: RadarIcon    },
+    { name: 'qr-medico', label: t.navId,      Icon: QrIcon       },
+    { name: 'assistant', label: t.navAi,      Icon: MessageIcon  },
+    { name: 'files',     label: t.navFiles,   Icon: FolderIcon   },
+    { name: 'profile',   label: t.navProfile, Icon: UserIcon     },
+  ], [t]);
 
   // Invertidos: tema claro → navbar oscuro · tema oscuro → navbar crema
   // PRIMARY es crema en dark (#F5EFE6) y oscuro en light (#1A1512)
