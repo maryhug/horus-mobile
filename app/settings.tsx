@@ -175,7 +175,7 @@ export default function SettingsScreen() {
               <TouchableOpacity key={a.id} style={[s.assistRow, active && s.assistRowActive]}
                 onPress={() => { if (!active) setPendingAssistant(a.id); }} activeOpacity={0.8}>
                 <View style={s.assistAvatar}>
-                  <Image source={a.image} style={{ width: 64, height: 64 }} resizeMode="contain" />
+                  <Image source={a.image} style={{ width: 48, height: 48 }} resizeMode="contain" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.assistName, active && s.assistNameActive]}>{a.name}</Text>
@@ -401,7 +401,7 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
   assistRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   assistRowActive: { backgroundColor: PRIMARY },
-  assistAvatar:    { width: 72, height: 72, borderRadius: 18, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  assistAvatar:    { width: 56, height: 56, borderRadius: 16, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   assistName:      { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY },
   assistNameActive:{ color: BG },
   assistTag:       { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 2 },
