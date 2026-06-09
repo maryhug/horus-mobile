@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../services/api';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // ── Foreground colors (do not change between themes) ──────────────────────
 const YELLOW_FG = '#3D2C00';
@@ -60,6 +61,7 @@ export default function QrMedicoScreen() {
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK), [isDark]);
 
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [toggles, setToggles] = useState(INITIAL_TOGGLES);
   const [open, setOpen]       = useState(false);
   const [saved, setSaved]     = useState(false);
@@ -81,7 +83,7 @@ export default function QrMedicoScreen() {
               today.getMonth() < dob.getMonth() ||
               (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())
             ) age -= 1;
-            setAgeLabel(`${age} años`);
+            setAgeLabel(`${age} ${t.qrAge}`);
           }
           if (r.data.bloodType) {
             const labels: Record<string, string> = {
@@ -146,7 +148,7 @@ export default function QrMedicoScreen() {
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={{ gap: 2 }}>
-          <Text style={s.title}>ID Médico</Text>
+          <Text style={s.title}>{t.qrTitle}</Text>
           <Text style={s.subtitle}>Escaneable en emergencias, sin app</Text>
         </View>
 
@@ -170,7 +172,7 @@ export default function QrMedicoScreen() {
               <View style={s.btnRow}>
                 <TouchableOpacity style={s.btnDark} onPress={handleShare} activeOpacity={0.85}>
                   <Ionicons name="share-outline" size={17} color="#FFFFFF" />
-                  <Text style={s.btnDarkText}>Compartir</Text>
+                  <Text style={s.btnDarkText}>{t.qrShare}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.btnYellow} onPress={handleSave} activeOpacity={0.85}>
                   <Ionicons name={saved ? 'checkmark' : 'arrow-down-circle-outline'} size={17} color={YELLOW_FG} />
@@ -192,20 +194,30 @@ export default function QrMedicoScreen() {
         </View>
 
         {/* ── Privacy toggles ─────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Datos visibles al escanear</Text>
+        <Text style={s.sectionTitle}>{t.qrPrivacyTitle}</Text>
         <View style={{ gap: 8 }}>
-          {toggles.map(t => (
-            <View key={t.key} style={s.toggleCard}>
-              <View style={s.toggleIcon}>
-                <Ionicons name={t.icon as any} size={18} color={PRIMARY} />
+          {toggles.map(item => {
+            const labelMap: Record<string,string> = {
+              blood: t.qrBlood, allergies: t.qrAllergies, meds: t.qrMeds,
+              conditions: t.qrConditions, contacts: t.qrContacts, notes: t.qrNotes,
+            };
+            const descMap: Record<string,string> = {
+              blood: '', allergies: t.qrAllergiesDesc, meds: t.qrMedsDesc,
+              conditions: t.qrConditionsDesc, contacts: t.qrContactsDesc, notes: t.qrNotesDesc,
+            };
+            return (
+              <View key={item.key} style={s.toggleCard}>
+                <View style={s.toggleIcon}>
+                  <Ionicons name={item.icon as any} size={18} color={PRIMARY} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.toggleLabel}>{labelMap[item.key] ?? item.label}</Text>
+                  <Text style={s.toggleDesc}>{descMap[item.key] ?? item.desc}</Text>
+                </View>
+                <Toggle value={item.enabled} onToggle={() => flip(item.key)} green={GREEN} mutedBg={MUTED_BG} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.toggleLabel}>{t.label}</Text>
-                <Text style={s.toggleDesc}>{t.desc}</Text>
-              </View>
-              <Toggle value={t.enabled} onToggle={() => flip(t.key)} green={GREEN} mutedBg={MUTED_BG} />
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* ── Watch instructions ───────────────────────────────────────── */}

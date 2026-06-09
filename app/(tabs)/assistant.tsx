@@ -11,6 +11,7 @@ import { apiClient, getErrorMessage } from '../../services/api';
 import type { ChatResponse } from '../../types/api';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAssistant } from '../../hooks/useAssistant';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // ── Suggested prompts ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
@@ -80,6 +81,7 @@ export default function AssistantScreen() {
   const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, isDark } = useAppTheme();
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE), [isDark]);
   const { assistant } = useAssistant();
+  const { t } = useLanguage();
 
   const insets = useSafeAreaInsets();
   // Tab bar height: bar content ~65px + bottom safe area (min 12px Android / 16px iOS)
@@ -109,16 +111,16 @@ export default function AssistantScreen() {
       .then(res => {
         setTyping(false);
         idRef.current++;
-        setMessages(prev => [...prev, { id: `${idRef.current}`, role: 'bot', text: res.data?.reply ?? CANNED }]);
+        setMessages(prev => [...prev, { id: `${idRef.current}`, role: 'bot', text: res.data?.reply ?? t.chatCanned }]);
         scrollToBottom();
       })
       .catch(() => {
         setTyping(false);
         idRef.current++;
-        setMessages(prev => [...prev, { id: `${idRef.current}`, role: 'bot', text: CANNED }]);
+        setMessages(prev => [...prev, { id: `${idRef.current}`, role: 'bot', text: t.chatCanned }]);
         scrollToBottom();
       });
-  }, []);
+  }, [t]);
 
   const isEmpty = messages.length === 0 && !typing;
 
@@ -135,10 +137,10 @@ export default function AssistantScreen() {
             <Image source={assistant.image} style={{ width: 48, height: 48 }} resizeMode="contain" />
           </View>
           <View>
-            <Text style={s.headerTitle}>{assistant.name} · Horus AI</Text>
+            <Text style={s.headerTitle}>{assistant.name} · {t.chatHorusAI}</Text>
             <View style={s.onlineRow}>
               <View style={s.onlineDot} />
-              <Text style={s.onlineText}>En línea</Text>
+              <Text style={s.onlineText}>{t.chatOnline}</Text>
             </View>
           </View>
         </View>
@@ -156,15 +158,13 @@ export default function AssistantScreen() {
               {/* Welcome card */}
               <View style={s.welcomeCard}>
                 <FloatingAvatar image={assistant.image} />
-                <Text style={s.welcomeTitle}>Hola, soy {assistant.name}</Text>
-                <Text style={s.welcomeSub}>
-                  Pregúntame sobre tu actividad, alertas o el estado de tu dispositivo.
-                </Text>
+                <Text style={s.welcomeTitle}>{t.dashHelloIm} {assistant.name}</Text>
+                <Text style={s.welcomeSub}>{t.chatWelcomeSub}</Text>
               </View>
 
               {/* Suggestion chips */}
               <View style={s.suggestions}>
-                {SUGGESTIONS.map(p => (
+                {[t.chatSuggestion1, t.chatSuggestion2, t.chatSuggestion3].map(p => (
                   <TouchableOpacity key={p} style={s.suggestionBtn} onPress={() => send(p)} activeOpacity={0.75}>
                     <Text style={s.suggestionText}>{p}</Text>
                   </TouchableOpacity>
@@ -208,7 +208,7 @@ export default function AssistantScreen() {
                 style={s.inputField}
                 value={input}
                 onChangeText={t => setInput(t)}
-                placeholder="Escribe un mensaje…"
+                placeholder={t.chatPlaceholder}
                 placeholderTextColor={`${MUTED}90`}
                 multiline
                 returnKeyType="send"

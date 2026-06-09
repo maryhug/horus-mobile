@@ -17,12 +17,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../services/api';
 import { EmotionShape } from '../components/EmotionShape';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function LoginScreen() {
   const { width, height } = useWindowDimensions();
   const isSmall = height < 700;
 
   const { login } = useAuth();
+  const { t } = useLanguage();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
 
   const [email, setEmail] = useState('');
@@ -33,7 +35,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setErrorMsg('Ingresa tu correo y contraseña.');
+      setErrorMsg(t.loginErrorRequired);
       return;
     }
     setErrorMsg(null);
@@ -71,10 +73,8 @@ export default function LoginScreen() {
 
           {/* Title block — offset clears the tallest shape (star at ~top:176+size:70 = 246px) */}
           <View style={[styles.titleBlock, { marginTop: isSmall ? 140 : 170 }]}>
-            <Text style={styles.title}>Bienvenido{'\n'}de vuelta</Text>
-            <Text style={styles.subtitle}>
-              Monitorea tu salud y seguridad con tu manilla Horus.
-            </Text>
+            <Text style={styles.title}>{t.loginTitle}</Text>
+            <Text style={styles.subtitle}>{t.loginSubtitle}</Text>
           </View>
 
           {/* Form */}
@@ -83,7 +83,7 @@ export default function LoginScreen() {
             {registered === '1' && (
               <View style={styles.successBox}>
                 <Ionicons name="checkmark-circle-outline" size={15} color="#4CAF50" />
-                <Text style={styles.successText}>¡Cuenta creada! Ya puedes iniciar sesión.</Text>
+                <Text style={styles.successText}>{t.loginSuccess}</Text>
               </View>
             )}
 
@@ -95,10 +95,10 @@ export default function LoginScreen() {
 
             {/* Email */}
             <View style={styles.inputCard}>
-              <Text style={styles.inputLabel}>Correo</Text>
+              <Text style={styles.inputLabel}>{t.loginEmail}</Text>
               <TextInput
                 style={styles.inputField}
-                placeholder="tu@correo.com"
+                placeholder={t.loginEmailPh}
                 placeholderTextColor="rgba(136,130,110,0.6)"
                 value={email}
                 onChangeText={v => { setEmail(v); setErrorMsg(null); }}
@@ -111,11 +111,11 @@ export default function LoginScreen() {
 
             {/* Password */}
             <View style={styles.inputCard}>
-              <Text style={styles.inputLabel}>Contraseña</Text>
+              <Text style={styles.inputLabel}>{t.loginPassword}</Text>
               <View style={styles.passwordRow}>
                 <TextInput
                   style={[styles.inputField, { flex: 1 }]}
-                  placeholder="••••••••"
+                  placeholder={t.loginPasswordPh}
                   placeholderTextColor="rgba(136,130,110,0.6)"
                   value={password}
                   onChangeText={v => { setPassword(v); setErrorMsg(null); }}
@@ -137,7 +137,7 @@ export default function LoginScreen() {
 
             {/* Forgot password */}
             <TouchableOpacity style={styles.forgotWrap}>
-              <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+              <Text style={styles.forgotText}>{t.loginForgot}</Text>
             </TouchableOpacity>
 
             {/* Submit */}
@@ -151,7 +151,7 @@ export default function LoginScreen() {
                 <ActivityIndicator size="small" color="#FAFAF7" />
               ) : (
                 <>
-                  <Text style={styles.submitBtnText}>Iniciar sesión</Text>
+                  <Text style={styles.submitBtnText}>{t.loginBtn}</Text>
                   <Ionicons name="arrow-forward" size={16} color="#FAFAF7" />
                 </>
               )}
@@ -159,9 +159,9 @@ export default function LoginScreen() {
 
             {/* Sign up */}
             <View style={styles.signupRow}>
-              <Text style={styles.signupText}>¿No tienes cuenta? </Text>
+              <Text style={styles.signupText}>{t.loginNoAccount} </Text>
               <TouchableOpacity onPress={() => router.push('/register')}>
-                <Text style={styles.signupLink}>Regístrate</Text>
+                <Text style={styles.signupLink}>{t.loginSignUp}</Text>
               </TouchableOpacity>
             </View>
           </View>

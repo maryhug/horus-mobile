@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // ── Stable accent colors (same in light & dark) ───────────────────────────
 const GREEN  = '#96C979';
@@ -95,6 +96,7 @@ export default function FilesScreen() {
   const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, RED_BG, isDark } = useAppTheme();
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, RED_BG), [isDark]);
 
+  const { t } = useLanguage();
   const [files, setFiles] = useState<FileItem[]>(INITIAL_FILES);
 
   const pct = Math.round((STORAGE_USED / STORAGE_LIMIT) * 100);
@@ -105,11 +107,11 @@ export default function FilesScreen() {
 
   const handleDelete = (id: string, name: string) => {
     Alert.alert(
-      'Eliminar archivo',
-      `¿Eliminar "${name}"? Esta acción no se puede deshacer.`,
+      t.filesDeleteTitle,
+      `"${name}" — ${t.filesDeleteMsg}`,
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => setFiles(p => p.filter(f => f.id !== id)) },
+        { text: t.cancel, style: 'cancel' },
+        { text: t.filesDeleteConfirm, style: 'destructive', onPress: () => setFiles(p => p.filter(f => f.id !== id)) },
       ]
     );
   };
@@ -120,7 +122,7 @@ export default function FilesScreen() {
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={s.header}>
-          <Text style={s.title}>Archivos</Text>
+          <Text style={s.title}>{t.filesTitle}</Text>
           <Text style={s.subtitle}>Documentos y reportes médicos</Text>
         </View>
 
@@ -129,7 +131,7 @@ export default function FilesScreen() {
           <View style={s.uploadIcon}>
             <UploadCloudIcon color={PRIMARY} size={28} />
           </View>
-          <Text style={s.uploadTitle}>Subir archivo</Text>
+          <Text style={s.uploadTitle}>{t.filesUpload}</Text>
           <Text style={s.uploadSub}>PDF, CSV, JSON, PNG · máx. 25 MB</Text>
         </TouchableOpacity>
 
@@ -152,7 +154,7 @@ export default function FilesScreen() {
 
         {files.length === 0 ? (
           <View style={s.emptyCard}>
-            <Text style={s.emptyTitle}>Sin archivos</Text>
+            <Text style={s.emptyTitle}>{t.filesNoFiles}</Text>
             <Text style={s.emptySub}>Sube tu primer documento</Text>
           </View>
         ) : (

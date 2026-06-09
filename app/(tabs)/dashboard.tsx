@@ -20,6 +20,7 @@ import type { HealthMetric } from '../../components/HealthRing';
 import { Image } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAssistant } from '../../hooks/useAssistant';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // ASSIST_BG se calcula dinámicamente dentro del componente
 
@@ -63,6 +64,7 @@ export default function DashboardScreen() {
 
   const { user } = useAuth();
   const { assistant } = useAssistant();
+  const { t } = useLanguage();
   const livePulse  = useRef(new Animated.Value(1)).current;
   const blobFloat  = useRef(new Animated.Value(0)).current;
 
@@ -92,7 +94,7 @@ export default function DashboardScreen() {
     : '10:42';
 
   const hour     = new Date().getHours();
-  const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
+  const greeting = hour < 12 ? t.greetingMorning : hour < 18 ? t.greetingAfternoon : t.greetingEvening;
   const firstName = user?.firstName ?? 'usuario';
 
   return (
@@ -112,7 +114,7 @@ export default function DashboardScreen() {
           <View style={s.headerRight}>
             <View style={s.livePill}>
               <Animated.View style={[s.liveDot, { transform: [{ scale: livePulse }] }]} />
-              <Text style={s.liveText}>En vivo</Text>
+              <Text style={s.liveText}>{t.dashLive}</Text>
             </View>
             <TouchableOpacity style={s.themeBtn} onPress={toggleTheme}>
               <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={MUTED} />
@@ -130,7 +132,7 @@ export default function DashboardScreen() {
             <Image source={assistant.image} style={{ width: 44, height: 44 }} resizeMode="contain" />
           </View>
           <View style={s.assistantText}>
-            <Text style={s.assistantName}>Hola, soy {assistant.name}</Text>
+            <Text style={s.assistantName}>{t.dashHelloIm} {assistant.name}</Text>
             <Text style={s.assistantTagline} numberOfLines={1}>
               {assistant.tagline}
             </Text>
@@ -140,9 +142,9 @@ export default function DashboardScreen() {
 
         {/* ── Metrics ring ────────────────────────────────────────────── */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Tus métricas</Text>
+          <Text style={s.sectionTitle}>{t.dashMetrics}</Text>
           <View style={s.sensorPill}>
-            <Text style={s.sensorText}>Esperando sensor</Text>
+            <Text style={s.sensorText}>{t.dashWaitingSensor}</Text>
           </View>
         </View>
 
@@ -151,9 +153,9 @@ export default function DashboardScreen() {
         {/* ── Device status row ────────────────────────────────────────── */}
         <View style={s.statusRow}>
           {[
-            { icon: 'hardware-chip-outline', label: 'Dispositivo', value: loading ? '...' : 'Online', sub: 'v2.4.1',    color: GREEN },
-            { icon: 'battery-half-outline',  label: 'Batería',     value: '—',                        sub: 'sin datos', color: PINK  },
-            { icon: 'time-outline',          label: 'Última sync', value: syncTime,                   sub: 'hoy',       color: BLUE  },
+            { icon: 'hardware-chip-outline', label: t.dashDevice,   value: loading ? '...' : 'Online', sub: 'v2.4.1',       color: GREEN },
+            { icon: 'battery-half-outline',  label: t.dashBattery,  value: '—',                        sub: t.dashNoData,  color: PINK  },
+            { icon: 'time-outline',          label: t.dashLastSync, value: syncTime,                   sub: t.dashToday,   color: BLUE  },
           ].map(item => (
             <View key={item.label} style={s.statCard}>
               <View style={[s.statIcon, { backgroundColor: item.color + '55' }]}>
@@ -169,9 +171,9 @@ export default function DashboardScreen() {
         {/* ── Activity 24h ─────────────────────────────────────────────── */}
         <View style={s.card}>
           <View style={s.chartHeader}>
-            <Text style={s.sectionTitle}>Actividad 24h</Text>
+            <Text style={s.sectionTitle}>{t.dashActivity}</Text>
             <View style={s.sensorPill}>
-              <Text style={s.sensorText}>Sin datos</Text>
+              <Text style={s.sensorText}>{t.dashNoDataSensor}</Text>
             </View>
           </View>
           <View style={s.bars}>
@@ -187,13 +189,13 @@ export default function DashboardScreen() {
         </View>
 
         {/* ── Quick actions ─────────────────────────────────────────────── */}
-        <Text style={[s.sectionTitle, { marginBottom: 14 }]}>Acciones rápidas</Text>
+        <Text style={[s.sectionTitle, { marginBottom: 14 }]}>{t.dashQuickActions}</Text>
         <View style={s.quickRow}>
           {[
-            { icon: 'qr-code-outline',     label: 'ID Médico', color: PINK,   route: '/(tabs)/qr-medico' },
-            { icon: 'chatbubble-outline',  label: 'IA',        color: BLUE,   route: '/(tabs)/assistant' },
-            { icon: 'folder-open-outline', label: 'Archivos',  color: YELLOW, route: '/(tabs)/files'     },
-            { icon: 'person-outline',      label: 'Perfil',    color: GREEN,  route: '/(tabs)/profile'   },
+            { icon: 'qr-code-outline',     label: t.dashQrId,   color: PINK,   route: '/(tabs)/qr-medico' },
+            { icon: 'chatbubble-outline',  label: t.dashAI,     color: BLUE,   route: '/(tabs)/assistant' },
+            { icon: 'folder-open-outline', label: t.dashFiles,  color: YELLOW, route: '/(tabs)/files'     },
+            { icon: 'person-outline',      label: t.dashProfile,color: GREEN,  route: '/(tabs)/profile'   },
           ].map(item => (
             <TouchableOpacity
               key={item.label}
@@ -210,13 +212,13 @@ export default function DashboardScreen() {
         </View>
 
         {/* ── Alerts ───────────────────────────────────────────────────── */}
-        <Text style={[s.sectionTitle, { marginBottom: 12 }]}>Alertas recientes</Text>
+        <Text style={[s.sectionTitle, { marginBottom: 12 }]}>{t.dashAlerts}</Text>
         <View style={[s.card, s.alertEmpty]}>
           <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
             <Image source={assistant.image} style={{ width: 64, height: 64 }} resizeMode="contain" />
           </Animated.View>
-          <Text style={s.alertTitle}>Todo en orden</Text>
-          <Text style={s.alertSub}>No hay alertas del sistema</Text>
+          <Text style={s.alertTitle}>{t.dashAllGood}</Text>
+          <Text style={s.alertSub}>{t.dashNoAlerts}</Text>
         </View>
 
       </ScrollView>

@@ -11,6 +11,7 @@ import { useAssistant, ASSISTANT_DATA, type AssistantId } from '../hooks/useAssi
 import { FONT } from '../constants/fonts';
 import { apiClient, getErrorMessage } from '../services/api';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useLanguage, type Language } from '../contexts/LanguageContext';
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const sw = { strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -83,7 +84,7 @@ export default function SettingsScreen() {
   const theme = isDark ? 'dark' : 'light';
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, BLUE, BLUE_FG, RED, RED_BG), [isDark]);
-  const [lang, setLang] = useState<'es' | 'en'>('es');
+  const { language, setLanguage, t } = useLanguage();
   const { assistantId, setAssistantId } = useAssistant();
   const [pendingAssistant, setPendingAssistant] = useState<AssistantId | null>(null);
   const [notifs, setNotifs] = useState({ push: true, loc: true, health: true });
@@ -141,35 +142,35 @@ export default function SettingsScreen() {
           <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} activeOpacity={0.75}>
             <ChevronLeft c={PRIMARY} s={20} />
           </TouchableOpacity>
-          <Text style={s.title}>Configuración</Text>
+          <Text style={s.title}>{t.settingsTitle}</Text>
         </View>
 
         {/* ── Apariencia ──────────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Apariencia</Text>
+        <Text style={s.sectionTitle}>{t.settingsAppearance}</Text>
         <View style={s.list}>
           <Row s={s}
             icon={theme === 'dark' ? <MoonIcon c={MUTED} /> : <SunIcon c={MUTED} />}
-            label="Tema"
+            label={t.settingsTheme}
             right={
               <View style={s.segment}>
                 <TouchableOpacity style={[s.segBtn, theme === 'light' && s.segBtnActiveLight]} onPress={() => isDark && toggleTheme()} activeOpacity={0.75}>
-                  <Text style={[s.segText, theme === 'light' && s.segTextActiveLight]}>Claro</Text>
+                  <Text style={[s.segText, theme === 'light' && s.segTextActiveLight]}>{t.settingsLight}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.segBtn, theme === 'dark' && s.segBtnActiveDark]} onPress={() => !isDark && toggleTheme()} activeOpacity={0.75}>
-                  <Text style={[s.segText, theme === 'dark' && s.segTextActiveDark]}>Oscuro</Text>
+                  <Text style={[s.segText, theme === 'dark' && s.segTextActiveDark]}>{t.settingsDark}</Text>
                 </TouchableOpacity>
               </View>
             }
           />
           <TouchableOpacity onPress={() => setLangOpen(true)} activeOpacity={0.75}>
-            <Row s={s} icon={<GlobeIcon c={MUTED} />} label="Idioma"
-              right={<Text style={s.rowMuted}>{lang === 'es' ? 'Español' : 'English'}</Text>} />
+            <Row s={s} icon={<GlobeIcon c={MUTED} />} label={t.settingsLanguage}
+              right={<Text style={s.rowMuted}>{t[`lang${language.charAt(0).toUpperCase() + language.slice(1)}` as 'langEs'|'langEn'|'langPt']}</Text>} />
           </TouchableOpacity>
         </View>
 
         {/* ── Tu asistente ────────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Tu asistente</Text>
-        <Text style={s.sectionSub}>Elige tu compañero de salud. Aparecerá en el inicio y en el chat con la IA.</Text>
+        <Text style={s.sectionTitle}>{t.settingsAssistant}</Text>
+        <Text style={s.sectionSub}>{t.settingsAssistantSub}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -201,49 +202,49 @@ export default function SettingsScreen() {
         </ScrollView>
 
         {/* ── Notificaciones ──────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Notificaciones</Text>
+        <Text style={s.sectionTitle}>{t.settingsNotifications}</Text>
         <View style={s.list}>
-          <Row s={s} icon={<BellIcon c={MUTED} />} label="Push notifications" right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.push} onToggle={() => flipN('push')} />} />
-          <Row s={s} icon={<MapPinIcon c={MUTED} />} label="Alertas de ubicación" right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.loc} onToggle={() => flipN('loc')} />} />
-          <Row s={s} icon={<HeartPulse c={MUTED} />} label="Alertas de salud" right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.health} onToggle={() => flipN('health')} />} />
+          <Row s={s} icon={<BellIcon c={MUTED} />} label={t.settingsPush} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.push} onToggle={() => flipN('push')} />} />
+          <Row s={s} icon={<MapPinIcon c={MUTED} />} label={t.settingsLocationAlerts} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.loc} onToggle={() => flipN('loc')} />} />
+          <Row s={s} icon={<HeartPulse c={MUTED} />} label={t.settingsHealthAlerts} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.health} onToggle={() => flipN('health')} />} />
         </View>
 
         {/* ── Privacidad y seguridad ───────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Privacidad y seguridad</Text>
+        <Text style={s.sectionTitle}>{t.settingsPrivacy}</Text>
         <View style={s.list}>
-          <Row s={s} icon={<Fingerprint c={MUTED} />} label="Autenticación biométrica" right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.bio} onToggle={() => flipP('bio')} />} />
-          <Row s={s} icon={<Share2Icon c={MUTED} />} label="Compartir datos anónimos" right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.anon} onToggle={() => flipP('anon')} />} />
+          <Row s={s} icon={<Fingerprint c={MUTED} />} label={t.settingsBiometric} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.bio} onToggle={() => flipP('bio')} />} />
+          <Row s={s} icon={<Share2Icon c={MUTED} />} label={t.settingsShareAnon} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.anon} onToggle={() => flipP('anon')} />} />
           <TouchableOpacity activeOpacity={0.75}
-            onPress={() => Alert.alert('Cambiar contraseña', 'Próximamente disponible.')}>
-            <Row s={s} icon={<KeyRoundIcon c={MUTED} />} label="Cambiar contraseña" right={<ChevronRight c={MUTED} />} />
+            onPress={() => Alert.alert(t.settingsChangePassword, t.settingsChangePasswordSoon)}>
+            <Row s={s} icon={<KeyRoundIcon c={MUTED} />} label={t.settingsChangePassword} right={<ChevronRight c={MUTED} />} />
           </TouchableOpacity>
         </View>
 
         {/* ── Dispositivo ─────────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Dispositivo</Text>
+        <Text style={s.sectionTitle}>{t.settingsDevice}</Text>
         <View style={s.list}>
-          <Row s={s} icon={<CpuIcon c={MUTED} />} label="Firmware" right={<Text style={s.rowMuted}>v2.4.1</Text>} />
+          <Row s={s} icon={<CpuIcon c={MUTED} />} label={t.settingsFirmware} right={<Text style={s.rowMuted}>v2.4.1</Text>} />
           <TouchableOpacity activeOpacity={0.75} onPress={handleSync}>
-            <Row s={s} icon={<RefreshIcon c={MUTED} />} label="Sincronizar manilla"
+            <Row s={s} icon={<RefreshIcon c={MUTED} />} label={t.settingsSyncDevice}
               right={
                 <View style={s.syncBadge}>
-                  <Text style={s.syncText}>{syncing ? 'Sincronizando…' : 'Sincronizar'}</Text>
+                  <Text style={s.syncText}>{syncing ? t.settingsSyncing : t.settingsSync}</Text>
                 </View>
               }
             />
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.75} onPress={() => { setDeviceCode(null); setCodeOpen(true); }}>
-            <Row s={s} icon={<QrCodeIcon c={MUTED} />} label="Generar código de manilla"
+            <Row s={s} icon={<QrCodeIcon c={MUTED} />} label={t.settingsGenerateCode}
               right={<ChevronRight c={MUTED} />}
             />
           </TouchableOpacity>
         </View>
 
         {/* ── Zona de peligro ─────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>Zona de peligro</Text>
+        <Text style={s.sectionTitle}>{t.settingsDanger}</Text>
         <TouchableOpacity style={s.dangerRow} onPress={() => setDeleteOpen(true)} activeOpacity={0.75}>
           <Trash2Icon c={RED} />
-          <Text style={s.dangerText}>Eliminar cuenta</Text>
+          <Text style={s.dangerText}>{t.settingsDeleteAccount}</Text>
         </TouchableOpacity>
 
       </ScrollView>
@@ -253,14 +254,12 @@ export default function SettingsScreen() {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={handleCloseCodeModal}>
           <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 20 }]} activeOpacity={1}>
             <View style={s.sheetHead}>
-              <Text style={s.sheetTitle}>Vincular manilla</Text>
+              <Text style={s.sheetTitle}>{t.settingsLinkBracelet}</Text>
               <TouchableOpacity style={s.sheetX} onPress={handleCloseCodeModal}>
                 <XIcon c={PRIMARY} />
               </TouchableOpacity>
             </View>
-            <Text style={s.codeDesc}>
-              Ingresa este código en tu manilla Horus para vincularla con tu cuenta. Expira en 2 minutos.
-            </Text>
+            <Text style={s.codeDesc}>{t.settingsBraceletDesc}</Text>
 
             {deviceCode ? (
               <>
@@ -268,7 +267,7 @@ export default function SettingsScreen() {
                   <Text style={s.codeText}>{deviceCode}</Text>
                 </View>
                 <Text style={s.codeTimer}>
-                  Expira en {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} min
+                  {t.settingsCodeExpires} {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} min
                 </Text>
               </>
             ) : (
@@ -282,7 +281,7 @@ export default function SettingsScreen() {
 
             <View style={s.modalBtns}>
               <TouchableOpacity style={s.btnGrey} onPress={handleCloseCodeModal} activeOpacity={0.85}>
-                <Text style={s.btnGreyText}>Cancelar</Text>
+                <Text style={s.btnGreyText}>{t.settingsCancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.btnRed, { backgroundColor: PRIMARY }]}
@@ -292,7 +291,7 @@ export default function SettingsScreen() {
               >
                 {codeLoading
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={s.btnPrimaryText}>{deviceCode ? 'Nuevo código' : 'Generar código'}</Text>
+                  : <Text style={s.btnPrimaryText}>{deviceCode ? t.settingsNewCode : t.settingsGenerateCodeBtn}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -305,16 +304,20 @@ export default function SettingsScreen() {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setLangOpen(false)}>
           <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
             <View style={s.sheetHead}>
-              <Text style={s.sheetTitle}>Idioma</Text>
+              <Text style={s.sheetTitle}>{t.settingsLanguageTitle}</Text>
               <TouchableOpacity style={s.sheetX} onPress={() => setLangOpen(false)}>
                 <XIcon c={PRIMARY} />
               </TouchableOpacity>
             </View>
-            {(['es', 'en'] as const).map(l => (
-              <TouchableOpacity key={l} style={[s.langRow, lang === l && s.langRowActive]}
-                onPress={() => { setLang(l); setLangOpen(false); }} activeOpacity={0.8}>
-                <Text style={[s.langText, lang === l && s.langTextActive]}>{l === 'es' ? 'Español' : 'English'}</Text>
-                {lang === l && <CheckIcon c={BG} />}
+            {([
+              { id: 'es' as Language, label: '🇨🇴  Español' },
+              { id: 'en' as Language, label: '🇺🇸  English' },
+              { id: 'pt' as Language, label: '🇧🇷  Português' },
+            ]).map(l => (
+              <TouchableOpacity key={l.id} style={[s.langRow, language === l.id && s.langRowActive]}
+                onPress={() => { setLanguage(l.id); setLangOpen(false); }} activeOpacity={0.8}>
+                <Text style={[s.langText, language === l.id && s.langTextActive]}>{l.label}</Text>
+                {language === l.id && <CheckIcon c={BG} />}
               </TouchableOpacity>
             ))}
           </TouchableOpacity>
@@ -333,22 +336,20 @@ export default function SettingsScreen() {
                 resizeMode="contain"
               />
             )}
-            <Text style={s.deleteTitle}>
-              ¿Cambiar asistente?
-            </Text>
+            <Text style={s.deleteTitle}>{t.settingsConfirmAssistant}</Text>
             <Text style={s.deleteSub}>
               {pendingAssistant
-                ? `¿Estás seguro de que quieres cambiar a ${ASSISTANT_DATA[pendingAssistant].name} como tu compañero de salud?`
+                ? `${t.settingsConfirmAssistantSub} ${ASSISTANT_DATA[pendingAssistant].name} ${t.settingsConfirmAssistantSub2}`
                 : ''}
             </Text>
             <View style={s.modalBtns}>
               <TouchableOpacity style={s.btnGrey} onPress={() => setPendingAssistant(null)} activeOpacity={0.85}>
-                <Text style={s.btnGreyText}>Cancelar</Text>
+                <Text style={s.btnGreyText}>{t.settingsCancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.btnRed, { backgroundColor: PRIMARY }]}
                 onPress={() => { if (pendingAssistant) { setAssistantId(pendingAssistant); } setPendingAssistant(null); }}
                 activeOpacity={0.85}>
-                <Text style={s.btnPrimaryText}>Cambiar</Text>
+                <Text style={s.btnPrimaryText}>{t.settingsChangeBtn}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -361,14 +362,14 @@ export default function SettingsScreen() {
           activeOpacity={1} onPress={() => setDeleteOpen(false)}>
           <TouchableOpacity style={s.deleteModal} activeOpacity={1}>
             <View style={s.deleteIconWrap}><Trash2Icon c={RED} /></View>
-            <Text style={s.deleteTitle}>¿Eliminar cuenta?</Text>
-            <Text style={s.deleteSub}>Esta acción es irreversible. Se perderán todos tus datos.</Text>
+            <Text style={s.deleteTitle}>{t.settingsDeleteTitle}</Text>
+            <Text style={s.deleteSub}>{t.settingsDeleteSub}</Text>
             <View style={s.modalBtns}>
               <TouchableOpacity style={s.btnGrey} onPress={() => setDeleteOpen(false)} activeOpacity={0.85}>
-                <Text style={s.btnGreyText}>Cancelar</Text>
+                <Text style={s.btnGreyText}>{t.settingsCancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.btnRed} onPress={handleDelete} activeOpacity={0.85}>
-                <Text style={s.btnRedText}>Eliminar</Text>
+                <Text style={s.btnRedText}>{t.settingsDeleteConfirm}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
