@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import type { ComponentProps } from 'react';
 import {
   View, Text, StyleSheet, useWindowDimensions, Animated,
 } from 'react-native';
@@ -6,6 +7,8 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { FONT } from '../constants/fonts';
 import { useAppTheme } from '../hooks/useAppTheme';
+
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
 // ── Palette ────────────────────────────────────────────────────────────────
 export const RING_COLORS = {
@@ -15,7 +18,10 @@ export const RING_COLORS = {
   green:  '#96C979',
 };
 
-const ICONS: Record<string, string> = {
+/** Claves de icono válidas para métricas de salud */
+export type MetricIcon = 'heart' | 'footprints' | 'flame' | 'activity';
+
+const ICONS: Record<MetricIcon, IoniconsName> = {
   heart:      'heart-outline',
   footprints: 'footsteps-outline',
   flame:      'flame',
@@ -41,7 +47,7 @@ export type HealthMetric = {
   label: string;
   value: string | number;
   unit:  string;
-  icon:  string;
+  icon:  MetricIcon;
   color: keyof typeof RING_COLORS;
 };
 
@@ -174,7 +180,7 @@ export function HealthRing({
               }}
             >
               <Ionicons
-                name={ICONS[m.icon] as any ?? 'ellipse'}
+                name={ICONS[m.icon]}
                 size={isSelected ? 24 : 20}
                 color="#1A1512"
               />
@@ -215,7 +221,7 @@ export function MetricChips({ metrics, selectedKey }: { metrics: HealthMetric[];
             ]}
           >
             <View style={[ch.iconBox, { backgroundColor: RING_COLORS[m.color] }]}>
-              <Ionicons name={ICONS[m.icon] as any ?? 'ellipse'} size={16} color="#1A1512" />
+              <Ionicons name={ICONS[m.icon]} size={16} color="#1A1512" />
             </View>
             <View style={ch.textCol}>
               <Text style={[ch.label, { color: MUTED }]} numberOfLines={1}>{m.label}</Text>

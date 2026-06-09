@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, Alert, Share,
 } from 'react-native';
+import type { DimensionValue } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { FONT } from '../../constants/fonts';
@@ -145,7 +146,7 @@ export default function FilesScreen() {
             <Text style={s.storageValue}>{STORAGE_USED} MB {t.filesOf} {STORAGE_LIMIT} MB</Text>
           </View>
           <View style={s.barTrack}>
-            <View style={[s.barFill, { width: `${pct}%` as any }]} />
+            <View style={[s.barFill, { width: `${pct}%` as DimensionValue }]} />
           </View>
         </View>
 

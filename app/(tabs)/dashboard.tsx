@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -11,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import { apiClient } from '../../services/api';
@@ -22,6 +24,24 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAssistant } from '../../hooks/useAssistant';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { T } from '../../contexts/LanguageContext';
+
+// ── Local UI types ─────────────────────────────────────────────────────────
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+type StatusItem = {
+  icon:  IoniconsName;
+  label: string;
+  value: string;
+  sub:   string;
+  color: string;
+};
+
+type QuickAction = {
+  icon:  IoniconsName;
+  label: string;
+  color: string;
+  route: Href;
+};
 
 // ASSIST_BG se calcula dinámicamente dentro del componente
 
@@ -97,7 +117,20 @@ export default function DashboardScreen() {
     ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
     : '10:42';
 
-  const hour     = new Date().getHours();
+  const statusItems = React.useMemo<StatusItem[]>(() => [
+    { icon: 'hardware-chip-outline', label: t.dashDevice,   value: loading ? '...' : 'Online', sub: 'v2.4.1',     color: GREEN },
+    { icon: 'battery-half-outline',  label: t.dashBattery,  value: '—',                        sub: t.dashNoData, color: PINK  },
+    { icon: 'time-outline',          label: t.dashLastSync, value: syncTime,                   sub: t.dashToday,  color: BLUE  },
+  ], [t, loading, syncTime, GREEN, PINK, BLUE]);
+
+  const quickActions = React.useMemo<QuickAction[]>(() => [
+    { icon: 'qr-code-outline',     label: t.dashQrId,    color: PINK,   route: '/(tabs)/qr-medico' },
+    { icon: 'chatbubble-outline',  label: t.dashAI,      color: BLUE,   route: '/(tabs)/assistant' },
+    { icon: 'folder-open-outline', label: t.dashFiles,   color: YELLOW, route: '/(tabs)/files'     },
+    { icon: 'person-outline',      label: t.dashProfile, color: GREEN,  route: '/(tabs)/profile'   },
+  ], [t, PINK, BLUE, YELLOW, GREEN]);
+
+  const hour = new Date().getHours();
   const greeting = hour < 12 ? t.greetingMorning : hour < 18 ? t.greetingAfternoon : t.greetingEvening;
   const firstName = user?.firstName ?? 'usuario';
 
@@ -156,14 +189,10 @@ export default function DashboardScreen() {
 
         {/* ── Device status row ────────────────────────────────────────── */}
         <View style={s.statusRow}>
-          {[
-            { icon: 'hardware-chip-outline', label: t.dashDevice,   value: loading ? '...' : 'Online', sub: 'v2.4.1',       color: GREEN },
-            { icon: 'battery-half-outline',  label: t.dashBattery,  value: '—',                        sub: t.dashNoData,  color: PINK  },
-            { icon: 'time-outline',          label: t.dashLastSync, value: syncTime,                   sub: t.dashToday,   color: BLUE  },
-          ].map(item => (
+          {statusItems.map(item => (
             <View key={item.label} style={s.statCard}>
               <View style={[s.statIcon, { backgroundColor: item.color + '55' }]}>
-                <Ionicons name={item.icon as any} size={20} color={PRIMARY} />
+                <Ionicons name={item.icon} size={20} color={PRIMARY} />
               </View>
               <Text style={s.statLabel}>{item.label}</Text>
               <Text style={s.statValue}>{item.value}</Text>
@@ -195,20 +224,15 @@ export default function DashboardScreen() {
         {/* ── Quick actions ─────────────────────────────────────────────── */}
         <Text style={[s.sectionTitle, { marginBottom: 14 }]}>{t.dashQuickActions}</Text>
         <View style={s.quickRow}>
-          {[
-            { icon: 'qr-code-outline',     label: t.dashQrId,   color: PINK,   route: '/(tabs)/qr-medico' },
-            { icon: 'chatbubble-outline',  label: t.dashAI,     color: BLUE,   route: '/(tabs)/assistant' },
-            { icon: 'folder-open-outline', label: t.dashFiles,  color: YELLOW, route: '/(tabs)/files'     },
-            { icon: 'person-outline',      label: t.dashProfile,color: GREEN,  route: '/(tabs)/profile'   },
-          ].map(item => (
+          {quickActions.map(item => (
             <TouchableOpacity
               key={item.label}
               style={s.quickItem}
-              onPress={() => router.push(item.route as any)}
+              onPress={() => router.push(item.route)}
               activeOpacity={0.82}
             >
               <View style={[s.quickIcon, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon as any} size={22} color="#1A1512" />
+                <Ionicons name={item.icon} size={22} color="#1A1512" />
               </View>
               <Text style={s.quickLabel}>{item.label}</Text>
             </TouchableOpacity>

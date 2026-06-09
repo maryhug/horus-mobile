@@ -116,7 +116,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const labelOn  = isDark ? '#1A1510' : '#FFFFFF';
 
   return (
-    <View style={[s.wrapper, { paddingBottom: bottomPad }]}>
+    <View style={[s.wrapper, { paddingBottom: bottomPad }]} pointerEvents="box-none">
       <View style={[s.bar, { backgroundColor: barBg }]}>
         {TABS.map((tab, idx) => {
           const active  = state.index === idx;
@@ -150,8 +150,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
     paddingHorizontal: 16,
-    pointerEvents: 'box-none',
-  } as any,
+  },
   bar: {
     flexDirection: 'row',
     borderRadius: 28,

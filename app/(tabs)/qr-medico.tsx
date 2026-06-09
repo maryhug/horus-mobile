@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import type { ComponentProps } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
@@ -7,6 +8,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
+
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+type ToggleItem = {
+  key:     string;
+  label:   string;
+  desc:    string;
+  icon:    IoniconsName;
+  enabled: boolean;
+};
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../services/api';
 import { FONT } from '../../constants/fonts';
@@ -19,7 +30,7 @@ const BLUE_FG   = '#1A3A5C';
 const PINK_FG   = '#7A1A3A';
 
 // ── Privacy toggles ────────────────────────────────────────────────────────
-const INITIAL_TOGGLES = [
+const INITIAL_TOGGLES: ToggleItem[] = [
   { key: 'blood',      label: 'Tipo de sangre',         desc: 'O+',                    icon: 'water-outline',         enabled: true  },
   { key: 'allergies',  label: 'Alergias',                desc: 'Severidad y reacción',  icon: 'fitness-outline',       enabled: true  },
   { key: 'meds',       label: 'Medicamentos actuales',   desc: 'Dosis y frecuencia',    icon: 'medical-outline',       enabled: true  },
@@ -208,7 +219,7 @@ export default function QrMedicoScreen() {
             return (
               <View key={item.key} style={s.toggleCard}>
                 <View style={s.toggleIcon}>
-                  <Ionicons name={item.icon as any} size={18} color={PRIMARY} />
+                  <Ionicons name={item.icon} size={18} color={PRIMARY} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.toggleLabel}>{labelMap[item.key] ?? item.label}</Text>

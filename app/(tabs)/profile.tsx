@@ -9,6 +9,7 @@ import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient, getErrorMessage } from '../../services/api';
+import type { ProfileUpdatePayload } from '../../types/api';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -366,7 +367,7 @@ export default function ProfileScreen() {
     }
     setSaving(true);
     try {
-      const payload: Record<string, string> = {
+      const payload: ProfileUpdatePayload = {
         firstName: draft.firstName.trim(),
         lastName:  draft.lastName.trim(),
       };
