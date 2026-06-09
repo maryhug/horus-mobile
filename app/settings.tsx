@@ -81,9 +81,10 @@ export default function SettingsScreen() {
   const theme = isDark ? 'dark' : 'light';
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, BLUE, BLUE_FG, RED, RED_BG), [isDark]);
-  const [lang,        setLang]        = useState<'es'|'en'>('es');
+  const [lang,             setLang]             = useState<'es'|'en'>('es');
   const { assistantId, setAssistantId } = useAssistant();
-  const [notifs,      setNotifs]      = useState({ push: true, loc: true, health: true });
+  const [pendingAssistant, setPendingAssistant] = useState<AssistantId | null>(null);
+  const [notifs,           setNotifs]           = useState({ push: true, loc: true, health: true });
   const [privacy,     setPrivacy]     = useState({ bio: false, anon: false });
   const [langOpen,    setLangOpen]    = useState(false);
   const [syncing,     setSyncing]     = useState(false);
@@ -172,9 +173,9 @@ export default function SettingsScreen() {
             const active = a.id === assistantId;
             return (
               <TouchableOpacity key={a.id} style={[s.assistRow, active && s.assistRowActive]}
-                onPress={() => setAssistantId(a.id)} activeOpacity={0.8}>
+                onPress={() => { if (!active) setPendingAssistant(a.id); }} activeOpacity={0.8}>
                 <View style={s.assistAvatar}>
-                  <Image source={a.image} style={{ width: 48, height: 48 }} resizeMode="contain" />
+                  <Image source={a.image} style={{ width: 64, height: 64 }} resizeMode="contain" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.assistName, active && s.assistNameActive]}>{a.name}</Text>
@@ -309,6 +310,40 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* ── Confirmar cambio de asistente ───────────────────────────── */}
+      <Modal visible={pendingAssistant !== null} animationType="fade" transparent onRequestClose={() => setPendingAssistant(null)}>
+        <TouchableOpacity style={[s.overlay, { justifyContent: 'center', paddingHorizontal: 24 }]}
+          activeOpacity={1} onPress={() => setPendingAssistant(null)}>
+          <TouchableOpacity style={s.deleteModal} activeOpacity={1}>
+            {pendingAssistant && (
+              <Image
+                source={ASSISTANT_DATA[pendingAssistant].image}
+                style={{ width: 80, height: 80, marginBottom: 8 }}
+                resizeMode="contain"
+              />
+            )}
+            <Text style={s.deleteTitle}>
+              ¿Cambiar asistente?
+            </Text>
+            <Text style={s.deleteSub}>
+              {pendingAssistant
+                ? `¿Estás seguro de que quieres cambiar a ${ASSISTANT_DATA[pendingAssistant].name} como tu compañero de salud?`
+                : ''}
+            </Text>
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.btnGrey} onPress={() => setPendingAssistant(null)} activeOpacity={0.85}>
+                <Text style={s.btnGreyText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.btnRed, { backgroundColor: PRIMARY }]}
+                onPress={() => { if (pendingAssistant) { setAssistantId(pendingAssistant); } setPendingAssistant(null); }}
+                activeOpacity={0.85}>
+                <Text style={s.btnPrimaryText}>Cambiar</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* ── Delete confirm ───────────────────────────────────────────── */}
       <Modal visible={deleteOpen} animationType="fade" transparent onRequestClose={() => setDeleteOpen(false)}>
         <TouchableOpacity style={[s.overlay, { justifyContent: 'center', paddingHorizontal: 24 }]}
@@ -366,7 +401,7 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
   assistRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   assistRowActive: { backgroundColor: PRIMARY },
-  assistAvatar:    { width: 56, height: 56, borderRadius: 16, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  assistAvatar:    { width: 72, height: 72, borderRadius: 18, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   assistName:      { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY },
   assistNameActive:{ color: BG },
   assistTag:       { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 2 },

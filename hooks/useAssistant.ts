@@ -15,19 +15,40 @@ export const ASSISTANT_DATA: Record<AssistantId, {
   bocadillo: { name: 'Bocadillo', tagline: 'Siempre alegre, curiosa y valiente.', image: require('../assets/assistants/bocadillo.png') },
 };
 
+// ── Singleton shared state ─────────────────────────────────────────────────
+// All useAssistant() instances share this variable and get notified on change.
+let globalId: AssistantId = 'tinto';
+let initialized = false;
+const listeners = new Set<(id: AssistantId) => void>();
+
+function broadcast(id: AssistantId) {
+  globalId = id;
+  listeners.forEach(fn => fn(id));
+}
+
+// ── Hook ───────────────────────────────────────────────────────────────────
 export function useAssistant() {
-  const [assistantId, setAssistantIdState] = useState<AssistantId>('tinto');
+  const [assistantId, setAssistantIdState] = useState<AssistantId>(globalId);
 
   useEffect(() => {
-    getItem(STORAGE_KEY).then(saved => {
-      if (saved && saved in ASSISTANT_DATA) {
-        setAssistantIdState(saved as AssistantId);
-      }
-    });
+    // First mount ever: load from AsyncStorage and hydrate global
+    if (!initialized) {
+      initialized = true;
+      getItem(STORAGE_KEY).then(saved => {
+        if (saved && saved in ASSISTANT_DATA) {
+          broadcast(saved as AssistantId);
+        }
+      });
+    }
+
+    // Subscribe to future changes
+    const listener = (id: AssistantId) => setAssistantIdState(id);
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
   }, []);
 
   const setAssistantId = useCallback(async (id: AssistantId) => {
-    setAssistantIdState(id);
+    broadcast(id);
     await setItem(STORAGE_KEY, id);
   }, []);
 
