@@ -170,26 +170,35 @@ export default function SettingsScreen() {
         {/* ── Tu asistente ────────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>Tu asistente</Text>
         <Text style={s.sectionSub}>Elige tu compañero de salud. Aparecerá en el inicio y en el chat con la IA.</Text>
-        <View style={s.list}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.carouselContent}
+        >
           {ASSISTANTS.map(a => {
             const active = a.id === assistantId;
             return (
-              <TouchableOpacity key={a.id} style={[s.assistRow, active && s.assistRowActive]}
-                onPress={() => { if (!active) setPendingAssistant(a.id); }} activeOpacity={0.8}>
-                <View style={s.assistAvatar}>
-                  <Image source={a.image} style={{ width: 72, height: 72 }} resizeMode="contain" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.assistName, active && s.assistNameActive]}>{a.name}</Text>
-                  <Text style={[s.assistTag, active && s.assistTagActive]} numberOfLines={1}>{a.tagline}</Text>
-                </View>
-                <View style={[s.checkCircle, active && s.checkActive]}>
-                  {active && <CheckIcon c={PRIMARY} />}
-                </View>
+              <TouchableOpacity
+                key={a.id}
+                style={[s.assistCard, active && s.assistCardActive]}
+                onPress={() => { if (!active) setPendingAssistant(a.id); }}
+                activeOpacity={0.85}
+              >
+                {/* Check badge */}
+                {active && (
+                  <View style={s.assistBadge}>
+                    <CheckIcon c={PRIMARY} />
+                  </View>
+                )}
+                {/* Image */}
+                <Image source={a.image} style={s.assistCardImg} resizeMode="contain" />
+                {/* Text */}
+                <Text style={[s.assistName, active && s.assistNameActive]} numberOfLines={1}>{a.name}</Text>
+                <Text style={[s.assistTag, active && s.assistTagActive]} numberOfLines={2}>{a.tagline}</Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
         {/* ── Notificaciones ──────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>Notificaciones</Text>
@@ -404,15 +413,22 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
     segTextActiveLight: { color: PRIMARY },
     segTextActiveDark: { color: BG },
 
-    assistRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 20, padding: 12,
-      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1
+    carouselContent: { flexDirection: 'row', gap: 12, paddingVertical: 4, paddingHorizontal: 2 },
+    assistCard: {
+      width: 130, backgroundColor: CARD, borderRadius: 24, padding: 14,
+      alignItems: 'center', gap: 6,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
     },
-    assistRowActive: { backgroundColor: PRIMARY },
-    assistAvatar: { width: 72, height: 72, borderRadius: 18, backgroundColor: MUTED_BG + '80', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-    assistName: { fontSize: 15, fontFamily: FONT.displayBold, color: PRIMARY },
+    assistCardActive: { backgroundColor: PRIMARY },
+    assistCardImg: { width: 90, height: 90 },
+    assistBadge: {
+      position: 'absolute', top: 10, right: 10,
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
+    },
+    assistName: { fontSize: 14, fontFamily: FONT.displayBold, color: PRIMARY, textAlign: 'center' },
     assistNameActive: { color: BG },
-    assistTag: { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 2 },
+    assistTag: { fontSize: 11, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 2, textAlign: 'center' },
     assistTagActive: { color: BG + 'BB' },
     checkCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: MUTED + '60', alignItems: 'center', justifyContent: 'center' },
     checkActive: { backgroundColor: BG, borderColor: BG },
