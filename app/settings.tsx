@@ -175,7 +175,7 @@ export default function SettingsScreen() {
               <TouchableOpacity key={a.id} style={[s.assistRow, active && s.assistRowActive]}
                 onPress={() => { if (!active) setPendingAssistant(a.id); }} activeOpacity={0.8}>
                 <View style={s.assistAvatar}>
-                  <Image source={a.image} style={{ width: 56, height: 56 }} resizeMode="contain" />
+                  <Image source={a.image} style={{ width: 56, height: 56 }} resizeMode="cover" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.assistName, active && s.assistNameActive]}>{a.name}</Text>
