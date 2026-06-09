@@ -17,8 +17,9 @@ import { apiClient } from '../../services/api';
 import type { DashboardData } from '../../types/api';
 import { HealthRing, MetricChips } from '../../components/HealthRing';
 import type { HealthMetric } from '../../components/HealthRing';
-import { EmotionShape } from '../../components/EmotionShape';
+import { Image } from 'react-native';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useAssistant } from '../../hooks/useAssistant';
 
 // ASSIST_BG se calcula dinámicamente dentro del componente
 
@@ -61,6 +62,7 @@ export default function DashboardScreen() {
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, GREEN, PINK, YELLOW, BLUE, ASSIST_BG), [isDark]);
 
   const { user } = useAuth();
+  const { assistant } = useAssistant();
   const livePulse  = useRef(new Animated.Value(1)).current;
   const blobFloat  = useRef(new Animated.Value(0)).current;
 
@@ -125,12 +127,12 @@ export default function DashboardScreen() {
           activeOpacity={0.85}
         >
           <View style={s.assistantAvatarWrap}>
-            <EmotionShape kind="blob" color="pink" size={44} eyes />
+            <Image source={assistant.image} style={{ width: 44, height: 44 }} resizeMode="contain" />
           </View>
           <View style={s.assistantText}>
-            <Text style={s.assistantName}>Hola, soy Zarita</Text>
+            <Text style={s.assistantName}>Hola, soy {assistant.name}</Text>
             <Text style={s.assistantTagline} numberOfLines={1}>
-              Siempre alegre, curiosa y valiente.
+              {assistant.tagline}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={MUTED} />
@@ -211,7 +213,7 @@ export default function DashboardScreen() {
         <Text style={[s.sectionTitle, { marginBottom: 12 }]}>Alertas recientes</Text>
         <View style={[s.card, s.alertEmpty]}>
           <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
-            <EmotionShape kind="blob" color="green" size={64} eyes />
+            <Image source={assistant.image} style={{ width: 64, height: 64 }} resizeMode="contain" />
           </Animated.View>
           <Text style={s.alertTitle}>Todo en orden</Text>
           <Text style={s.alertSub}>No hay alertas del sistema</Text>

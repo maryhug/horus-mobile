@@ -6,10 +6,11 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'react-native';
 import { apiClient, getErrorMessage } from '../../services/api';
-import { EmotionShape } from '../../components/EmotionShape';
 import type { ChatResponse } from '../../types/api';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useAssistant } from '../../hooks/useAssistant';
 
 // ── Suggested prompts ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
@@ -60,7 +61,7 @@ const td = StyleSheet.create({
 });
 
 // ── Animated avatar for welcome card ──────────────────────────────────────
-function FloatingAvatar() {
+function FloatingAvatar({ image }: { image: ReturnType<typeof require> }) {
   const float = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -70,7 +71,7 @@ function FloatingAvatar() {
   }, []);
   return (
     <Animated.View style={{ transform: [{ translateY: float }] }}>
-      <EmotionShape kind="blob" color="blue" size={72} eyes />
+      <Image source={image} style={{ width: 72, height: 72 }} resizeMode="contain" />
     </Animated.View>
   );
 }
@@ -78,6 +79,7 @@ function FloatingAvatar() {
 export default function AssistantScreen() {
   const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, isDark } = useAppTheme();
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE), [isDark]);
+  const { assistant } = useAssistant();
 
   const insets = useSafeAreaInsets();
   // Tab bar height: bar content ~65px + bottom safe area (min 12px Android / 16px iOS)
@@ -130,10 +132,10 @@ export default function AssistantScreen() {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={s.header}>
           <View style={s.headerAvatar}>
-            <EmotionShape kind="blob" color="blue" size={48} eyes />
+            <Image source={assistant.image} style={{ width: 48, height: 48 }} resizeMode="contain" />
           </View>
           <View>
-            <Text style={s.headerTitle}>Foca · Horus AI</Text>
+            <Text style={s.headerTitle}>{assistant.name} · Horus AI</Text>
             <View style={s.onlineRow}>
               <View style={s.onlineDot} />
               <Text style={s.onlineText}>En línea</Text>
@@ -153,8 +155,8 @@ export default function AssistantScreen() {
             <View style={s.welcomeWrap}>
               {/* Welcome card */}
               <View style={s.welcomeCard}>
-                <FloatingAvatar />
-                <Text style={s.welcomeTitle}>Hola, soy Foca</Text>
+                <FloatingAvatar image={assistant.image} />
+                <Text style={s.welcomeTitle}>Hola, soy {assistant.name}</Text>
                 <Text style={s.welcomeSub}>
                   Pregúntame sobre tu actividad, alertas o el estado de tu dispositivo.
                 </Text>

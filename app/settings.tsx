@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, Modal, Alert, Animated, ActivityIndicator,
+  TouchableOpacity, Modal, Alert, Animated, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
-import { EmotionShape } from '../components/EmotionShape';
+import { useAssistant, ASSISTANT_DATA, type AssistantId } from '../hooks/useAssistant';
 import { FONT } from '../constants/fonts';
 import { apiClient, getErrorMessage } from '../services/api';
 import { useAppTheme } from '../hooks/useAppTheme';
@@ -58,11 +58,7 @@ const ts = StyleSheet.create({
 });
 
 // ── Assistants ─────────────────────────────────────────────────────────────
-const ASSISTANTS = [
-  { id: 'foca',   name: 'Foca',   tagline: 'Siempre alegre, cercana y positiva.', kind: 'blob'   as const, color: 'blue'   as const },
-  { id: 'oso',    name: 'Oso',    tagline: 'Siempre alegre, curioso y valiente.', kind: 'star'   as const, color: 'yellow' as const },
-  { id: 'zarita', name: 'Zarita', tagline: 'Siempre alegre, curiosa y valiente.', kind: 'flower' as const, color: 'pink'   as const },
-];
+const ASSISTANTS = Object.entries(ASSISTANT_DATA).map(([id, data]) => ({ id: id as AssistantId, ...data }));
 
 // ── Reusable Row ───────────────────────────────────────────────────────────
 type SType = ReturnType<typeof makeStyles>;
@@ -86,7 +82,7 @@ export default function SettingsScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, BLUE, BLUE_FG, RED, RED_BG), [isDark]);
   const [lang,        setLang]        = useState<'es'|'en'>('es');
-  const [assistantId, setAssistantId] = useState('foca');
+  const { assistantId, setAssistantId } = useAssistant();
   const [notifs,      setNotifs]      = useState({ push: true, loc: true, health: true });
   const [privacy,     setPrivacy]     = useState({ bio: false, anon: false });
   const [langOpen,    setLangOpen]    = useState(false);
@@ -178,7 +174,7 @@ export default function SettingsScreen() {
               <TouchableOpacity key={a.id} style={[s.assistRow, active && s.assistRowActive]}
                 onPress={() => setAssistantId(a.id)} activeOpacity={0.8}>
                 <View style={s.assistAvatar}>
-                  <EmotionShape kind={a.kind} color={a.color} size={48} eyes />
+                  <Image source={a.image} style={{ width: 48, height: 48 }} resizeMode="contain" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.assistName, active && s.assistNameActive]}>{a.name}</Text>
