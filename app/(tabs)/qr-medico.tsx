@@ -73,37 +73,71 @@ export default function QrMedicoScreen() {
 
   const { user } = useAuth();
   const { t } = useLanguage();
-  const [toggles, setToggles] = useState(INITIAL_TOGGLES);
-  const [open, setOpen]       = useState(false);
-  const [saved, setSaved]     = useState(false);
+  const [toggles,      setToggles]      = useState(INITIAL_TOGGLES);
+  const [open,         setOpen]         = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [privacySaved, setPrivacySaved] = useState(false);
 
   // Edad y tipo de sangre desde API
   const [ageLabel,   setAgeLabel]   = useState<string>('—');
   const [bloodType,  setBloodType]  = useState<string>('—');
 
+  // Mapa toggle key → campo de privacidad en la API
+  const PRIVACY_KEY_MAP: Record<string, string> = {
+    blood:      'showBloodType',
+    allergies:  'showAllergies',
+    meds:       'showMedications',
+    conditions: 'showChronicConditions',
+    contacts:   'showEmergencyContacts',
+    notes:      'showMedicalHistory',
+  };
+
   useFocusEffect(
     useCallback(() => {
-      apiClient.get<{ dateOfBirth?: string; bloodType?: string }>('/profile')
+      apiClient.get<{
+        personalInfo?: {
+          dateOfBirth?: string;
+          bloodType?: string;
+        };
+        privacySettings?: {
+          showBloodType?: boolean;
+          showAllergies?: boolean;
+          showMedications?: boolean;
+          showChronicConditions?: boolean;
+          showEmergencyContacts?: boolean;
+          showMedicalHistory?: boolean;
+        };
+      }>('/profile/full')
         .then(r => {
-          if (r.data.dateOfBirth) {
+          const dob = r.data.personalInfo?.dateOfBirth;
+          if (dob) {
             const today = new Date();
-            const dob   = new Date(r.data.dateOfBirth + 'T00:00:00');
-            let age = today.getFullYear() - dob.getFullYear();
-            // Restar 1 si todavía no pasó el cumpleaños este año
+            const d     = new Date(dob + 'T00:00:00');
+            let age = today.getFullYear() - d.getFullYear();
             if (
-              today.getMonth() < dob.getMonth() ||
-              (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())
+              today.getMonth() < d.getMonth() ||
+              (today.getMonth() === d.getMonth() && today.getDate() < d.getDate())
             ) age -= 1;
             setAgeLabel(`${age} ${t.qrAge}`);
           }
-          if (r.data.bloodType) {
+          const bt = r.data.personalInfo?.bloodType;
+          if (bt) {
             const labels: Record<string, string> = {
               A_POSITIVE: 'A+',  A_NEGATIVE: 'A-',
               B_POSITIVE: 'B+',  B_NEGATIVE: 'B-',
               AB_POSITIVE: 'AB+',AB_NEGATIVE: 'AB-',
               O_POSITIVE: 'O+',  O_NEGATIVE: 'O-',
             };
-            setBloodType(labels[r.data.bloodType] ?? r.data.bloodType);
+            setBloodType(labels[bt] ?? bt);
+          }
+          if (r.data.privacySettings) {
+            const priv = r.data.privacySettings;
+            setToggles(prev => prev.map(item => {
+              const apiField = PRIVACY_KEY_MAP[item.key];
+              if (!apiField) return item;
+              const val = priv[apiField as keyof typeof priv];
+              return val !== undefined ? { ...item, enabled: val } : item;
+            }));
           }
         })
         .catch(() => {});
@@ -115,10 +149,29 @@ export default function QrMedicoScreen() {
   const arrowAnim  = useRef(new Animated.Value(0)).current;
 
   const fullName    = user ? `${user.firstName} ${user.lastName}` : '—';
-  const emergencyUrl= `https://app.horus.health/emergency/${user?.id ?? 'demo'}`;
+  const apiBase     = (process.env.EXPO_PUBLIC_API_URL ?? 'https://app.horus.health/api').replace(/\/api$/, '');
+  const emergencyUrl = `${apiBase}/emergency/${user?.id ?? 'demo'}`;
 
-  const flip = (key: string) =>
-    setToggles(prev => prev.map(t => t.key === key ? { ...t, enabled: !t.enabled } : t));
+  const flip = (key: string) => {
+    setToggles(prev => {
+      const next = prev.map(item => item.key === key ? { ...item, enabled: !item.enabled } : item);
+      const changed = next.find(item => item.key === key);
+      if (changed) {
+        const apiField = PRIVACY_KEY_MAP[key];
+        if (apiField) {
+          apiClient.put('/profile/privacy', { [apiField]: changed.enabled })
+            .then(() => {
+              setPrivacySaved(true);
+              setTimeout(() => setPrivacySaved(false), 1500);
+            })
+            .catch((err) => {
+              console.error('[Privacy] PUT error:', err?.response?.data ?? err?.message);
+            });
+        }
+      }
+      return next;
+    });
+  };
 
   const handleToggleQR = () => {
     const next = !open;
@@ -205,7 +258,15 @@ export default function QrMedicoScreen() {
         </View>
 
         {/* ── Privacy toggles ─────────────────────────────────────────── */}
-        <Text style={s.sectionTitle}>{t.qrPrivacyTitle}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={s.sectionTitle}>{t.qrPrivacyTitle}</Text>
+          {privacySaved && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="checkmark-circle" size={14} color={GREEN} />
+              <Text style={{ fontSize: 12, color: GREEN, fontFamily: FONT.sansMedium }}>Guardado</Text>
+            </View>
+          )}
+        </View>
         <View style={{ gap: 8 }}>
           {toggles.map(item => {
             const labelMap: Record<string,string> = {

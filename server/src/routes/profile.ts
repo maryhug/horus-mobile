@@ -215,7 +215,8 @@ router.put('/privacy', requireAuth, async (req: AuthRequest, res: Response): Pro
     res.json(privacySettings);
   } catch (error) {
     console.error('Privacy update error:', error);
-    res.status(500).json({ message: 'Error al actualizar configuración de privacidad' });
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ message: 'Error al actualizar configuración de privacidad', detail: msg });
   }
 });
 

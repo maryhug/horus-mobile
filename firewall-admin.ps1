@@ -9,7 +9,8 @@ $ports = @(
   @{ Name="Expo_Metro_8081"; Port=8081 },
   @{ Name="Expo_Dev_19000";  Port=19000 },
   @{ Name="Expo_Dev_19001";  Port=19001 },
-  @{ Name="Expo_Dev_19002";  Port=19002 }
+  @{ Name="Expo_Dev_19002";  Port=19002 },
+  @{ Name="Horus_API_3000";  Port=3000 }
 )
 
 foreach ($p in $ports) {

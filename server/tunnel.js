@@ -17,40 +17,48 @@ function updateEnv(url) {
   return newUrl;
 }
 
-function startTunnel() {
-  console.log(`Iniciando ngrok tunnel en puerto ${PORT}...`);
+async function getPublicIp() {
+  try {
+    const res = await fetch('https://api.ipify.org');
+    return await res.text();
+  } catch (e) {
+    return 'No se pudo obtener la IP pública automáticamente';
+  }
+}
 
-  const proc = spawn('ngrok', ['http', PORT.toString()], {
-    stdio: 'ignore'
+function startTunnel() {
+  console.log(`Iniciando LocalTunnel en puerto ${PORT}...`);
+
+  const proc = spawn('npx', ['localtunnel', '--port', PORT.toString(), '--local-host', '127.0.0.1'], {
+    shell: true
   });
 
   let urlFound = false;
 
-  async function checkTunnel() {
-    if (urlFound) return;
-    try {
-      const response = await fetch('http://127.0.0.1:4040/api/tunnels');
-      const data = await response.json();
-      const tunnel = data.tunnels.find(t => t.public_url && t.public_url.startsWith('https://'));
-      if (tunnel) {
-        urlFound = true;
-        const apiUrl = updateEnv(tunnel.public_url);
-        console.log('\n========================================');
-        console.log(`  Tunnel activo:  ${tunnel.public_url}`);
-        console.log(`  .env actualizado: ${apiUrl}`);
-        console.log('========================================\n');
-      }
-    } catch (err) {
-      // API not ready yet
+  proc.stdout.on('data', async (data) => {
+    const text = data.toString();
+    const match = text.match(/your url is:\s*(https:\/\/\S+)/);
+    if (match && !urlFound) {
+      urlFound = true;
+      const url = match[1];
+      const apiUrl = updateEnv(url);
+      const ip = await getPublicIp();
+      
+      console.log('\n========================================');
+      console.log(`  Tunnel activo:  ${url}`);
+      console.log(`  .env actualizado: ${apiUrl}`);
+      console.log(`  Contraseña del túnel (IP Pública): ${ip}`);
+      console.log('========================================\n');
     }
+  });
 
-    if (!urlFound) {
-      setTimeout(checkTunnel, 2000);
+  proc.stderr.on('data', (data) => {
+    // Ignore harmless warnings from localtunnel/npx
+    const errText = data.toString().trim();
+    if (errText && !errText.includes('npm WARN') && !errText.includes('npx: installed')) {
+      console.error('Error de tunnel:', errText);
     }
-  }
-
-  // Start polling
-  setTimeout(checkTunnel, 2000);
+  });
 
   proc.on('close', (code) => {
     console.log(`Tunnel cerrado (${code}). Reconectando en 3s...`);
@@ -59,12 +67,7 @@ function startTunnel() {
   });
 
   proc.on('error', (err) => {
-    if (err.code === 'ENOENT') {
-      console.error('\nERROR: ngrok no encontrado en el sistema.');
-      console.error('Instálalo con: winget install ngrok.ngrok\n');
-      process.exit(1);
-    }
-    console.error('Error en tunnel:', err.message, '— Reintentando en 5s...');
+    console.error('Error al iniciar tunnel:', err.message, '— Reintentando en 5s...');
     setTimeout(startTunnel, 5000);
   });
 }

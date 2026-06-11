@@ -260,6 +260,8 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
 </html>`;
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
         res.send(html);
     } catch (error) {
         console.error('Emergency page error:', error);
