@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, Modal, Alert, Animated, ActivityIndicator, Image,
+  TouchableOpacity, Modal, Alert, Animated, ActivityIndicator, Image, TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useAuth } from '../contexts/AuthContext';
 import { useAssistant, ASSISTANT_DATA, type AssistantId } from '../hooks/useAssistant';
+import { useVoice, VOICE_DATA, VOICE_IDS, PREVIEW_TEXT, type VoiceId } from '../hooks/useVoice';
 import { FONT } from '../constants/fonts';
 import { apiClient, getErrorMessage } from '../services/api';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useLanguage, type Language } from '../contexts/LanguageContext';
+import { registerForPushNotifications } from '../services/notificationService';
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const sw = { strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -35,6 +39,8 @@ const Trash2Icon = ({ c }: { c: string }) => <Icon><Path d="M3 6h18" stroke={c} 
 const CheckIcon = ({ c }: { c: string }) => <Icon size={14}><Path d="M20 6 9 17l-5-5" stroke={c} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" /></Icon>;
 const XIcon = ({ c }: { c: string }) => <Icon size={16}><Path d="M18 6 6 18M6 6l12 12" stroke={c} {...sw} /></Icon>;
 const QrCodeIcon = ({ c }: { c: string }) => <Icon><Rect x={3} y={3} width={5} height={5} rx={1} stroke={c} {...sw} /><Rect x={16} y={3} width={5} height={5} rx={1} stroke={c} {...sw} /><Rect x={3} y={16} width={5} height={5} rx={1} stroke={c} {...sw} /><Path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" stroke={c} {...sw} /></Icon>;
+const SpeakerIcon = ({ c }: { c: string }) => <Icon size={16}><Path d="M11 5 6 9H2v6h4l5 4V5Z" stroke={c} {...sw} /><Path d="M15.54 8.46a5 5 0 0 1 0 7.07" stroke={c} {...sw} /></Icon>;
+const MicVoiceIcon = ({ c }: { c: string }) => <Icon><Path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z" stroke={c} {...sw} /><Path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke={c} {...sw} /><Line x1={12} y1={19} x2={12} y2={22} stroke={c} {...sw} /></Icon>;
 const WatchIcon = ({ c }: { c: string }) => <Icon size={64}><Rect x={5} y={2} width={14} height={20} rx={7} stroke={c} {...sw} /><Path d="M16 2h-2l-1-2h-2l-1 2H8M16 22h-2l-1 2h-2l-1-2H8M12 12v-4M12 12h3" stroke={c} {...sw} /></Icon>;
 
 // ── Custom Toggle ──────────────────────────────────────────────────────────
@@ -75,6 +81,56 @@ function Row({ icon, label, right, s }: { icon: React.ReactNode; label: string; 
   );
 }
 
+// ── Time Picker ────────────────────────────────────────────────────────────
+function TimePickerInline({ hour, minute, onConfirm, onCancel, PRIMARY, MUTED, MUTED_BG, GREEN }: {
+  hour: number; minute: number;
+  onConfirm: (h: number, m: number) => void;
+  onCancel: () => void;
+  PRIMARY: string; MUTED: string; MUTED_BG: string; GREEN: string;
+}) {
+  const [h, setH] = React.useState(hour);
+  const [m, setM] = React.useState(minute);
+  const label = `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'pm' : 'am'}`;
+  return (
+    <View style={{ gap: 20 }}>
+      <Text style={{ fontSize: 32, fontFamily: FONT.sansBold, color: PRIMARY, textAlign: 'center' }}>{label}</Text>
+      <View style={{ flexDirection: 'row', gap: 16, justifyContent: 'center' }}>
+        {/* Hour column */}
+        <View style={{ alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 11, color: MUTED, fontFamily: FONT.sansRegular }}>Hora</Text>
+          <TouchableOpacity onPress={() => setH(p => (p + 1) % 24)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
+            <Text style={{ fontSize: 18, color: PRIMARY }}>▲</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 22, fontFamily: FONT.sansBold, color: PRIMARY, width: 40, textAlign: 'center' }}>{String(h).padStart(2,'0')}</Text>
+          <TouchableOpacity onPress={() => setH(p => (p + 23) % 24)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
+            <Text style={{ fontSize: 18, color: PRIMARY }}>▼</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={{ fontSize: 28, color: PRIMARY, alignSelf: 'center', fontFamily: FONT.sansBold }}>:</Text>
+        {/* Minute column */}
+        <View style={{ alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 11, color: MUTED, fontFamily: FONT.sansRegular }}>Minutos</Text>
+          <TouchableOpacity onPress={() => setM(p => (p + 5) % 60)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
+            <Text style={{ fontSize: 18, color: PRIMARY }}>▲</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 22, fontFamily: FONT.sansBold, color: PRIMARY, width: 40, textAlign: 'center' }}>{String(m).padStart(2,'0')}</Text>
+          <TouchableOpacity onPress={() => setM(p => (p + 55) % 60)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
+            <Text style={{ fontSize: 18, color: PRIMARY }}>▼</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+        <TouchableOpacity onPress={onCancel} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: MUTED_BG, alignItems: 'center' }}>
+          <Text style={{ fontFamily: FONT.sansBold, color: MUTED }}>Cancelar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onConfirm(h, m)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: GREEN, alignItems: 'center' }}>
+          <Text style={{ fontFamily: FONT.sansBold, color: '#FFF' }}>Guardar</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ── Screen ─────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const { logout } = useAuth();
@@ -86,21 +142,101 @@ export default function SettingsScreen() {
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, BLUE, BLUE_FG, RED, RED_BG), [isDark]);
   const { language, setLanguage, t } = useLanguage();
   const { assistantId, setAssistantId } = useAssistant();
+  const { voiceId, setVoiceId } = useVoice();
   const [pendingAssistant, setPendingAssistant] = useState<AssistantId | null>(null);
-  const [notifs, setNotifs] = useState({ push: true, loc: true, health: true });
-  const [privacy, setPrivacy] = useState({ bio: false, anon: false });
+  const [previewingVoice, setPreviewingVoice] = useState<VoiceId | null>(null);
+  const previewSound = useRef<Audio.Sound | null>(null);
+  const [notifs, setNotifs] = useState({ push: false, health: true });
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifHour, setNotifHour] = useState(8);
+  const [notifMinute, setNotifMinute] = useState(0);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [privacy, setPrivacy] = useState({ bio: false });
   const [langOpen, setLangOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [deviceCode, setDeviceCode] = useState<string | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
 
-  const flipN = (k: keyof typeof notifs) => setNotifs(p => ({ ...p, [k]: !p[k] }));
   const flipP = (k: keyof typeof privacy) => setPrivacy(p => ({ ...p, [k]: !p[k] }));
 
-  const handleSync = () => { setSyncing(true); setTimeout(() => setSyncing(false), 2000); };
+  // ── Push toggle ───────────────────────────────────────────────────────────
+  const handleTogglePush = async () => {
+    if (notifLoading) return;
+    setNotifLoading(true);
+    try {
+      if (!notifs.push) {
+        // Pedir permisos y registrar token (con projectId correcto)
+        const token = await registerForPushNotifications();
+        if (!token) {
+          Alert.alert('Permisos', 'Activa las notificaciones en la configuración del dispositivo.');
+          return;
+        }
+        // Usar el mismo endpoint que AuthContext para consistencia
+        await apiClient.post('/profile/push-token', { pushToken: token });
+        setNotifs(p => ({ ...p, push: true }));
+      } else {
+        // Eliminar token del servidor
+        await apiClient.delete('/notifications/token');
+        setNotifs(p => ({ ...p, push: false }));
+      }
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err));
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  // ── Health report toggle ──────────────────────────────────────────────────
+  const handleToggleHealth = async () => {
+    const next = !notifs.health;
+    setNotifs(p => ({ ...p, health: next }));
+    try {
+      await apiClient.patch('/notifications/health-report', { enabled: next });
+    } catch {
+      setNotifs(p => ({ ...p, health: !next })); // revert on error
+    }
+  };
+
+  const previewVoice = async (id: VoiceId) => {
+    if (previewingVoice === id) return;
+    // Stop previous
+    if (previewSound.current) {
+      try { await previewSound.current.stopAsync(); await previewSound.current.unloadAsync(); } catch {}
+      previewSound.current = null;
+    }
+    setPreviewingVoice(id);
+    try {
+      const res = await apiClient.post<{ audioBase64: string }>('/chat/tts', {
+        text: PREVIEW_TEXT,
+        voiceId: id,
+      });
+      const tmpPath = `${FileSystem.cacheDirectory}voice_preview_${Date.now()}.mp3`;
+      await FileSystem.writeAsStringAsync(tmpPath, res.data.audioBase64, { encoding: 'base64' as any });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: tmpPath });
+      previewSound.current = sound;
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate(async (status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          await sound.unloadAsync();
+          previewSound.current = null;
+          FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+          setPreviewingVoice(null);
+        }
+      });
+    } catch (err) {
+      setPreviewingVoice(null);
+      Alert.alert('Error', 'No se pudo reproducir la muestra de voz');
+    }
+  };
 
   const handleGenerateDeviceCode = async () => {
     setCodeLoading(true);
@@ -113,6 +249,27 @@ export default function SettingsScreen() {
     } finally {
       setCodeLoading(false);
     }
+  };
+
+  // Inicializar estado de push según permisos actuales del SO
+  useEffect(() => {
+    import('expo-notifications').then(N => {
+      N.getPermissionsAsync().then(({ status }) => {
+        setNotifs(p => ({ ...p, push: status === 'granted' }));
+      });
+    });
+    apiClient.get<{ hour: number; minute: number }>('/notifications/health-report-time')
+      .then(r => { setNotifHour(r.data.hour); setNotifMinute(r.data.minute); })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveNotifTime = async (h: number, m: number) => {
+    setNotifHour(h);
+    setNotifMinute(m);
+    setTimePickerOpen(false);
+    try {
+      await apiClient.patch('/notifications/health-report-time', { hour: h, minute: m });
+    } catch { /* silently ignore */ }
   };
 
   useEffect(() => {
@@ -131,6 +288,24 @@ export default function SettingsScreen() {
     setTimeLeft(0);
     setCodeOpen(false);
   };
+
+  const handleChangePassword = async () => {
+    if (!pwCurrent.trim()) { Alert.alert('Error', 'Ingresa tu contraseña actual.'); return; }
+    if (pwNew.length < 8) { Alert.alert('Error', 'La contraseña nueva debe tener al menos 8 caracteres.'); return; }
+    if (pwNew !== pwConfirm) { Alert.alert('Error', 'Las contraseñas nuevas no coinciden.'); return; }
+    setPwSaving(true);
+    try {
+      await apiClient.put('/auth/change-password', { currentPassword: pwCurrent, newPassword: pwNew });
+      Alert.alert('Contraseña actualizada', 'Tu contraseña ha sido cambiada exitosamente.');
+      setPwOpen(false);
+      setPwCurrent(''); setPwNew(''); setPwConfirm('');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err));
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
   const handleDelete = () => { setDeleteOpen(false); logout(); router.replace('/login'); };
 
   return (
@@ -201,21 +376,82 @@ export default function SettingsScreen() {
           })}
         </ScrollView>
 
+        {/* ── Voz del asistente ───────────────────────────────────────── */}
+        <Text style={s.sectionTitle}>Voz del asistente</Text>
+        <Text style={s.sectionSub}>Toca el botón de audio para escuchar una muestra antes de elegir.</Text>
+        <View style={s.list}>
+          {VOICE_IDS.map(id => {
+            const v = VOICE_DATA[id];
+            const active = voiceId === id;
+            const isPreviewing = previewingVoice === id;
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[s.voiceRow, active && s.voiceRowActive]}
+                onPress={() => setVoiceId(id)}
+                activeOpacity={0.8}
+              >
+                {/* Left: radio dot */}
+                <View style={[s.voiceRadio, active && s.voiceRadioActive]}>
+                  {active && <View style={s.voiceRadioDot} />}
+                </View>
+                {/* Center: name + desc */}
+                <View style={s.voiceTexts}>
+                  <Text style={[s.voiceName, active && s.voiceNameActive]}>{v.name}</Text>
+                  <Text style={[s.voiceDesc, active && s.voiceDescActive]}>{v.desc}</Text>
+                </View>
+                {/* Right: preview button */}
+                <TouchableOpacity
+                  style={[s.voicePlayBtn, active && s.voicePlayBtnActive]}
+                  onPress={(e) => { e.stopPropagation(); previewVoice(id); }}
+                  disabled={isPreviewing}
+                  activeOpacity={0.75}
+                >
+                  {isPreviewing
+                    ? <ActivityIndicator size="small" color={active ? BG : PRIMARY} />
+                    : <SpeakerIcon c={active ? BG : PRIMARY} />
+                  }
+                </TouchableOpacity>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* ── Notificaciones ──────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>{t.settingsNotifications}</Text>
         <View style={s.list}>
-          <Row s={s} icon={<BellIcon c={MUTED} />} label={t.settingsPush} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.push} onToggle={() => flipN('push')} />} />
-          <Row s={s} icon={<MapPinIcon c={MUTED} />} label={t.settingsLocationAlerts} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.loc} onToggle={() => flipN('loc')} />} />
-          <Row s={s} icon={<HeartPulse c={MUTED} />} label={t.settingsHealthAlerts} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.health} onToggle={() => flipN('health')} />} />
+          <Row s={s}
+            icon={notifLoading ? <ActivityIndicator size="small" color={MUTED} /> : <BellIcon c={MUTED} />}
+            label={t.settingsPush}
+            right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.push} onToggle={handleTogglePush} />}
+          />
+          <Row s={s}
+            icon={<HeartPulse c={MUTED} />}
+            label="Reporte de salud diario"
+            right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={notifs.health} onToggle={handleToggleHealth} />}
+          />
+          {notifs.health && (
+            <TouchableOpacity style={s.row} onPress={() => setTimePickerOpen(true)} activeOpacity={0.75}>
+              <View style={s.rowIcon}><BellIcon c={MUTED} /></View>
+              <Text style={s.rowLabel}>Hora del reporte</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY }}>
+                  {`${notifHour % 12 || 12}:${String(notifMinute).padStart(2, '0')} ${notifHour >= 12 ? 'pm' : 'am'}`}
+                </Text>
+                <ChevronRight c={MUTED} />
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Privacidad y seguridad ───────────────────────────────────── */}
         <Text style={s.sectionTitle}>{t.settingsPrivacy}</Text>
         <View style={s.list}>
-          <Row s={s} icon={<Fingerprint c={MUTED} />} label={t.settingsBiometric} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.bio} onToggle={() => flipP('bio')} />} />
-          <Row s={s} icon={<Share2Icon c={MUTED} />} label={t.settingsShareAnon} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.anon} onToggle={() => flipP('anon')} />} />
-          <TouchableOpacity activeOpacity={0.75}
-            onPress={() => Alert.alert(t.settingsChangePassword, t.settingsChangePasswordSoon)}>
+          <Row s={s} icon={<Fingerprint c={MUTED} />} label={t.settingsBiometric} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.bio} onToggle={() => {
+            flipP('bio');
+            if (!privacy.bio) Alert.alert(t.settingsBiometric, 'La autenticación biométrica se activará la próxima vez que inicies sesión.');
+          }} />} />
+          <TouchableOpacity activeOpacity={0.75} onPress={() => setPwOpen(true)}>
             <Row s={s} icon={<KeyRoundIcon c={MUTED} />} label={t.settingsChangePassword} right={<ChevronRight c={MUTED} />} />
           </TouchableOpacity>
         </View>
@@ -224,15 +460,6 @@ export default function SettingsScreen() {
         <Text style={s.sectionTitle}>{t.settingsDevice}</Text>
         <View style={s.list}>
           <Row s={s} icon={<CpuIcon c={MUTED} />} label={t.settingsFirmware} right={<Text style={s.rowMuted}>v2.4.1</Text>} />
-          <TouchableOpacity activeOpacity={0.75} onPress={handleSync}>
-            <Row s={s} icon={<RefreshIcon c={MUTED} />} label={t.settingsSyncDevice}
-              right={
-                <View style={s.syncBadge}>
-                  <Text style={s.syncText}>{syncing ? t.settingsSyncing : t.settingsSync}</Text>
-                </View>
-              }
-            />
-          </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.75} onPress={() => { setDeviceCode(null); setCodeOpen(true); }}>
             <Row s={s} icon={<QrCodeIcon c={MUTED} />} label={t.settingsGenerateCode}
               right={<ChevronRight c={MUTED} />}
@@ -254,12 +481,12 @@ export default function SettingsScreen() {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={handleCloseCodeModal}>
           <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 20 }]} activeOpacity={1}>
             <View style={s.sheetHead}>
-              <Text style={s.sheetTitle}>{t.settingsLinkBracelet}</Text>
+              <Text style={s.sheetTitle}>{t.settingsLinkSmartwatch}</Text>
               <TouchableOpacity style={s.sheetX} onPress={handleCloseCodeModal}>
                 <XIcon c={PRIMARY} />
               </TouchableOpacity>
             </View>
-            <Text style={s.codeDesc}>{t.settingsBraceletDesc}</Text>
+            <Text style={s.codeDesc}>{t.settingsSmartwatchDesc}</Text>
 
             {deviceCode ? (
               <>
@@ -292,6 +519,77 @@ export default function SettingsScreen() {
                 {codeLoading
                   ? <ActivityIndicator size="small" color="#FFF" />
                   : <Text style={s.btnPrimaryText}>{deviceCode ? t.settingsNewCode : t.settingsGenerateCodeBtn}</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Change password modal ────────────────────────────────────── */}
+      <Modal visible={pwOpen} animationType="slide" transparent onRequestClose={() => !pwSaving && setPwOpen(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => !pwSaving && setPwOpen(false)}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 20 }]} activeOpacity={1}>
+            <View style={s.sheetHead}>
+              <Text style={s.sheetTitle}>{t.settingsChangePassword}</Text>
+              <TouchableOpacity style={s.sheetX} onPress={() => !pwSaving && setPwOpen(false)}>
+                <XIcon c={PRIMARY} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ gap: 10 }}>
+              <View style={[s.pwField]}>
+                <Text style={s.pwLabel}>Contraseña actual</Text>
+                <TextInput
+                  style={s.pwInput}
+                  value={pwCurrent}
+                  onChangeText={setPwCurrent}
+                  secureTextEntry
+                  placeholder="••••••••"
+                  placeholderTextColor={MUTED + '80'}
+                  editable={!pwSaving}
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={s.pwField}>
+                <Text style={s.pwLabel}>Nueva contraseña</Text>
+                <TextInput
+                  style={s.pwInput}
+                  value={pwNew}
+                  onChangeText={setPwNew}
+                  secureTextEntry
+                  placeholder="Mínimo 8 caracteres"
+                  placeholderTextColor={MUTED + '80'}
+                  editable={!pwSaving}
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={s.pwField}>
+                <Text style={s.pwLabel}>Confirmar nueva contraseña</Text>
+                <TextInput
+                  style={s.pwInput}
+                  value={pwConfirm}
+                  onChangeText={setPwConfirm}
+                  secureTextEntry
+                  placeholder="Repite la contraseña"
+                  placeholderTextColor={MUTED + '80'}
+                  editable={!pwSaving}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+            <View style={[s.modalBtns, { marginTop: 20 }]}>
+              <TouchableOpacity style={s.btnGrey} onPress={() => setPwOpen(false)} disabled={pwSaving} activeOpacity={0.85}>
+                <Text style={s.btnGreyText}>{t.settingsCancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.btnRed, { backgroundColor: PRIMARY, opacity: pwSaving ? 0.7 : 1 }]}
+                onPress={handleChangePassword}
+                disabled={pwSaving}
+                activeOpacity={0.85}
+              >
+                {pwSaving
+                  ? <ActivityIndicator size="small" color={BG} />
+                  : <Text style={s.btnPrimaryText}>Cambiar</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -357,6 +655,16 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* ── Delete confirm ───────────────────────────────────────────── */}
+      {/* ── Time picker modal ─────────────────────────────────────────── */}
+      <Modal visible={timePickerOpen} animationType="slide" transparent onRequestClose={() => setTimePickerOpen(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setTimePickerOpen(false)}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
+            <Text style={s.sheetTitle}>Hora del reporte diario</Text>
+            <TimePickerInline hour={notifHour} minute={notifMinute} onConfirm={handleSaveNotifTime} onCancel={() => setTimePickerOpen(false)} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} GREEN={GREEN} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={deleteOpen} animationType="fade" transparent onRequestClose={() => setDeleteOpen(false)}>
         <TouchableOpacity style={[s.overlay, { justifyContent: 'center', paddingHorizontal: 24 }]}
           activeOpacity={1} onPress={() => setDeleteOpen(false)}>
@@ -434,6 +742,31 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
     checkCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: MUTED + '60', alignItems: 'center', justifyContent: 'center' },
     checkActive: { backgroundColor: BG, borderColor: BG },
 
+    voiceRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: CARD, borderRadius: 20, padding: 14,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    },
+    voiceRowActive: { backgroundColor: PRIMARY },
+    voiceRadio: {
+      width: 22, height: 22, borderRadius: 11,
+      borderWidth: 2, borderColor: MUTED + '80',
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    voiceRadioActive: { borderColor: BG },
+    voiceRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: BG },
+    voiceTexts: { flex: 1 },
+    voiceName: { fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY },
+    voiceNameActive: { color: BG },
+    voiceDesc: { fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED, marginTop: 1 },
+    voiceDescActive: { color: BG + 'BB' },
+    voicePlayBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: MUTED_BG,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    voicePlayBtnActive: { backgroundColor: BG + '33' },
+
     syncBadge: { backgroundColor: BLUE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
     syncText: { fontSize: 12, fontFamily: FONT.sansBold, color: BLUE_FG },
 
@@ -466,6 +799,10 @@ function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string, MU
     btnRed: { flex: 1, backgroundColor: RED, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
     btnRedText: { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
     btnPrimaryText: { fontSize: 14, fontFamily: FONT.sansBold, color: BG },
+
+    pwField: { backgroundColor: CARD, borderRadius: 16, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
+    pwLabel: { fontSize: 11, fontFamily: FONT.sansMedium, color: MUTED, marginBottom: 4 },
+    pwInput: { fontSize: 15, fontFamily: FONT.sansMedium, color: PRIMARY },
 
     codeDesc: { fontSize: 13, fontFamily: FONT.sansRegular, color: MUTED, lineHeight: 18, marginBottom: 8 },
     codePill: { backgroundColor: MUTED_BG, borderRadius: 16, paddingVertical: 20, alignItems: 'center', marginVertical: 8 },

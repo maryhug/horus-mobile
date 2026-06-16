@@ -1,14 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Animated, Modal, RefreshControl, useWindowDimensions,
+  Animated, RefreshControl, useWindowDimensions, Linking, Alert,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
 import { useApi } from '../../hooks/useApi';
 import { apiClient } from '../../services/api';
-import type { DashboardData } from '../../types/api';
+import type { DashboardData, AppNotification } from '../../types/api';
 import { EmotionShape } from '../../components/EmotionShape';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -96,12 +98,101 @@ function OrbitDot({ orbitSize, dotSize, duration, reverse }: {
   );
 }
 
-// ── Products ───────────────────────────────────────────────────────────────
-const INITIAL_PRODUCTS = [
-  { id: 'bracelet',   name: 'Brazalete Horus Pro',      desc: 'Sensor principal · NFC + GPS',     active: true  },
-  { id: 'smartwatch', name: 'Smartwatch Horus Watch X', desc: 'Pantalla AMOLED · ritmo cardíaco', active: false },
-  { id: 'card',       name: 'Tarjeta NFC Card v2',       desc: 'Tarjeta de respaldo · 13.56 MHz', active: true  },
-];
+// ── Notification helpers ───────────────────────────────────────────────────
+const NOTIF_ROW_H = 64; // height per notification row (px)
+const VISIBLE     = 3;  // rows visible before scroll
+
+function fmtTs(ts: AppNotification['timestamp']): string {
+  try {
+    const ms = typeof ts === 'string'
+      ? new Date(ts).getTime()
+      : (ts as { _seconds: number })._seconds * 1000;
+    const d = new Date(ms);
+    const h = d.getHours(), m = d.getMinutes().toString().padStart(2, '0');
+    return `${h % 12 || 12}:${m} ${h >= 12 ? 'pm' : 'am'}`;
+  } catch { return ''; }
+}
+
+function NotifCard({ notifications, loading, PRIMARY, MUTED, CARD, blobFloat, t }: {
+  notifications: AppNotification[];
+  loading: boolean;
+  PRIMARY: string; MUTED: string; CARD: string;
+  blobFloat: Animated.Value;
+  t: any;
+}) {
+  if (!loading && notifications.length === 0) {
+    return (
+      <View style={[{ backgroundColor: CARD, borderRadius: 28, padding: 20,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+        alignItems: 'center', paddingVertical: 32, gap: 10 }]}>
+        <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
+          <EmotionShape kind="flower" color="pink" size={60} eyes />
+        </Animated.View>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: PRIMARY }}>{t.monitorNoNotifs}</Text>
+        <Text style={{ fontSize: 12, color: MUTED }}>{t.monitorNoNotifsDesc}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ backgroundColor: CARD, borderRadius: 28, overflow: 'hidden',
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+      maxHeight: NOTIF_ROW_H * (VISIBLE + 0.4) }}>
+      <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={notifications.length > VISIBLE}>
+        {notifications.map((n, idx) => (
+          <NotifRow key={n.id ?? idx} n={n} idx={idx} PRIMARY={PRIMARY} MUTED={MUTED} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function NotifRow({ n, idx, PRIMARY, MUTED }: {
+  n: AppNotification; idx: number; PRIMARY: string; MUTED: string;
+}) {
+  const isQr   = n.type === 'qr_scan';
+  const iconBg = isQr ? `${BLUE}40` : '#FAB2D340';
+  const icon   = isQr ? 'qr-code-outline' : 'heart-outline';
+  const ts     = fmtTs(n.timestamp);
+  return (
+    <View style={{
+      flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+      paddingHorizontal: 20, paddingVertical: 12, minHeight: NOTIF_ROW_H,
+      borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+      borderTopColor: 'rgba(136,130,110,0.15)',
+    }}>
+      <View style={{ width: 36, height: 36, borderRadius: 12,
+        backgroundColor: iconBg, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Ionicons name={icon as any} size={16} color={PRIMARY} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY, marginBottom: 2 }} numberOfLines={1}>
+          {n.title}
+        </Text>
+        <Text style={{ fontSize: 12, color: MUTED, lineHeight: 17 }} numberOfLines={2}>
+          {n.body}
+        </Text>
+      </View>
+      {!!ts && (
+        <Text style={{ fontSize: 11, color: MUTED, flexShrink: 0, marginTop: 2 }}>{ts}</Text>
+      )}
+    </View>
+  );
+}
+
+// ── Device types ───────────────────────────────────────────────────────────
+type DeviceType = 'CARD' | 'BRACELET' | 'SMARTWATCH';
+type ApiDevice  = { type: DeviceType; identifier: string | null; registeredAt: string | null; active: boolean };
+
+function deviceMeta(type: DeviceType): { name: string; desc: string; icon: any } {
+  switch (type) {
+    case 'CARD':       return { name: 'Tarjeta NFC Horus',    desc: 'Acceso de respaldo · 13.56 MHz', icon: 'card-outline'    };
+    case 'BRACELET':   return { name: 'Brazalete Horus Pro',  desc: 'Sensor principal · NFC + GPS',   icon: 'fitness-outline' };
+    case 'SMARTWATCH': return { name: 'Horus Watch',          desc: 'Señales activas en tiempo real', icon: 'watch-outline'   };
+  }
+}
 
 // ── Screen ─────────────────────────────────────────────────────────────────
 export default function MonitorScreen() {
@@ -113,17 +204,63 @@ export default function MonitorScreen() {
   const { t } = useLanguage();
 
   const { width: screenW } = useWindowDimensions();
-  const [products, setProducts]         = useState(INITIAL_PRODUCTS);
-  const [modalProduct, setModalProduct] = useState<typeof INITIAL_PRODUCTS[0] | null>(null);
   const blobFloat = useRef(new Animated.Value(0)).current;
   const pinBob    = useRef(new Animated.Value(0)).current;
+
+  // GPS state
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsLabel,  setGpsLabel]  = useState<string | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(true);
+
+  // Devices state
+  const [devices, setDevices]         = useState<ApiDevice[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
 
   const { data, loading, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
   );
-  const syncTime = data?.timestamp
-    ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-    : '10:41';
+
+  // Refetch whenever screen comes into focus (e.g. after tapping a QR notification)
+  useFocusEffect(useCallback(() => { refetch(); }, []));
+
+  const syncTime = (() => {
+    if (!data?.timestamp) return '10:41';
+    const d = new Date(data.timestamp);
+    const h = d.getHours(), m = d.getMinutes().toString().padStart(2, '0');
+    return `${h.toString().padStart(2, '0')}:${m}`;
+  })();
+
+  // Fetch GPS on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') { setGpsLoading(false); return; }
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setGpsCoords({ lat, lng });
+        // Reverse geocode to get a readable label
+        const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (geo.length > 0) {
+          const g = geo[0];
+          const parts = [g.district ?? g.subregion ?? g.city, g.city !== (g.district ?? g.subregion) ? g.city : null, g.region].filter(Boolean);
+          setGpsLabel(parts.join(', '));
+        }
+      } catch {
+        // silently ignore — show coords if available
+      } finally {
+        setGpsLoading(false);
+      }
+    })();
+  }, []);
+
+  // Fetch user devices on mount
+  useEffect(() => {
+    apiClient.get<{ devices: ApiDevice[] }>('/monitor/devices')
+      .then(r => setDevices(r.data.devices))
+      .catch(() => {})
+      .finally(() => setDevicesLoading(false));
+  }, []);
 
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -132,16 +269,35 @@ export default function MonitorScreen() {
     ])).start();
 
     Animated.loop(Animated.sequence([
-      Animated.timing(pinBob, { toValue: -7, duration: 1200, easing: t => Math.sin(t * Math.PI / 2), useNativeDriver: true }),
-      Animated.timing(pinBob, { toValue:  0, duration: 1200, easing: t => 1 - Math.cos(t * Math.PI / 2), useNativeDriver: true }),
+      Animated.timing(pinBob, { toValue: -7, duration: 1200, easing: _t => Math.sin(_t * Math.PI / 2), useNativeDriver: true }),
+      Animated.timing(pinBob, { toValue:  0, duration: 1200, easing: _t => 1 - Math.cos(_t * Math.PI / 2), useNativeDriver: true }),
     ])).start();
   }, []);
 
-  const confirmToggle = () => {
-    if (!modalProduct) return;
-    setProducts(prev => prev.map(p => p.id === modalProduct.id ? { ...p, active: !p.active } : p));
-    setModalProduct(null);
+  const openMaps = () => {
+    if (!gpsCoords) {
+      Alert.alert('Sin ubicación', 'No se pudo obtener la ubicación del dispositivo.');
+      return;
+    }
+    const { lat, lng } = gpsCoords;
+    Alert.alert(
+      'Abrir mapa',
+      '¿Dónde deseas ver la ubicación?',
+      [
+        { text: 'Google Maps', onPress: () => Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`) },
+        { text: 'Apple Maps',  onPress: () => Linking.openURL(`maps://?ll=${lat},${lng}`) },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
   };
+
+  const coordsText = gpsLoading
+    ? t.monitorWaitingGps
+    : gpsCoords
+      ? `${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lng.toFixed(5)}`
+      : t.monitorWaitingGps;
+
+  const cardDevice = devices.find(d => d.type === 'CARD');
 
   return (
     <SafeAreaView style={s.container}>
@@ -157,7 +313,7 @@ export default function MonitorScreen() {
         </View>
 
         {/* ── Live location card ───────────────────────────────────────── */}
-        <View style={[s.mapCard, { width: screenW - 40 }]}>
+        <TouchableOpacity activeOpacity={0.9} onPress={openMaps} style={[s.mapCard, { width: screenW - 40 }]}>
           {Array.from({ length: Math.ceil((screenW - 40) / 28) }).map((_, i) => (
             <View key={`v${i}`} style={[s.gridLineV, { left: i * 28 }]} />
           ))}
@@ -195,101 +351,95 @@ export default function MonitorScreen() {
             </Animated.View>
           </View>
 
-          <Text style={s.mapCity}>Medellín, Antioquia</Text>
-          <Text style={s.mapGps}>{t.monitorWaitingGps}</Text>
-        </View>
+          <Text style={s.mapCity}>{gpsLabel ?? (gpsLoading ? '...' : 'Ubicación actual')}</Text>
+          <Text style={s.mapGps}>{coordsText}</Text>
+          {!gpsLoading && gpsCoords && (
+            <View style={{ alignItems: 'center', marginTop: 8, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: 0.6 }}>
+                <Ionicons name="map-outline" size={12} color={BLUE_FG} />
+                <Text style={{ fontSize: 11, color: BLUE_FG, fontWeight: '600' }}>Toca para abrir en mapa</Text>
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
 
         {/* ── Estado NFC ──────────────────────────────────────────────── */}
-        <View style={s.card}>
-          <View style={s.nfcRow}>
-            <View style={s.nfcIconBox}>
-              <NfcIcon size={20} color={GREEN_FG} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.cardTitle}>{t.monitorNfcTitle}</Text>
-              <Text style={s.cardSub}>{t.monitorNfcSub}</Text>
-            </View>
-            <View style={s.activoBadge}>
-              <Text style={s.activoBadgeText}>{t.monitorActive}</Text>
-            </View>
-          </View>
-          <View style={s.chipGrid}>
-            {[
-              { label: t.monitorProtocol,  value: 'ISO 14443'         },
-              { label: t.monitorFrequency, value: '13.56 MHz'          },
-              { label: t.monitorRange,     value: '≤ 10 cm'            },
-              { label: t.monitorTagId,     value: '04:A2:6B:9C:1D:80' },
-            ].map(c => (
-              <View key={c.label} style={s.chip}>
-                <Text style={s.chipLabel}>{c.label}</Text>
-                <Text style={s.chipValue}>{c.value}</Text>
+        {cardDevice && (
+          <View style={s.card}>
+            <View style={s.nfcRow}>
+              <View style={s.nfcIconBox}>
+                <NfcIcon size={20} color={GREEN_FG} />
               </View>
-            ))}
+              <View style={{ flex: 1 }}>
+                <Text style={s.cardTitle}>{t.monitorNfcTitle}</Text>
+                <Text style={s.cardSub}>{t.monitorNfcSub}</Text>
+              </View>
+              <View style={s.activoBadge}>
+                <Text style={s.activoBadgeText}>{t.monitorActive}</Text>
+              </View>
+            </View>
+            <View style={s.chipGrid}>
+              {[
+                { label: t.monitorProtocol,  value: 'ISO 14443' },
+                { label: t.monitorFrequency, value: '13.56 MHz' },
+                { label: t.monitorRange,     value: '≤ 10 cm'   },
+                { label: t.monitorTagId,     value: cardDevice.identifier ?? '—' },
+              ].map(c => (
+                <View key={c.label} style={s.chip}>
+                  <Text style={s.chipLabel}>{c.label}</Text>
+                  <Text style={s.chipValue}>{c.value}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* ── Notificaciones recientes ─────────────────────────────────── */}
         <Text style={s.sectionTitle}>{t.monitorRecentNotifs}</Text>
-        <View style={[s.card, s.emptyCard]}>
-          <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
-            <EmotionShape kind="flower" color="pink" size={60} eyes />
-          </Animated.View>
-          <Text style={s.emptyTitle}>{t.monitorNoNotifs}</Text>
-          <Text style={s.emptySub}>{t.monitorNoNotifsDesc}</Text>
-        </View>
+        <NotifCard
+          notifications={data?.notifications ?? []}
+          loading={loading}
+          PRIMARY={PRIMARY} MUTED={MUTED} CARD={CARD}
+          blobFloat={blobFloat}
+          t={t}
+        />
 
-        {/* ── Productos activos ────────────────────────────────────────── */}
+        {/* ── Mis dispositivos ─────────────────────────────────────────── */}
         <Text style={s.sectionTitle}>{t.monitorActiveProducts}</Text>
-        <View style={{ gap: 8 }}>
-          {products.map(p => (
-            <TouchableOpacity
-              key={p.id} style={s.productCard}
-              onPress={() => setModalProduct(p)} activeOpacity={0.78}
-            >
-              <View style={s.productIconWrap}>
-                <Ionicons name="radio-outline" size={20} color={PRIMARY} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.productName}>{p.name}</Text>
-                <Text style={s.productDesc}>{p.desc}</Text>
-              </View>
-              {p.active ? (
-                <View style={s.checkCircle}>
-                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+        {devicesLoading ? (
+          <View style={[s.productCard, { justifyContent: 'center' }]}>
+            <Text style={[s.productDesc, { textAlign: 'center', flex: 1 }]}>{t.monitorWaitingGps}</Text>
+          </View>
+        ) : devices.length === 0 ? (
+          <View style={[s.card, s.emptyCard]}>
+            <Ionicons name="hardware-chip-outline" size={36} color={MUTED} />
+            <Text style={s.emptyTitle}>Sin dispositivos</Text>
+            <Text style={s.emptySub}>No tienes dispositivos Horus registrados</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {devices.map((d, idx) => {
+              const meta = deviceMeta(d.type);
+              return (
+                <View key={`${d.type}-${idx}`} style={s.productCard}>
+                  <View style={s.productIconWrap}>
+                    <Ionicons name={meta.icon} size={20} color={PRIMARY} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.productName}>{meta.name}</Text>
+                    <Text style={s.productDesc}>
+                      {d.identifier ? d.identifier : meta.desc}
+                    </Text>
+                  </View>
+                  <View style={s.checkCircle}>
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  </View>
                 </View>
-              ) : (
-                <View style={s.emptyCircle} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
-
-      {/* ── Modal ───────────────────────────────────────────────────────── */}
-      <Modal visible={!!modalProduct} transparent animationType="fade" onRequestClose={() => setModalProduct(null)}>
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setModalProduct(null)}>
-          <TouchableOpacity activeOpacity={1} style={s.modalBox} onPress={() => {}}>
-            <View style={s.modalIconWrap}>
-              <Ionicons name="radio-outline" size={28} color={PRIMARY} />
-            </View>
-            <Text style={s.modalTitle}>{modalProduct?.name}</Text>
-            <Text style={s.modalSub}>
-              {modalProduct?.active ? t.monitorDeactivate : t.monitorActivateDevice}
-            </Text>
-            <View style={s.modalBtns}>
-              <TouchableOpacity style={s.btnCancel} onPress={() => setModalProduct(null)}>
-                <Text style={s.btnCancelText}>{t.cancel}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.btnConfirm, { backgroundColor: modalProduct?.active ? '#EF4444' : GREEN }]}
-                onPress={confirmToggle}
-              >
-                <Text style={s.btnConfirmText}>{modalProduct?.active ? t.monitorDeactivateBtn : t.monitorActivateBtn}</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -389,36 +539,5 @@ function makeStyles(
       width: 26, height: 26, borderRadius: 13,
       backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center',
     },
-    emptyCircle: {
-      width: 26, height: 26, borderRadius: 13,
-      borderWidth: 2, borderColor: MUTED_BG,
-    },
-
-    // Modal
-    overlay: {
-      flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32,
-    },
-    modalBox: {
-      backgroundColor: CARD, borderRadius: 28, padding: 28,
-      width: '100%', alignItems: 'center', gap: 8,
-    },
-    modalIconWrap: {
-      width: 60, height: 60, borderRadius: 30,
-      backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-    },
-    modalTitle: { fontSize: 16, fontFamily: FONT.displayBold, color: PRIMARY, textAlign: 'center' },
-    modalSub:   { fontSize: 14, fontFamily: FONT.sansRegular, color: MUTED, textAlign: 'center', lineHeight: 20 },
-    modalBtns:  { flexDirection: 'row', gap: 12, marginTop: 12, width: '100%' },
-    btnCancel: {
-      flex: 1, height: 48, borderRadius: 16,
-      backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center',
-    },
-    btnCancelText:  { fontSize: 14, fontFamily: FONT.sansBold, color: MUTED },
-    btnConfirm: {
-      flex: 1, height: 48, borderRadius: 16,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    btnConfirmText: { fontSize: 14, fontFamily: FONT.sansBold, color: '#FFFFFF' },
   });
 }

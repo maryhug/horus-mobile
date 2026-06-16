@@ -23,8 +23,9 @@ model User {
   medicalHistory    MedicalHistory[]
   medicalProfile    MedicalProfile?
   nfcScans          ProfileScan[]
-  pushToken         String?              @map("push_token")
-  personalInfo      PersonalInformation?
+  pushToken             String?              @map("push_token")
+  healthReportEnabled   Boolean              @default(true) @map("health_report_enabled")
+  personalInfo          PersonalInformation?
   privacySettings   PrivacySettings?
   medications       UserMedication[]
   orders            Order[]
@@ -33,8 +34,20 @@ model User {
   deviceLoginCodes  DeviceLoginCode[]
   deviceSessions    DeviceSession[]
   securityLogs      SecurityLog[]
+  userDevices       UserDevice[]
 
   @@map("users")
+}
+
+model UserDevice {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @map("user_id") @db.Uuid
+  type         UserDeviceType
+  identifier   String?
+  registeredAt DateTime       @default(now()) @map("registered_at")
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_devices")
 }
 
 model DeviceLoginCode {
@@ -430,6 +443,12 @@ enum AlertStatus {
 
 enum ProductType {
   BRACELET
+  CARD
+}
+
+enum UserDeviceType {
+  BRACELET
+  SMARTWATCH
   CARD
 }
 

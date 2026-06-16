@@ -6,10 +6,62 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { getItem, setItem, deleteItem } from '../utils/storage';
 import { router } from 'expo-router';
 import { apiClient, setUnauthorizedHandler, setAuthToken, getErrorMessage } from '../services/api';
 import type { User, LoginResponse, ProfileData, RegisterPayload, RegisterResponse } from '../types/api';
+import { hydrateAssistant } from '../hooks/useAssistant';
+import { hydrateVoice } from '../hooks/useVoice';
+import { hydrateLanguage } from './LanguageContext';
+
+// Configure how notifications appear when app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+async function syncRemotePreferences() {
+  try {
+    const { data } = await apiClient.get<{ language?: string; voiceId?: string; assistantId?: string }>('/profile/preferences');
+    if (data.language)    hydrateLanguage(data.language);
+    if (data.voiceId)     hydrateVoice(data.voiceId);
+    if (data.assistantId) hydrateAssistant(data.assistantId);
+  } catch {
+    // Silently ignore — local cache will be used
+  }
+}
+
+async function registerPhonePushToken() {
+  try {
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'HORUS',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'default',
+      });
+    }
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    const { status } = existing === 'granted'
+      ? { status: existing }
+      : await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    await apiClient.post('/profile/push-token', { pushToken: tokenData.data });
+    console.log('[Push] phone token registered');
+  } catch (err) {
+    console.warn('[Push] failed to register phone token:', err);
+  }
+}
 
 const USER_KEY = 'horus_user';
 const SESSION_KEY = 'horus_session';
@@ -48,7 +100,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (token) setAuthToken(token);
 
           const raw = await getItem(USER_KEY);
-          if (raw) setUser(JSON.parse(raw) as User);
+          if (raw) {
+            setUser(JSON.parse(raw) as User);
+            registerPhonePushToken();   // silently, non-blocking
+            syncRemotePreferences();    // silently, non-blocking
+          }
         }
       } catch {
         // Ignore storage errors
@@ -91,6 +147,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     await persistUser(profile, data.accessToken);
+    registerPhonePushToken();  // silently, non-blocking
+    syncRemotePreferences();   // silently, non-blocking
     router.replace('/(tabs)/dashboard');
   }, [persistUser]);
 

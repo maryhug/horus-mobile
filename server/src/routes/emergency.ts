@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { sendPushNotification } from '../services/notification';
+import { saveNotification } from '../services/healthScore';
 
 const router = Router();
 
@@ -11,16 +12,16 @@ function bloodTypeLabel(bt?: string | null): string {
 
 function severityColor(s: string): string {
     switch (s?.toUpperCase()) {
-        case 'LIFE_THREATENING': return '#EF233C';
-        case 'SEVERE':           return '#FF5722';
-        case 'MODERATE':         return '#FF9800';
-        default:                 return '#4CAF50';
+        case 'LIFE_THREATENING': return '#C0392B';
+        case 'SEVERE':           return '#E74C3C';
+        case 'MODERATE':         return '#E67E22';
+        default:                 return '#27AE60';
     }
 }
 
 function severityLabel(s: string): string {
     switch (s?.toUpperCase()) {
-        case 'LIFE_THREATENING': return '⚠️ Riesgo vital';
+        case 'LIFE_THREATENING': return 'Riesgo vital';
         case 'SEVERE':           return 'Severa';
         case 'MODERATE':         return 'Moderada';
         default:                 return 'Leve';
@@ -43,8 +44,8 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
             include: {
                 personalInfo:      true,
                 medicalProfile:    true,
-                allergies:         { where: { isActive: true } },
-                chronicConditions: true,
+                allergies:         { orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }] },
+                chronicConditions: { orderBy: [{ createdAt: 'desc' }] },
                 medications:       { where: { isCurrent: true }, include: { medication: true } },
                 emergencyContacts: { where: { isActive: true }, orderBy: { priorityOrder: 'asc' } },
                 privacySettings:   true,
@@ -66,12 +67,9 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
                 }
             });
 
-            await sendPushNotification(
-                userId,
-                'Horus',
-                'Tu perfil fue consultado',
-                { scanType: 'QR' }
-            );
+            const scanDate = new Date().toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' });
+        await sendPushNotification(userId, 'Perfil consultado', `Tu ID médico fue escaneado el ${scanDate}`, { type: 'profile_scanned', scanType: 'QR' });
+        await saveNotification(userId, 'Perfil consultado', `Tu ID médico fue escaneado el ${scanDate}`, 'qr_scan');
         } catch (err) {
             console.error('Error recording scan/notifying:', err);
         }
@@ -84,75 +82,112 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
         const age   = priv?.showAge !== false ? ageFromDob(p?.dateOfBirth) : '';
         const blood = priv?.showBloodType !== false ? bloodTypeLabel(p?.bloodType) : '';
 
-        const allergies  = priv?.showAllergies !== false ? user.allergies : [];
+        const allAllergies   = priv?.showAllergies !== false ? user.allergies : [];
+        const activeAllergies  = allAllergies.filter(a => a.isActive);
+        const historicAllergies = allAllergies.filter(a => !a.isActive);
         const meds       = priv?.showMedications !== false ? user.medications : [];
-        const conditions = priv?.showChronicConditions !== false ? user.chronicConditions : [];
+        const allConditions = priv?.showChronicConditions !== false ? user.chronicConditions : [];
+        const activeConditions   = allConditions.filter(c => c.status === 'ACTIVE' || c.status === 'MANAGED');
+        const historicConditions = allConditions.filter(c => c.status === 'IN_REMISSION' || c.status === 'RESOLVED');
         const contacts   = priv?.showEmergencyContacts !== false ? user.emergencyContacts : [];
 
-        const allergiesHtml = allergies.length > 0 ? `
+        const conditionStatusLabel = (s: string) => {
+            switch (s) { case 'ACTIVE': return 'Activa'; case 'MANAGED': return 'Controlada'; case 'IN_REMISSION': return 'En remisión'; case 'RESOLVED': return 'Resuelta'; default: return s; }
+        };
+
+        const allergiesHtml = allAllergies.length > 0 ? `
       <div class="section">
-        <div class="section-title">⚠️ ALERGIAS</div>
-        ${allergies.map(a => `
-          <div class="item allergy" style="border-left:4px solid ${severityColor(a.severity)}">
+        <div class="section-title">Alergias activas</div>
+        ${activeAllergies.length === 0 ? '<div class="sub" style="padding:4px 0">Sin alergias activas</div>' : activeAllergies.map(a => `
+          <div class="allergy-item" style="border-color:${severityColor(a.severity)}">
             <div class="item-row">
-              <b>${a.allergenName}</b>
+              <span class="item-name">${a.allergenName}</span>
               <span class="badge" style="background:${severityColor(a.severity)}22;color:${severityColor(a.severity)}">${severityLabel(a.severity)}</span>
             </div>
             ${a.reactionDescription ? `<div class="sub">${a.reactionDescription}</div>` : ''}
           </div>`).join('')}
+        ${historicAllergies.length > 0 ? `
+        <div class="section-title" style="margin-top:14px;font-size:11px;opacity:0.6">Historial (inactivas)</div>
+        ${historicAllergies.map(a => `
+          <div class="allergy-item" style="border-color:#ccc;opacity:0.55">
+            <div class="item-row">
+              <span class="item-name" style="text-decoration:line-through">${a.allergenName}</span>
+              <span class="badge" style="background:#eee;color:#999">${severityLabel(a.severity)}</span>
+            </div>
+          </div>`).join('')}` : ''}
       </div>` : '';
 
         const medsHtml = meds.length > 0 ? `
       <div class="section">
-        <div class="section-title">💊 MEDICAMENTOS ACTUALES</div>
+        <div class="section-title">Medicamentos actuales</div>
         ${meds.map(med => {
             const medName = med.customMedicationName ?? med.medication?.genericName ?? '—';
             return `
           <div class="item">
-            <div class="item-row"><b>${medName}</b>${med.dosage ? `<span class="badge">${med.dosage}</span>` : ''}</div>
+            <div class="item-row">
+              <span class="item-name">${medName}</span>
+              ${med.dosage ? `<span class="badge badge-muted">${med.dosage}</span>` : ''}
+            </div>
             ${med.frequency ? `<div class="sub">${med.frequency}${med.route && med.route !== 'ORAL' ? ` · ${med.route.toLowerCase()}` : ''}</div>` : ''}
           </div>`;
         }).join('')}
       </div>` : '';
 
-        const conditionsHtml = conditions.length > 0 ? `
+        const conditionsHtml = allConditions.length > 0 ? `
       <div class="section">
-        <div class="section-title">🏥 CONDICIONES CRÓNICAS</div>
-        ${conditions.map(c => `
+        <div class="section-title">Condiciones crónicas</div>
+        ${activeConditions.length === 0 ? '<div class="sub" style="padding:4px 0">Sin condiciones activas</div>' : activeConditions.map(c => `
           <div class="item">
             <div class="item-row">
-              <b>${c.conditionName}</b>
-              ${c.severity ? `<span class="badge">${c.severity.toLowerCase()}</span>` : ''}
+              <span class="item-name">${c.conditionName}</span>
+              <span class="badge badge-muted">${conditionStatusLabel(c.status)}${c.severity ? ' · ' + c.severity.toLowerCase() : ''}</span>
             </div>
             ${c.notes ? `<div class="sub">${c.notes}</div>` : ''}
           </div>`).join('')}
+        ${historicConditions.length > 0 ? `
+        <div class="section-title" style="margin-top:14px;font-size:11px;opacity:0.6">Historial</div>
+        ${historicConditions.map(c => `
+          <div class="item" style="opacity:0.55">
+            <div class="item-row">
+              <span class="item-name" style="text-decoration:line-through">${c.conditionName}</span>
+              <span class="badge badge-muted">${conditionStatusLabel(c.status)}</span>
+            </div>
+          </div>`).join('')}` : ''}
       </div>` : '';
 
         const contactsHtml = contacts.length > 0 ? `
       <div class="section">
-        <div class="section-title">📞 CONTACTOS DE EMERGENCIA</div>
+        <div class="section-title">Contactos de emergencia</div>
         ${contacts.map(c => `
-          <div class="item contact">
-            <div class="item-row"><b>${c.fullName}</b><span class="rel">${c.relationship}</span></div>
-            <a href="tel:${c.phonePrimary}" class="phone">${c.phonePrimary}</a>
-            ${c.phoneSecondary ? `<a href="tel:${c.phoneSecondary}" class="phone">${c.phoneSecondary}</a>` : ''}
+          <div class="item">
+            <div class="contact-header">
+              <span class="contact-name">${c.fullName}</span>
+              <span class="contact-rel">${c.relationship}</span>
+            </div>
+            <div class="phone-row">
+              <a href="tel:${c.phonePrimary}" class="phone">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.92a16 16 0 0 0 6.1 6.1l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                ${c.phonePrimary}
+              </a>
+              ${c.phoneSecondary ? `<a href="tel:${c.phoneSecondary}" class="phone">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.92a16 16 0 0 0 6.1 6.1l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                ${c.phoneSecondary}
+              </a>` : ''}
+            </div>
           </div>`).join('')}
       </div>` : '';
 
         const extraItems = [
-            m?.heightCm ? `📏 ${m.heightCm} cm` : null,
-            m?.weightKg ? `⚖️ ${m.weightKg} kg` : null,
-            m?.organDonor ? `<span class="donor">♥ Donante de órganos</span>` : null,
-            m?.insuranceProvider ? `🏥 ${m.insuranceProvider}` : null,
+            m?.heightCm ? `${m.heightCm} cm` : null,
+            m?.weightKg ? `${m.weightKg} kg` : null,
+            m?.organDonor ? 'Donante de órganos' : null,
+            m?.insuranceProvider ? m.insuranceProvider : null,
         ].filter(Boolean);
 
-        const extraHtml = extraItems.length > 0 ? `
-      <div class="extra-row">${extraItems.map(i => `<span>${i}</span>`).join('')}</div>` : '';
-
         const notesHtml = (m?.additionalNotes && priv?.showMedicalHistory !== false) ? `
-      <div class="section">
-        <div class="section-title">📋 NOTAS MÉDICAS</div>
-        <div class="item">${m.additionalNotes}</div>
+      <div class="card">
+        <div class="section-title" style="margin-bottom:10px">Notas médicas</div>
+        <div class="sub" style="font-size:13px;line-height:1.6;color:var(--primary)">${m.additionalNotes}</div>
       </div>` : '';
 
         const html = `<!DOCTYPE html>
@@ -161,86 +196,175 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ID Médico · ${name}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── Design tokens (same as LIGHT theme in constants/theme.ts) ── */
+    :root {
+      --bg:       #F9F6ED;
+      --card:     #FFFFFF;
+      --primary:  #1A1512;
+      --muted:    #8C7F6E;
+      --muted-bg: #F3EFE7;
+      --border:   #E8E2D8;
+      --green:    #96C979;
+      --green-fg: #1A3D0A;
+      --yellow:   #FAD957;
+      --blue:     #A5CCF4;
+      --blue-fg:  #1A3A5C;
+      --pink:     #FAB2D3;
+      --pink-fg:  #7A1A3A;
+      --red:      #C0392B;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f0f1a; color: #edf2f4;
-      padding: 16px; max-width: 480px; margin: 0 auto;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--primary);
+      padding: 20px 16px 48px; max-width: 480px; margin: 0 auto;
+      -webkit-font-smoothing: antialiased;
     }
-    .horus-bar {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 20px; padding-bottom: 16px;
-      border-bottom: 1px solid #2d2f4a;
+
+    /* ── Header ── */
+    .top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px; padding-top: 4px;
     }
-    .horus-dot { width: 10px; height: 10px; border-radius: 50%; background: #ef233c; }
-    .horus-label { color: #ef233c; font-size: 11px; font-weight: 700; letter-spacing: 2px; }
-    .emergency-badge {
-      margin-left: auto; background: rgba(239,35,60,0.15);
-      border: 1px solid rgba(239,35,60,0.3); border-radius: 20px;
-      padding: 4px 12px; font-size: 11px; font-weight: 700; color: #ef233c;
+    .wordmark {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+      color: var(--primary);
     }
-    .card { background: #1a1b2e; border-radius: 16px; padding: 20px; margin-bottom: 12px; border: 1px solid #2d2f4a; }
-    .name { font-size: 28px; font-weight: 800; color: #edf2f4; line-height: 1.2; margin-bottom: 4px; }
-    .meta { font-size: 14px; color: #8d99ae; margin-bottom: 12px; }
+    .wordmark span { color: var(--muted); font-weight: 400; }
+    .id-chip {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.10em;
+      text-transform: uppercase;
+      background: var(--muted-bg); color: var(--muted);
+      padding: 6px 14px; border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border-radius: 24px; padding: 20px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(26,21,18,0.04), 0 6px 20px rgba(26,21,18,0.05);
+    }
+
+    /* ── Identity card ── */
+    .patient-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px; font-weight: 700; color: var(--primary);
+      line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 4px;
+    }
+    .patient-meta { font-size: 14px; color: var(--muted); margin-bottom: 16px; font-weight: 500; }
+
     .blood-pill {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(239,35,60,0.12); border: 1px solid rgba(239,35,60,0.3);
-      border-radius: 20px; padding: 8px 16px;
-      font-size: 20px; font-weight: 800; color: #ef233c;
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--pink); border-radius: 14px; padding: 9px 18px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 17px; font-weight: 700; color: var(--pink-fg);
+      margin-bottom: 14px;
     }
-    .extra-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .extra-row span { background: #2d2f4a; border-radius: 8px; padding: 5px 12px; font-size: 13px; color: #8d99ae; }
-    .donor { color: #4caf50 !important; }
-    .section { margin-bottom: 4px; }
-    .section-title { font-size: 10px; font-weight: 700; color: #8d99ae; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      background: var(--muted-bg); border-radius: 10px;
+      padding: 5px 13px; font-size: 12px; color: var(--muted);
+      font-weight: 500; border: 1px solid var(--border);
+    }
+    .tag-green {
+      background: rgba(150,201,121,0.18); color: var(--green-fg);
+      border-color: rgba(150,201,121,0.35); font-weight: 600;
+    }
+
+    /* ── Section header ── */
+    .section { margin-bottom: 16px; }
+    .section:last-child { margin-bottom: 0; }
+    .section-title {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      letter-spacing: 0.13em; text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    /* ── Items ── */
     .item {
-      background: #12131f; border: 1px solid #2d2f4a; border-radius: 12px;
+      background: var(--muted-bg); border-radius: 14px;
       padding: 12px 14px; margin-bottom: 8px;
+      border: 1px solid var(--border);
     }
-    .allergy { padding-left: 10px; }
+    .item:last-child { margin-bottom: 0; }
     .item-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-    .item-row b { font-size: 14px; color: #edf2f4; }
+    .item-name { font-size: 14px; font-weight: 600; color: var(--primary); }
     .badge {
-      font-size: 11px; font-weight: 700; padding: 3px 9px;
-      border-radius: 6px; background: #2d2f4a; color: #8d99ae;
-      white-space: nowrap;
+      font-size: 10px; font-weight: 700; padding: 3px 9px;
+      border-radius: 8px; white-space: nowrap;
     }
-    .sub { font-size: 12px; color: #8d99ae; margin-top: 5px; line-height: 1.5; }
-    .contact .item-row b { font-size: 15px; }
-    .rel { font-size: 12px; color: #8d99ae; }
+    .badge-muted { background: var(--border); color: var(--muted); }
+    .sub { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.55; }
+
+    /* Allergy severity left-border */
+    .allergy-item { border-left: 3px solid; padding-left: 12px; background: transparent; border-right: none; border-top: none; border-bottom: none; border-radius: 0; margin-bottom: 10px; }
+    .allergy-item:last-child { margin-bottom: 0; }
+
+    /* ── Contacts ── */
+    .contact-header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .contact-name { font-size: 15px; font-weight: 700; color: var(--primary); }
+    .contact-rel {
+      font-size: 11px; font-weight: 600; color: var(--blue-fg);
+      background: var(--blue); border-radius: 6px; padding: 2px 8px;
+    }
+    .phone-row { display: flex; flex-wrap: wrap; gap: 8px; }
     .phone {
-      display: block; color: #ef233c; text-decoration: none;
-      font-size: 15px; font-weight: 600; margin-top: 6px;
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--primary); text-decoration: none;
+      font-size: 14px; font-weight: 700;
+      background: var(--muted-bg); border-radius: 10px;
+      padding: 7px 14px; border: 1px solid var(--border);
     }
+
+    /* ── CTA ── */
+    .cta-wrap { margin-top: 20px; }
+    .call-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: var(--primary); color: #F9F6ED; text-decoration: none;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px; font-weight: 700; letter-spacing: -0.1px;
+      padding: 17px 24px; border-radius: 18px; text-align: center;
+    }
+    .call-icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Footer ── */
     .footer {
-      text-align: center; font-size: 11px; color: #5c6480;
-      margin-top: 20px; padding-top: 16px; border-top: 1px solid #2d2f4a;
-      line-height: 1.8;
+      text-align: center; font-size: 11px; color: var(--muted);
+      margin-top: 28px; line-height: 2;
     }
-    .call-112 {
-      display: block; margin: 12px auto 0;
-      background: #ef233c; color: #fff; text-decoration: none;
-      font-size: 16px; font-weight: 800; padding: 12px 32px;
-      border-radius: 12px; text-align: center; max-width: 200px;
-    }
+    .sep { display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--border); margin: 0 7px; vertical-align: middle; }
   </style>
 </head>
 <body>
-  <div class="horus-bar">
-    <div class="horus-dot"></div>
-    <span class="horus-label">HORUS · ID MÉDICO</span>
-    <span class="emergency-badge">EMERGENCIA</span>
+
+  <div class="top-bar">
+    <div class="wordmark">HORUS <span>Medical ID</span></div>
+    <div class="id-chip">ID Médico</div>
   </div>
 
   <div class="card">
-    <div class="name">${name}</div>
-    <div class="meta">${[age, p?.gender === 'MALE' ? 'Masculino' : p?.gender === 'FEMALE' ? 'Femenino' : ''].filter(Boolean).join(' · ')}</div>
-    ${blood && blood !== '—' ? `<div class="blood-pill">🩸 Tipo ${blood}</div>` : ''}
-    ${extraHtml}
+    <div class="patient-name">${name}</div>
+    <div class="patient-meta">${[age, p?.gender === 'MALE' ? 'Masculino' : p?.gender === 'FEMALE' ? 'Femenino' : ''].filter(Boolean).join(' · ')}</div>
+
+    ${blood && blood !== '—' ? `
+    <div class="blood-pill">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="call-icon"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>
+      Tipo ${blood}
+    </div>` : ''}
+
+    ${extraItems.length > 0 ? `<div class="tags">${extraItems.map(i => `<span class="${i?.toString().toLowerCase().includes('donante') ? 'tag tag-green' : 'tag'}">${i}</span>`).join('')}</div>` : ''}
   </div>
 
-  ${allergies.length || meds.length || conditions.length ? `
+  ${allAllergies.length || meds.length || allConditions.length ? `
   <div class="card">
     ${allergiesHtml}
     ${medsHtml}
@@ -248,14 +372,21 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
   </div>` : ''}
 
   ${contacts.length ? `<div class="card">${contactsHtml}</div>` : ''}
-  ${notesHtml ? `<div class="card">${notesHtml}</div>` : ''}
+  ${notesHtml}
 
-  <a href="tel:123" class="call-112">📞 Llamar al 123</a>
+  <div class="cta-wrap">
+    <a href="tel:123" class="call-btn">
+      <svg class="call-icon" viewBox="0 0 24 24" fill="none" stroke="#F9F6ED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.92a16 16 0 0 0 6.1 6.1l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Llamar emergencias · 123
+    </a>
+  </div>
 
   <div class="footer">
-    Generado por Horus Medical ID<br>
+    Generado por Horus Medical ID
+    <span class="sep"></span>
     ${new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
   </div>
+
 </body>
 </html>`;
 

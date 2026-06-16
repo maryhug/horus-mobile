@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { sendPushNotification } from '../lib/push';
 
 const router = Router();
 
@@ -321,6 +322,16 @@ router.post('/device-code/verify', async (req: Request, res: Response): Promise<
       where: { id: user.id },
       data: { lastLogin: new Date() },
     });
+
+    // Push notification: alerta al usuario que su código fue usado
+    if (user.pushToken) {
+      sendPushNotification({
+        to: user.pushToken,
+        title: '🔗 Dispositivo vinculado',
+        body: `Tu código fue usado para vincular: ${deviceName ?? 'Nuevo dispositivo'}`,
+        data: { type: 'device_linked' },
+      }).catch(() => {});
+    }
 
     const accessToken = generateAccessToken(user.id, true);
 

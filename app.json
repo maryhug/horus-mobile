@@ -53,7 +53,14 @@
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "HORUS necesita acceso a tu ubicación para mostrarla en el monitor de seguridad.",
+          "locationWhenInUsePermission": "HORUS necesita acceso a tu ubicación para mostrarla en el monitor de seguridad."
+        }
+      ]
     ],
     "extra": {
       "eas": {

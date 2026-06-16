@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { db } from '../lib/firestore';
 
 const router = Router();
 
@@ -220,25 +221,264 @@ router.put('/privacy', requireAuth, async (req: AuthRequest, res: Response): Pro
   }
 });
 
-// POST /api/profile/push-token
+// POST /api/profile/push-token  — phone Expo token
 router.post('/push-token', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { pushToken } = req.body;
-    
-    if (!pushToken) {
-      res.status(400).json({ message: 'Push token es requerido' });
-      return;
-    }
-
-    await prisma.user.update({
-      where: { id: req.userId },
-      data: { pushToken }
-    });
-
-    res.json({ message: 'Push token actualizado correctamente' });
+    if (!pushToken) { res.status(400).json({ message: 'Push token es requerido' }); return; }
+    await prisma.user.update({ where: { id: req.userId! }, data: { pushToken } });
+    res.json({ ok: true });
   } catch (error) {
     console.error('Push token update error:', error);
     res.status(500).json({ message: 'Error al actualizar push token' });
+  }
+});
+
+// POST /api/profile/watch-token  — watch FCM token (stored in Firestore)
+router.post('/watch-token', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { pushToken } = req.body;
+    if (!pushToken) { res.status(400).json({ message: 'Watch token es requerido' }); return; }
+    const { saveWatchToken } = await import('../services/notification');
+    await saveWatchToken(req.userId!, pushToken);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Watch token update error:', error);
+    res.status(500).json({ message: 'Error al actualizar watch token' });
+  }
+});
+
+// GET /api/profile/medical — allergies + conditions + medications + medicalProfile
+router.get('/medical', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      include: {
+        medicalProfile:    true,
+        allergies:         { orderBy: { createdAt: 'desc' } },
+        chronicConditions: { orderBy: { createdAt: 'desc' } },
+        medications:       { include: { medication: true }, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return; }
+    res.json({
+      medicalProfile: user.medicalProfile ? {
+        heightCm:          user.medicalProfile.heightCm ? Number(user.medicalProfile.heightCm) : null,
+        weightKg:          user.medicalProfile.weightKg ? Number(user.medicalProfile.weightKg) : null,
+        organDonor:        user.medicalProfile.organDonor,
+        insuranceProvider: user.medicalProfile.insuranceProvider,
+      } : null,
+      allergies: user.allergies.map(a => ({
+        id: a.id, allergenName: a.allergenName, allergyType: a.allergyType,
+        severity: a.severity, reactionDescription: a.reactionDescription, isActive: a.isActive,
+      })),
+      conditions: user.chronicConditions.map(c => ({
+        id: c.id, conditionName: c.conditionName, severity: c.severity,
+        status: c.status, notes: c.notes,
+      })),
+      medications: user.medications.map(m => ({
+        id:        m.id,
+        name:      m.customMedicationName ?? m.medication?.genericName ?? '',
+        dosage:    m.dosage,
+        frequency: m.frequency,
+        isCurrent: m.isCurrent,
+      })),
+    });
+  } catch (err) {
+    console.error('[profile/medical GET]', err);
+    res.status(500).json({ message: 'Error al obtener datos médicos' });
+  }
+});
+
+// POST /api/profile/medications
+router.post('/medications', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, dosage, frequency } = req.body;
+    if (!name?.trim()) { res.status(400).json({ message: 'Nombre del medicamento requerido' }); return; }
+    const m = await prisma.userMedication.create({
+      data: {
+        userId: req.userId!,
+        customMedicationName: name.trim(),
+        dosage:    dosage?.trim()    || null,
+        frequency: frequency?.trim() || null,
+        isCurrent: true,
+      },
+    });
+    res.json({ id: m.id, name: m.customMedicationName ?? '', dosage: m.dosage, frequency: m.frequency, isCurrent: m.isCurrent });
+  } catch (err) {
+    console.error('[profile/medications POST]', err);
+    res.status(500).json({ message: 'Error al agregar medicamento' });
+  }
+});
+
+// PATCH /api/profile/medications/:id
+router.patch('/medications/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, dosage, frequency, isCurrent } = req.body;
+    const data: Record<string, any> = {};
+    if (name      !== undefined) data.customMedicationName = name.trim();
+    if (dosage    !== undefined) data.dosage    = dosage?.trim()    || null;
+    if (frequency !== undefined) data.frequency = frequency?.trim() || null;
+    if (isCurrent !== undefined) data.isCurrent = Boolean(isCurrent);
+    const updated = await prisma.userMedication.updateMany({
+      where: { id: req.params.id, userId: req.userId },
+      data,
+    });
+    if (updated.count === 0) { res.status(404).json({ message: 'Medicamento no encontrado' }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[profile/medications PATCH]', err);
+    res.status(500).json({ message: 'Error al actualizar medicamento' });
+  }
+});
+
+// DELETE /api/profile/medications/:id
+router.delete('/medications/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const deleted = await prisma.userMedication.deleteMany({
+      where: { id: req.params.id, userId: req.userId },
+    });
+    if (deleted.count === 0) { res.status(404).json({ message: 'Medicamento no encontrado' }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[profile/medications DELETE]', err);
+    res.status(500).json({ message: 'Error al eliminar medicamento' });
+  }
+});
+
+// PUT /api/profile/medical
+router.put('/medical', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { heightCm, weightKg, organDonor, insuranceProvider } = req.body;
+    const data: Record<string, any> = {};
+    if (heightCm         !== undefined) data.heightCm         = heightCm         ? parseFloat(heightCm)  : null;
+    if (weightKg         !== undefined) data.weightKg         = weightKg         ? parseFloat(weightKg)  : null;
+    if (organDonor       !== undefined) data.organDonor       = Boolean(organDonor);
+    if (insuranceProvider !== undefined) data.insuranceProvider = insuranceProvider || null;
+    await prisma.medicalProfile.upsert({
+      where: { userId: req.userId },
+      create: { userId: req.userId!, ...data },
+      update: data,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[profile/medical PUT]', err);
+    res.status(500).json({ message: 'Error al actualizar perfil médico' });
+  }
+});
+
+// POST /api/profile/allergies
+router.post('/allergies', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { allergenName, allergyType, severity, reactionDescription } = req.body;
+    if (!allergenName || !allergyType || !severity) {
+      res.status(400).json({ message: 'Nombre, tipo y severidad son requeridos' }); return;
+    }
+    const a = await prisma.allergy.create({
+      data: { userId: req.userId!, allergenName, allergyType, severity, reactionDescription: reactionDescription || null, isActive: true },
+    });
+    res.json({ id: a.id, allergenName: a.allergenName, allergyType: a.allergyType, severity: a.severity, reactionDescription: a.reactionDescription, isActive: a.isActive });
+  } catch (err) {
+    console.error('[profile/allergies POST]', err);
+    res.status(500).json({ message: 'Error al agregar alergia' });
+  }
+});
+
+// PATCH /api/profile/allergies/:id
+router.patch('/allergies/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { isActive, allergenName, allergyType, severity, reactionDescription } = req.body;
+    const data: Record<string, any> = {};
+    if (isActive          !== undefined) data.isActive          = Boolean(isActive);
+    if (allergenName      !== undefined) data.allergenName      = allergenName;
+    if (allergyType       !== undefined) data.allergyType       = allergyType;
+    if (severity          !== undefined) data.severity          = severity;
+    if (reactionDescription !== undefined) data.reactionDescription = reactionDescription || null;
+    const a = await prisma.allergy.updateMany({
+      where: { id: req.params.id, userId: req.userId },
+      data,
+    });
+    if (a.count === 0) { res.status(404).json({ message: 'Alergia no encontrada' }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[profile/allergies PATCH]', err);
+    res.status(500).json({ message: 'Error al actualizar alergia' });
+  }
+});
+
+// POST /api/profile/conditions
+router.post('/conditions', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { conditionName, severity, status, notes } = req.body;
+    if (!conditionName) { res.status(400).json({ message: 'Nombre de condición requerido' }); return; }
+    const c = await prisma.chronicCondition.create({
+      data: { userId: req.userId!, conditionName, severity: severity || null, status: status || 'ACTIVE', notes: notes || null },
+    });
+    res.json({ id: c.id, conditionName: c.conditionName, severity: c.severity, status: c.status, notes: c.notes });
+  } catch (err) {
+    console.error('[profile/conditions POST]', err);
+    res.status(500).json({ message: 'Error al agregar condición' });
+  }
+});
+
+// PATCH /api/profile/conditions/:id
+router.patch('/conditions/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { status, conditionName, severity, notes } = req.body;
+    const data: Record<string, any> = {};
+    if (status        !== undefined) data.status        = status;
+    if (conditionName !== undefined) data.conditionName = conditionName;
+    if (severity      !== undefined) data.severity      = severity || null;
+    if (notes         !== undefined) data.notes         = notes || null;
+    const c = await prisma.chronicCondition.updateMany({
+      where: { id: req.params.id, userId: req.userId },
+      data,
+    });
+    if (c.count === 0) { res.status(404).json({ message: 'Condición no encontrada' }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[profile/conditions PATCH]', err);
+    res.status(500).json({ message: 'Error al actualizar condición' });
+  }
+});
+
+// PUT /api/profile/email
+router.put('/email', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.includes('@')) { res.status(400).json({ message: 'Email inválido' }); return; }
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing && existing.id !== req.userId) { res.status(409).json({ message: 'Este correo ya está registrado' }); return; }
+    await prisma.user.update({ where: { id: req.userId }, data: { email } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[profile/email PUT]', err);
+    res.status(500).json({ message: 'Error al actualizar correo' });
+  }
+});
+
+// GET /api/profile/preferences
+router.get('/preferences', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const doc = await db.collection('user_preferences').doc(req.userId!).get();
+    res.json(doc.exists ? doc.data() : {});
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener preferencias' });
+  }
+});
+
+// PUT /api/profile/preferences
+router.put('/preferences', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { language, voiceId, assistantId } = req.body;
+    const prefs: Record<string, string> = {};
+    if (language)    prefs.language    = language;
+    if (voiceId)     prefs.voiceId     = voiceId;
+    if (assistantId) prefs.assistantId = assistantId;
+    await db.collection('user_preferences').doc(req.userId!).set(prefs, { merge: true });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al guardar preferencias' });
   }
 });
 

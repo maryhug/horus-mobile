@@ -23,11 +23,33 @@ export interface LoginResponse {
   message?: string;
 }
 
-// GET /api/dashboard/info — TODO: ajustar según la respuesta real de la API
+export interface HealthMetrics {
+  heartRate: number | null;
+  steps: number | null;
+  calories: number | null;
+  activityMinutes: number | null;
+  battery: number | null;
+  score: number | null;
+  updatedAt: string | null;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: 'qr_scan' | 'health_alert' | 'info';
+  read: boolean;
+  timestamp: { _seconds: number; _nanoseconds: number } | string;
+}
+
+// GET /api/dashboard/info
 export interface DashboardData {
   id: string;
   email: string;
   timestamp?: string;
+  health: HealthMetrics | null;
+  notifications: AppNotification[];
+  hourlyActivity: number[]; // 24 values — steps delta per hour (Colombia time)
 }
 
 // GET /api/profile

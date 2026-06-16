@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getItem, setItem } from '../utils/storage';
+import { apiClient } from '../services/api';
 
 const STORAGE_KEY = 'horus_assistant';
 
@@ -16,7 +17,6 @@ export const ASSISTANT_DATA: Record<AssistantId, {
 };
 
 // ── Singleton shared state ─────────────────────────────────────────────────
-// All useAssistant() instances share this variable and get notified on change.
 let globalId: AssistantId = 'tinto';
 let initialized = false;
 const listeners = new Set<(id: AssistantId) => void>();
@@ -26,22 +26,25 @@ function broadcast(id: AssistantId) {
   listeners.forEach(fn => fn(id));
 }
 
+// Called from AuthContext after fetching remote preferences
+export function hydrateAssistant(id: string) {
+  if (id && id in ASSISTANT_DATA) {
+    broadcast(id as AssistantId);
+    setItem(STORAGE_KEY, id).catch(() => {});
+  }
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────────
 export function useAssistant() {
   const [assistantId, setAssistantIdState] = useState<AssistantId>(globalId);
 
   useEffect(() => {
-    // First mount ever: load from AsyncStorage and hydrate global
     if (!initialized) {
       initialized = true;
       getItem(STORAGE_KEY).then(saved => {
-        if (saved && saved in ASSISTANT_DATA) {
-          broadcast(saved as AssistantId);
-        }
+        if (saved && saved in ASSISTANT_DATA) broadcast(saved as AssistantId);
       });
     }
-
-    // Subscribe to future changes
     const listener = (id: AssistantId) => setAssistantIdState(id);
     listeners.add(listener);
     return () => { listeners.delete(listener); };
@@ -50,6 +53,7 @@ export function useAssistant() {
   const setAssistantId = useCallback(async (id: AssistantId) => {
     broadcast(id);
     await setItem(STORAGE_KEY, id);
+    apiClient.put('/profile/preferences', { assistantId: id }).catch(() => {});
   }, []);
 
   return {

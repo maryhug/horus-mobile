@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { getItem, setItem } from '../utils/storage';
+import { apiClient } from '../services/api';
 
 const LANG_KEY = 'horus_language';
 
@@ -31,6 +32,7 @@ export interface T {
   idTypeCE: string;
   idTypePP: string;
   idTypeTI: string;
+  idTypePPE: string;
   // Language names (for selector)
   langEs: string;
   langEn: string;
@@ -173,17 +175,11 @@ export interface T {
   settingsAssistantSub: string;
   settingsNotifications: string;
   settingsPush: string;
-  settingsLocationAlerts: string;
-  settingsHealthAlerts: string;
   settingsPrivacy: string;
   settingsBiometric: string;
-  settingsShareAnon: string;
   settingsChangePassword: string;
   settingsDevice: string;
   settingsFirmware: string;
-  settingsSyncDevice: string;
-  settingsSync: string;
-  settingsSyncing: string;
   settingsGenerateCode: string;
   settingsDanger: string;
   settingsDeleteAccount: string;
@@ -192,8 +188,8 @@ export interface T {
   settingsDeleteConfirm: string;
   settingsCancel: string;
   settingsChangePasswordSoon: string;
-  settingsLinkBracelet: string;
-  settingsBraceletDesc: string;
+  settingsLinkSmartwatch: string;
+  settingsSmartwatchDesc: string;
   settingsCodeExpires: string;
   settingsNewCode: string;
   settingsGenerateCodeBtn: string;
@@ -296,6 +292,7 @@ const es: T = {
   idTypeCE: 'Cédula de extranjería',
   idTypePP: 'Pasaporte',
   idTypeTI: 'Tarjeta de identidad',
+  idTypePPE: 'Permiso de permanencia',
   langEs: 'Español',
   langEn: 'English',
   langPt: 'Português',
@@ -437,18 +434,12 @@ const es: T = {
   settingsAssistantSub: 'Elige tu compañero de salud. Aparecerá en el inicio y en el chat con la IA.',
   settingsNotifications: 'Notificaciones',
   settingsPush: 'Push notifications',
-  settingsLocationAlerts: 'Alertas de ubicación',
-  settingsHealthAlerts: 'Alertas de salud',
   settingsPrivacy: 'Privacidad y seguridad',
   settingsBiometric: 'Autenticación biométrica',
-  settingsShareAnon: 'Compartir datos anónimos',
   settingsChangePassword: 'Cambiar contraseña',
   settingsDevice: 'Dispositivo',
   settingsFirmware: 'Firmware',
-  settingsSyncDevice: 'Sincronizar manilla',
-  settingsSync: 'Sincronizar',
-  settingsSyncing: 'Sincronizando…',
-  settingsGenerateCode: 'Generar código de manilla',
+  settingsGenerateCode: 'Generar código de smartwatch',
   settingsDanger: 'Zona de peligro',
   settingsDeleteAccount: 'Eliminar cuenta',
   settingsDeleteTitle: '¿Eliminar cuenta?',
@@ -456,8 +447,8 @@ const es: T = {
   settingsDeleteConfirm: 'Eliminar',
   settingsCancel: 'Cancelar',
   settingsChangePasswordSoon: 'Próximamente disponible.',
-  settingsLinkBracelet: 'Vincular manilla',
-  settingsBraceletDesc: 'Ingresa este código en tu manilla Horus para vincularla con tu cuenta. Expira en 2 minutos.',
+  settingsLinkSmartwatch: 'Vincular smartwatch',
+  settingsSmartwatchDesc: 'Ingresa este código en tu smartwatch Horus para vincularlo con tu cuenta. Expira en 2 minutos.',
   settingsCodeExpires: 'Expira en',
   settingsNewCode: 'Nuevo código',
   settingsGenerateCodeBtn: 'Generar código',
@@ -560,6 +551,7 @@ const en: T = {
   idTypeCE: 'Foreign ID card',
   idTypePP: 'Passport',
   idTypeTI: 'Identity card',
+  idTypePPE: 'Temporary residence permit',
   langEs: 'Español',
   langEn: 'English',
   langPt: 'Português',
@@ -701,18 +693,12 @@ const en: T = {
   settingsAssistantSub: 'Choose your health companion. It will appear on the home screen and in the AI chat.',
   settingsNotifications: 'Notifications',
   settingsPush: 'Push notifications',
-  settingsLocationAlerts: 'Location alerts',
-  settingsHealthAlerts: 'Health alerts',
   settingsPrivacy: 'Privacy & security',
   settingsBiometric: 'Biometric authentication',
-  settingsShareAnon: 'Share anonymous data',
   settingsChangePassword: 'Change password',
   settingsDevice: 'Device',
   settingsFirmware: 'Firmware',
-  settingsSyncDevice: 'Sync bracelet',
-  settingsSync: 'Sync',
-  settingsSyncing: 'Syncing…',
-  settingsGenerateCode: 'Generate bracelet code',
+  settingsGenerateCode: 'Generate smartwatch code',
   settingsDanger: 'Danger zone',
   settingsDeleteAccount: 'Delete account',
   settingsDeleteTitle: 'Delete account?',
@@ -720,8 +706,8 @@ const en: T = {
   settingsDeleteConfirm: 'Delete',
   settingsCancel: 'Cancel',
   settingsChangePasswordSoon: 'Coming soon.',
-  settingsLinkBracelet: 'Link bracelet',
-  settingsBraceletDesc: 'Enter this code on your Horus bracelet to link it to your account. Expires in 2 minutes.',
+  settingsLinkSmartwatch: 'Link smartwatch',
+  settingsSmartwatchDesc: 'Enter this code on your Horus smartwatch to link it to your account. Expires in 2 minutes.',
   settingsCodeExpires: 'Expires in',
   settingsNewCode: 'New code',
   settingsGenerateCodeBtn: 'Generate code',
@@ -824,6 +810,7 @@ const pt: T = {
   idTypeCE: 'RNE',
   idTypePP: 'Passaporte',
   idTypeTI: 'RG',
+  idTypePPE: 'Autorização de residência temporária',
   langEs: 'Español',
   langEn: 'English',
   langPt: 'Português',
@@ -965,18 +952,12 @@ const pt: T = {
   settingsAssistantSub: 'Escolha seu companheiro de saúde. Aparecerá na tela inicial e no chat com a IA.',
   settingsNotifications: 'Notificações',
   settingsPush: 'Notificações push',
-  settingsLocationAlerts: 'Alertas de localização',
-  settingsHealthAlerts: 'Alertas de saúde',
   settingsPrivacy: 'Privacidade e segurança',
   settingsBiometric: 'Autenticação biométrica',
-  settingsShareAnon: 'Compartilhar dados anônimos',
   settingsChangePassword: 'Alterar senha',
   settingsDevice: 'Dispositivo',
   settingsFirmware: 'Firmware',
-  settingsSyncDevice: 'Sincronizar pulseira',
-  settingsSync: 'Sincronizar',
-  settingsSyncing: 'Sincronizando…',
-  settingsGenerateCode: 'Gerar código da pulseira',
+  settingsGenerateCode: 'Gerar código do smartwatch',
   settingsDanger: 'Zona de perigo',
   settingsDeleteAccount: 'Excluir conta',
   settingsDeleteTitle: 'Excluir conta?',
@@ -984,8 +965,8 @@ const pt: T = {
   settingsDeleteConfirm: 'Excluir',
   settingsCancel: 'Cancelar',
   settingsChangePasswordSoon: 'Em breve.',
-  settingsLinkBracelet: 'Vincular pulseira',
-  settingsBraceletDesc: 'Digite este código na sua pulseira Horus para vinculá-la à sua conta. Expira em 2 minutos.',
+  settingsLinkSmartwatch: 'Vincular smartwatch',
+  settingsSmartwatchDesc: 'Digite este código no seu smartwatch Horus para vinculá-lo à sua conta. Expira em 2 minutos.',
   settingsCodeExpires: 'Expira em',
   settingsNewCode: 'Novo código',
   settingsGenerateCodeBtn: 'Gerar código',
@@ -1066,6 +1047,15 @@ const pt: T = {
 
 const all = { es, en, pt };
 
+// Called from AuthContext after fetching remote preferences
+let _setLanguageGlobal: ((lang: Language) => void) | null = null;
+export function hydrateLanguage(lang: string) {
+  if ((lang === 'es' || lang === 'en' || lang === 'pt') && _setLanguageGlobal) {
+    _setLanguageGlobal(lang as Language);
+    setItem(LANG_KEY, lang).catch(() => {});
+  }
+}
+
 // ── Context ────────────────────────────────────────────────────────────────
 type LanguageContextType = {
   language: Language;
@@ -1083,16 +1073,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('es');
 
   useEffect(() => {
+    _setLanguageGlobal = setLanguageState;
     getItem(LANG_KEY).then(stored => {
       if (stored === 'es' || stored === 'en' || stored === 'pt') {
         setLanguageState(stored as Language);
       }
     });
+    return () => { _setLanguageGlobal = null; };
   }, []);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     setItem(LANG_KEY, lang);
+    apiClient.put('/profile/preferences', { language: lang }).catch(() => {});
   };
 
   const value = useMemo<LanguageContextType>(

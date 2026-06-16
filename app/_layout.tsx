@@ -1,6 +1,6 @@
 import { Stack, useSegments, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
@@ -15,9 +15,11 @@ import {
   DMSans_500Medium,
   DMSans_700Bold,
 } from '@expo-google-fonts/dm-sans';
+import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
+import { notificationStore } from '../stores/notificationStore';
 
 function RouteGuard() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -43,12 +45,45 @@ function RouteGuard() {
   return null;
 }
 
+function NotificationHandler() {
+  const router = useRouter();
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
+
+  useEffect(() => {
+    // Handle cold-start tap (app was closed)
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (!response) return;
+      handleNotificationData(response.notification.request.content.data, router);
+    });
+
+    // Handle tap while app is running/backgrounded
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      handleNotificationData(response.notification.request.content.data, router);
+    });
+
+    return () => { responseListener.current?.remove(); };
+  }, []);
+
+  return null;
+}
+
+function handleNotificationData(data: Record<string, unknown> | undefined, router: ReturnType<typeof useRouter>) {
+  if (!data?.type) return;
+  if (data.type === 'health_report') {
+    notificationStore.set('health_report');
+    router.push('/(tabs)/assistant');
+  } else if (data.type === 'device_linked' || data.type === 'profile_scanned') {
+    router.push('/(tabs)/monitor');
+  }
+}
+
 function RootNavigator() {
   const { isDark } = useTheme();
   return (
       <>
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <RouteGuard />
+        <NotificationHandler />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />

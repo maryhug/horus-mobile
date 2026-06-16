@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   View,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,17 +46,16 @@ type QuickAction = {
 
 // ASSIST_BG se calcula dinámicamente dentro del componente
 
-function buildMetrics(t: T): HealthMetric[] {
+function buildMetrics(t: T, health?: DashboardData['health']): HealthMetric[] {
   return [
-    { key: 'heart',    label: t.dashMetricHeart,    value: '—', unit: 'bpm',               icon: 'heart',      color: 'pink'   },
-    { key: 'steps',    label: t.dashMetricSteps,    value: '—', unit: t.dashMetricStepsUnit,icon: 'footprints', color: 'blue'   },
-    { key: 'calories', label: t.dashMetricCalories, value: '—', unit: 'kcal',              icon: 'flame',      color: 'yellow' },
-    { key: 'activity', label: t.dashMetricActivity, value: '—', unit: 'min',               icon: 'activity',   color: 'green'  },
+    { key: 'heart',    label: t.dashMetricHeart,    value: health?.heartRate       ?? '—', unit: 'bpm',                icon: 'heart',      color: 'pink'   },
+    { key: 'steps',    label: t.dashMetricSteps,    value: health?.steps           ?? '—', unit: t.dashMetricStepsUnit, icon: 'footprints', color: 'blue'   },
+    { key: 'calories', label: t.dashMetricCalories, value: health?.calories        ?? '—', unit: 'kcal',               icon: 'flame',      color: 'yellow' },
+    { key: 'activity', label: t.dashMetricActivity, value: health?.activityMinutes ?? '—', unit: 'min',                icon: 'activity',   color: 'green'  },
   ];
 }
 
-// Ring + chips with shared selected state
-function RingCard({ metrics }: { metrics: HealthMetric[] }) {
+function RingCard({ metrics, score }: { metrics: HealthMetric[]; score: string }) {
   const { CARD, PRIMARY } = useAppTheme();
   const cardStyle = {
     backgroundColor: CARD, borderRadius: 32,
@@ -68,7 +68,7 @@ function RingCard({ metrics }: { metrics: HealthMetric[] }) {
     <View style={cardStyle}>
       <HealthRing
         metrics={metrics}
-        score="—"
+        score={score}
         selectedKey={selectedKey}
         onSelectKey={setSelectedKey}
       />
@@ -77,24 +77,57 @@ function RingCard({ metrics }: { metrics: HealthMetric[] }) {
   );
 }
 
-// Stable bar heights for the 24h chart
-const BAR_HEIGHTS = Array.from({ length: 24 }, (_, i) => 8 + ((i * 37 + 19) % 60));
 
 export default function DashboardScreen() {
-  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, RED, RED_BG, isDark, toggleTheme } = useAppTheme();
+  const { BG, CARD, PRIMARY, MUTED, GREEN, YELLOW, BLUE, PINK, isDark, toggleTheme } = useAppTheme();
   const ASSIST_BG = isDark ? '#2D1520' : '#FAECEA';
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, GREEN, PINK, YELLOW, BLUE, ASSIST_BG), [isDark]);
 
   const { user } = useAuth();
   const { assistant } = useAssistant();
   const { t } = useLanguage();
-  const metrics = React.useMemo(() => buildMetrics(t), [t]);
   const livePulse  = useRef(new Animated.Value(1)).current;
-  const blobFloat  = useRef(new Animated.Value(0)).current;
 
-  const { data, loading, refetch } = useApi<DashboardData>(
+  const { data, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
   );
+
+  // health y metrics DESPUÉS de data para que no sean siempre null
+  const health  = data?.health ?? null;
+  const metrics = React.useMemo(() => buildMetrics(t, health), [t, health]);
+
+  const [mockLoading, setMockLoading] = useState(false);
+  const handleMockData = useCallback(async () => {
+    setMockLoading(true);
+    try {
+      await apiClient.post('/wearable/mock', {});
+      await refetch();
+    } catch { /* silently ignore */ } finally {
+      setMockLoading(false);
+    }
+  }, [refetch]);
+
+  // Refresh manual (muestra spinner) vs auto-poll silencioso
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const handleManualRefresh = useCallback(async () => {
+    setManualRefreshing(true);
+    await refetch();
+    setManualRefreshing(false);
+  }, [refetch]);
+
+  // Auto-poll silencioso cada 15s — sin spinner
+  useEffect(() => {
+    const id = setInterval(refetch, 15_000);
+    return () => clearInterval(id);
+  }, [refetch]);
+
+  // Barras de actividad: normalizar 24 valores a rango [8, 80]
+  const barHeights = React.useMemo(() => {
+    const raw = data?.hourlyActivity;
+    if (!raw || raw.length < 24) return Array.from({ length: 24 }, (_, i) => 8 + ((i * 37 + 19) % 40));
+    const max = Math.max(...raw, 1);
+    return raw.map(v => Math.round(8 + (v / max) * 72));
+  }, [data?.hourlyActivity]);
 
   useEffect(() => {
     Animated.loop(
@@ -103,25 +136,22 @@ export default function DashboardScreen() {
         Animated.timing(livePulse, { toValue: 1,   duration: 900, useNativeDriver: true }),
       ])
     ).start();
-
-    // Blob float: sube y baja 8px cada 3s (igual que animate-float-soft del diseño original)
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(blobFloat, { toValue: -8, duration: 1500, useNativeDriver: true }),
-        Animated.timing(blobFloat, { toValue:  0, duration: 1500, useNativeDriver: true }),
-      ])
-    ).start();
   }, []);
 
-  const syncTime = data?.timestamp
-    ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-    : '10:42';
+  const syncTime = React.useMemo(() => {
+    if (!data?.timestamp) return '—';
+    const d = new Date(data.timestamp);
+    const h = d.getHours();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    return `${h % 12 || 12}:${m} ${h >= 12 ? 'pm' : 'am'}`;
+  }, [data?.timestamp]);
 
+  const batteryVal = health?.battery != null ? `${health.battery}%` : '—';
   const statusItems = React.useMemo<StatusItem[]>(() => [
-    { icon: 'hardware-chip-outline', label: t.dashDevice,   value: loading ? '...' : 'Online', sub: 'v2.4.1',     color: GREEN },
-    { icon: 'battery-half-outline',  label: t.dashBattery,  value: '—',                        sub: t.dashNoData, color: PINK  },
-    { icon: 'time-outline',          label: t.dashLastSync, value: syncTime,                   sub: t.dashToday,  color: BLUE  },
-  ], [t, loading, syncTime, GREEN, PINK, BLUE]);
+    { icon: 'hardware-chip-outline', label: t.dashDevice,   value: data ? 'Online' : '—', sub: 'v2.4.1', color: GREEN },
+    { icon: 'battery-half-outline',  label: t.dashBattery,  value: batteryVal,                 sub: '',       color: PINK  },
+    { icon: 'time-outline',          label: t.dashLastSync, value: syncTime,                   sub: t.dashToday, color: BLUE },
+  ], [t, data, syncTime, batteryVal, GREEN, PINK, BLUE]);
 
   const quickActions = React.useMemo<QuickAction[]>(() => [
     { icon: 'qr-code-outline',     label: t.dashQrId,    color: PINK,   route: '/(tabs)/qr-medico' },
@@ -139,7 +169,7 @@ export default function DashboardScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={GREEN} />}
+        refreshControl={<RefreshControl refreshing={manualRefreshing} onRefresh={handleManualRefresh} tintColor={GREEN} />}
       >
 
         {/* ── Header ──────────────────────────────────────────────────── */}
@@ -180,12 +210,38 @@ export default function DashboardScreen() {
         {/* ── Metrics ring ────────────────────────────────────────────── */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>{t.dashMetrics}</Text>
-          <View style={s.sensorPill}>
-            <Text style={s.sensorText}>{t.dashWaitingSensor}</Text>
-          </View>
+          {health ? (
+            <TouchableOpacity
+              style={[s.sensorPill, { backgroundColor: GREEN + '33', flexDirection: 'row', alignItems: 'center' }]}
+              onPress={handleMockData}
+              activeOpacity={0.7}
+              disabled={mockLoading}
+            >
+              {mockLoading ? (
+                <ActivityIndicator size={10} color={GREEN} />
+              ) : (
+                <>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN, marginRight: 5, flexShrink: 0 }} />
+                  <Text style={[s.sensorText, { color: GREEN }]} numberOfLines={1}>
+                    {health.updatedAt ? (() => {
+                      const d = new Date(health.updatedAt);
+                      const h = d.getHours(), m = d.getMinutes().toString().padStart(2, '0');
+                      return `${h % 12 || 12}:${m} ${h >= 12 ? 'pm' : 'am'}`;
+                    })() : 'Reloj'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={s.sensorPill} onPress={handleMockData} activeOpacity={0.7} disabled={mockLoading}>
+              {mockLoading
+                ? <ActivityIndicator size={10} />
+                : <Text style={s.sensorText}>{t.dashWaitingSensor}</Text>}
+            </TouchableOpacity>
+          )}
         </View>
 
-        <RingCard metrics={metrics} />
+        <RingCard metrics={metrics} score={health?.score != null ? String(health.score) : '—'} />
 
         {/* ── Device status row ────────────────────────────────────────── */}
         <View style={s.statusRow}>
@@ -195,8 +251,10 @@ export default function DashboardScreen() {
                 <Ionicons name={item.icon} size={20} color={PRIMARY} />
               </View>
               <Text style={s.statLabel}>{item.label}</Text>
-              <Text style={s.statValue}>{item.value}</Text>
-              <Text style={s.statSub}>{item.sub}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
+                <Text style={s.statValue}>{item.value}</Text>
+                {!!item.sub && <Text style={s.statSub}>{item.sub}</Text>}
+              </View>
             </View>
           ))}
         </View>
@@ -205,13 +263,21 @@ export default function DashboardScreen() {
         <View style={s.card}>
           <View style={s.chartHeader}>
             <Text style={s.sectionTitle}>{t.dashActivity}</Text>
-            <View style={s.sensorPill}>
-              <Text style={s.sensorText}>{t.dashNoDataSensor}</Text>
-            </View>
+            {data?.hourlyActivity && data.hourlyActivity.some(v => v > 0) ? (
+              <View style={[s.sensorPill, { backgroundColor: GREEN + '22' }]}>
+                <Text style={[s.sensorText, { color: GREEN }]}>
+                  {data.hourlyActivity.reduce((a, b) => a + b, 0).toLocaleString()} {t.dashMetricStepsUnit}
+                </Text>
+              </View>
+            ) : (
+              <View style={s.sensorPill}>
+                <Text style={s.sensorText}>{t.dashNoDataSensor}</Text>
+              </View>
+            )}
           </View>
           <View style={s.bars}>
-            {BAR_HEIGHTS.map((h, i) => (
-              <View key={i} style={[s.bar, { height: h }]} />
+            {barHeights.map((h, i) => (
+              <View key={i} style={[s.bar, { height: h, opacity: h <= 8 ? 0.35 : 1 }]} />
             ))}
           </View>
           <View style={s.chartLabels}>
@@ -239,15 +305,6 @@ export default function DashboardScreen() {
           ))}
         </View>
 
-        {/* ── Alerts ───────────────────────────────────────────────────── */}
-        <Text style={[s.sectionTitle, { marginBottom: 12 }]}>{t.dashAlerts}</Text>
-        <View style={[s.card, s.alertEmpty]}>
-          <Animated.View style={{ transform: [{ translateY: blobFloat }] }}>
-            <Image source={assistant.image} style={{ width: 64, height: 64 }} resizeMode="contain" />
-          </Animated.View>
-          <Text style={s.alertTitle}>{t.dashAllGood}</Text>
-          <Text style={s.alertSub}>{t.dashNoAlerts}</Text>
-        </View>
 
       </ScrollView>
     </SafeAreaView>
@@ -353,9 +410,5 @@ function makeStyles(
     },
     quickLabel: { fontSize: 11, fontWeight: '600', color: PRIMARY, textAlign: 'center' },
 
-    // Alerts
-    alertEmpty: { alignItems: 'center', paddingVertical: 24, gap: 8 },
-    alertTitle: { fontSize: 14, fontWeight: '600', color: PRIMARY },
-    alertSub:   { fontSize: 12, color: MUTED },
   });
 }
