@@ -14,6 +14,7 @@ export interface User {
   photoUrl?: string;
   phone?: string;
   location?: string;
+  pushNotificationsEnabled?: boolean;
 }
 
 // POST /api/auth/login — TODO: ajustar según la respuesta real de la API

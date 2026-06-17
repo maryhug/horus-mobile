@@ -133,7 +133,7 @@ function TimePickerInline({ hour, minute, onConfirm, onCancel, PRIMARY, MUTED, M
 
 // ── Screen ─────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
-  const { logout } = useAuth();
+  const { logout, user, updateUser } = useAuth();
   const insets = useSafeAreaInsets();
   const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, BLUE_FG, RED, RED_BG, isDark, toggleTheme } = useAppTheme();
 
@@ -180,10 +180,12 @@ export default function SettingsScreen() {
         }
         // Usar el mismo endpoint que AuthContext para consistencia
         await apiClient.post('/profile/push-token', { pushToken: token });
+        updateUser({ pushNotificationsEnabled: true });
         setNotifs(p => ({ ...p, push: true }));
       } else {
         // Eliminar token del servidor
         await apiClient.delete('/notifications/token');
+        updateUser({ pushNotificationsEnabled: false });
         setNotifs(p => ({ ...p, push: false }));
       }
     } catch (err) {
@@ -251,17 +253,13 @@ export default function SettingsScreen() {
     }
   };
 
-  // Inicializar estado de push según permisos actuales del SO
+  // Inicializar push desde estado del servidor (no desde permisos del SO)
   useEffect(() => {
-    import('expo-notifications').then(N => {
-      N.getPermissionsAsync().then(({ status }) => {
-        setNotifs(p => ({ ...p, push: status === 'granted' }));
-      });
-    });
+    setNotifs(p => ({ ...p, push: user?.pushNotificationsEnabled ?? false }));
     apiClient.get<{ hour: number; minute: number }>('/notifications/health-report-time')
       .then(r => { setNotifHour(r.data.hour); setNotifMinute(r.data.minute); })
       .catch(() => {});
-  }, []);
+  }, [user?.pushNotificationsEnabled]);
 
   const handleSaveNotifTime = async (h: number, m: number) => {
     setNotifHour(h);

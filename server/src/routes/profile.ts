@@ -18,6 +18,7 @@ function formatUser(user: any) {
     identificationNumber: user.personalInfo?.identificationNumber ?? undefined,
     identificationType: user.personalInfo?.identificationType ?? undefined,
     photoUrl: user.personalInfo?.photoUrl ?? undefined,
+    pushNotificationsEnabled: !!user.pushToken,
   };
 }
 

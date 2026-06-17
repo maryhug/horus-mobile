@@ -101,8 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           const raw = await getItem(USER_KEY);
           if (raw) {
-            setUser(JSON.parse(raw) as User);
-            registerPhonePushToken();   // silently, non-blocking
+            const parsedUser = JSON.parse(raw) as User;
+            setUser(parsedUser);
+            if (parsedUser.pushNotificationsEnabled !== false) {
+              registerPhonePushToken();   // silently, non-blocking
+            }
             syncRemotePreferences();    // silently, non-blocking
           }
         }

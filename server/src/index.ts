@@ -11,6 +11,7 @@ import chatRoutes from './routes/chat';
 import wearableRoutes from './routes/wearable';
 import monitorRoutes from './routes/monitor';
 import notificationsRoutes from './routes/notifications';
+import filesRoutes from './routes/files';
 import { sendPushNotification } from './lib/push';
 import { prisma } from './lib/prisma';
 import { db } from './lib/firestore';
@@ -36,6 +37,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/wearable', wearableRoutes);
 app.use('/api/monitor', monitorRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/files', filesRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
