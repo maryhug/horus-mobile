@@ -8,6 +8,7 @@ import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../contexts/AuthContext';
 import { useAssistant, ASSISTANT_DATA, type AssistantId } from '../hooks/useAssistant';
 import { useVoice, VOICE_DATA, VOICE_IDS, PREVIEW_TEXT, type VoiceId } from '../hooks/useVoice';
@@ -16,6 +17,7 @@ import { apiClient, getErrorMessage } from '../services/api';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useLanguage, type Language } from '../contexts/LanguageContext';
 import { registerForPushNotifications } from '../services/notificationService';
+import { getBiometricEnabled, setBiometricEnabled } from '../utils/biometricStorage';
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const sw = { strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -46,6 +48,12 @@ const WatchIcon = ({ c }: { c: string }) => <Icon size={64}><Rect x={5} y={2} wi
 // ── Custom Toggle ──────────────────────────────────────────────────────────
 function Toggle({ value, onToggle, green, mutedBg }: { value: boolean; onToggle: () => void; green: string; mutedBg: string }) {
   const anim = React.useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  // Sync thumb position when value changes externally (server state load)
+  React.useEffect(() => {
+    Animated.timing(anim, { toValue: value ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+  }, [value]);
+
   const handle = () => {
     Animated.timing(anim, { toValue: value ? 0 : 1, duration: 180, useNativeDriver: true }).start();
     onToggle();
@@ -101,7 +109,7 @@ function TimePickerInline({ hour, minute, onConfirm, onCancel, PRIMARY, MUTED, M
           <TouchableOpacity onPress={() => setH(p => (p + 1) % 24)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
             <Text style={{ fontSize: 18, color: PRIMARY }}>▲</Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: 22, fontFamily: FONT.sansBold, color: PRIMARY, width: 40, textAlign: 'center' }}>{String(h).padStart(2,'0')}</Text>
+          <Text style={{ fontSize: 22, fontFamily: FONT.sansBold, color: PRIMARY, width: 40, textAlign: 'center' }}>{String(h).padStart(2, '0')}</Text>
           <TouchableOpacity onPress={() => setH(p => (p + 23) % 24)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
             <Text style={{ fontSize: 18, color: PRIMARY }}>▼</Text>
           </TouchableOpacity>
@@ -113,7 +121,7 @@ function TimePickerInline({ hour, minute, onConfirm, onCancel, PRIMARY, MUTED, M
           <TouchableOpacity onPress={() => setM(p => (p + 5) % 60)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
             <Text style={{ fontSize: 18, color: PRIMARY }}>▲</Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: 22, fontFamily: FONT.sansBold, color: PRIMARY, width: 40, textAlign: 'center' }}>{String(m).padStart(2,'0')}</Text>
+          <Text style={{ fontSize: 22, fontFamily: FONT.sansBold, color: PRIMARY, width: 40, textAlign: 'center' }}>{String(m).padStart(2, '0')}</Text>
           <TouchableOpacity onPress={() => setM(p => (p + 55) % 60)} style={{ padding: 10, backgroundColor: MUTED_BG, borderRadius: 10 }}>
             <Text style={{ fontSize: 18, color: PRIMARY }}>▼</Text>
           </TouchableOpacity>
@@ -151,7 +159,8 @@ export default function SettingsScreen() {
   const [notifHour, setNotifHour] = useState(8);
   const [notifMinute, setNotifMinute] = useState(0);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
-  const [privacy, setPrivacy] = useState({ bio: false });
+  const [bioEnabled, setBioEnabled] = useState(false);
+  const [bioHardware, setBioHardware] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
@@ -164,7 +173,20 @@ export default function SettingsScreen() {
   const [pwConfirm, setPwConfirm] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
 
-  const flipP = (k: keyof typeof privacy) => setPrivacy(p => ({ ...p, [k]: !p[k] }));
+  // ── Biometric toggle (device-local) ──────────────────────────────────────
+  const handleToggleBio = async () => {
+    const next = !bioEnabled;
+    if (next) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Confirma tu identidad para activar la autenticación biométrica',
+        cancelLabel: 'Cancelar',
+        disableDeviceFallback: false,
+      });
+      if (!result.success) return;
+    }
+    await setBiometricEnabled(next);
+    setBioEnabled(next);
+  };
 
   // ── Push toggle ───────────────────────────────────────────────────────────
   const handleTogglePush = async () => {
@@ -210,7 +232,7 @@ export default function SettingsScreen() {
     if (previewingVoice === id) return;
     // Stop previous
     if (previewSound.current) {
-      try { await previewSound.current.stopAsync(); await previewSound.current.unloadAsync(); } catch {}
+      try { await previewSound.current.stopAsync(); await previewSound.current.unloadAsync(); } catch { }
       previewSound.current = null;
     }
     setPreviewingVoice(id);
@@ -230,7 +252,7 @@ export default function SettingsScreen() {
         if (status.didJustFinish) {
           await sound.unloadAsync();
           previewSound.current = null;
-          FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+          FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => { });
           setPreviewingVoice(null);
         }
       });
@@ -258,8 +280,20 @@ export default function SettingsScreen() {
     setNotifs(p => ({ ...p, push: user?.pushNotificationsEnabled ?? false }));
     apiClient.get<{ hour: number; minute: number }>('/notifications/health-report-time')
       .then(r => { setNotifHour(r.data.hour); setNotifMinute(r.data.minute); })
-      .catch(() => {});
+      .catch(() => { });
   }, [user?.pushNotificationsEnabled]);
+
+  // Inicializar biométrico desde almacenamiento local del dispositivo
+  useEffect(() => {
+    Promise.all([
+      LocalAuthentication.hasHardwareAsync(),
+      LocalAuthentication.isEnrolledAsync(),
+      getBiometricEnabled(),
+    ]).then(([hw, enrolled, enabled]) => {
+      setBioHardware(hw && enrolled);
+      setBioEnabled(enabled);
+    }).catch(() => { });
+  }, []);
 
   const handleSaveNotifTime = async (h: number, m: number) => {
     setNotifHour(h);
@@ -337,7 +371,7 @@ export default function SettingsScreen() {
           />
           <TouchableOpacity onPress={() => setLangOpen(true)} activeOpacity={0.75}>
             <Row s={s} icon={<GlobeIcon c={MUTED} />} label={t.settingsLanguage}
-              right={<Text style={s.rowMuted}>{t[`lang${language.charAt(0).toUpperCase() + language.slice(1)}` as 'langEs'|'langEn'|'langPt']}</Text>} />
+              right={<Text style={s.rowMuted}>{t[`lang${language.charAt(0).toUpperCase() + language.slice(1)}` as 'langEs' | 'langEn' | 'langPt']}</Text>} />
           </TouchableOpacity>
         </View>
 
@@ -445,10 +479,11 @@ export default function SettingsScreen() {
         {/* ── Privacidad y seguridad ───────────────────────────────────── */}
         <Text style={s.sectionTitle}>{t.settingsPrivacy}</Text>
         <View style={s.list}>
-          <Row s={s} icon={<Fingerprint c={MUTED} />} label={t.settingsBiometric} right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={privacy.bio} onToggle={() => {
-            flipP('bio');
-            if (!privacy.bio) Alert.alert(t.settingsBiometric, 'La autenticación biométrica se activará la próxima vez que inicies sesión.');
-          }} />} />
+          {bioHardware && (
+            <Row s={s} icon={<Fingerprint c={MUTED} />} label={t.settingsBiometric}
+              right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={bioEnabled} onToggle={handleToggleBio} />}
+            />
+          )}
           <TouchableOpacity activeOpacity={0.75} onPress={() => setPwOpen(true)}>
             <Row s={s} icon={<KeyRoundIcon c={MUTED} />} label={t.settingsChangePassword} right={<ChevronRight c={MUTED} />} />
           </TouchableOpacity>

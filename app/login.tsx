@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,16 +14,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../services/api';
 import { EmotionShape } from '../components/EmotionShape';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getBiometricEnabled } from '../utils/biometricStorage';
+import { getItem } from '../utils/storage';
 
 export default function LoginScreen() {
   const { width, height } = useWindowDimensions();
   const isSmall = height < 700;
 
-  const { login } = useAuth();
+  const { login, loginWithBiometric } = useAuth();
   const { t } = useLanguage();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
 
@@ -32,6 +35,37 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showBioBtn, setShowBioBtn] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [enabled, hasHw, enrolled, session] = await Promise.all([
+        getBiometricEnabled(),
+        LocalAuthentication.hasHardwareAsync(),
+        LocalAuthentication.isEnrolledAsync(),
+        getItem('horus_session'),
+      ]);
+      setShowBioBtn(enabled && hasHw && enrolled && session === 'active');
+    })();
+  }, []);
+
+  const handleBiometric = async () => {
+    setErrorMsg(null);
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Verifica tu identidad para continuar',
+      cancelLabel: 'Cancelar',
+      disableDeviceFallback: false,
+    });
+    if (!result.success) return;
+    setIsLoading(true);
+    try {
+      await loginWithBiometric();
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -48,6 +82,7 @@ export default function LoginScreen() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -139,6 +174,19 @@ export default function LoginScreen() {
             <TouchableOpacity style={styles.forgotWrap}>
               <Text style={styles.forgotText}>{t.loginForgot}</Text>
             </TouchableOpacity>
+
+            {/* Biometric shortcut — only if account with biometric enabled exists on device */}
+            {showBioBtn && (
+              <TouchableOpacity
+                style={[styles.bioBtn, isLoading && styles.submitBtnDisabled]}
+                onPress={handleBiometric}
+                activeOpacity={0.88}
+                disabled={isLoading}
+              >
+                <Ionicons name="finger-print" size={20} color={PRIMARY} />
+                <Text style={styles.bioBtnText}>Ingresar con biometría</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Submit */}
             <TouchableOpacity
@@ -294,6 +342,21 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: {
     color: '#FAFAF7',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  bioBtn: {
+    backgroundColor: '#FAD957',
+    borderRadius: 20,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  bioBtnText: {
+    color: PRIMARY,
     fontSize: 15,
     fontWeight: '700',
   },

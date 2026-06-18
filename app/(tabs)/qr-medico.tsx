@@ -42,6 +42,12 @@ const INITIAL_TOGGLES: ToggleItem[] = [
 // ── Custom toggle ──────────────────────────────────────────────────────────
 function Toggle({ value, onToggle, green, mutedBg }: { value: boolean; onToggle: () => void; green: string; mutedBg: string }) {
   const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  // Sync thumb position when value changes externally (API load, parent state update)
+  React.useEffect(() => {
+    Animated.timing(anim, { toValue: value ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+  }, [value]);
+
   const toggle = () => {
     Animated.timing(anim, {
       toValue: value ? 0 : 1, duration: 180, useNativeDriver: true,

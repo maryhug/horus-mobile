@@ -31,10 +31,10 @@ function AnimText({ text, isUser, color, animate }: { text: string; isUser: bool
   useEffect(() => {
     if (!animate) { setShown(text); return; }
     setShown('');
-    const len   = text.length;
+    const len = text.length;
     const chunk = Math.max(1, Math.ceil(len / (isUser ? 100 : 60)));
-    let pos     = 0;
-    const iv    = setInterval(() => {
+    let pos = 0;
+    const iv = setInterval(() => {
       pos = Math.min(pos + chunk, len);
       setShown(text.slice(0, pos));
       if (pos >= len) clearInterval(iv);
@@ -55,16 +55,16 @@ function MdBubble({ text, color }: { text: string; color: string }) {
         const t = line.trim();
         if (!t) return <Text key={i}>{i > 0 ? '\n' : ''}</Text>;
 
-        const isNum    = /^\d+\.\s/.test(t);
+        const isNum = /^\d+\.\s/.test(t);
         const isBullet = /^[-*•]\s/.test(t);
         const isHeader = /^#{1,3}\s/.test(t);
-        const prefix   = isNum    ? (t.match(/^(\d+\.)/)![1] + ' ')
-                       : isBullet ? '• ' : '';
-        const content  = isNum    ? t.replace(/^\d+\.\s/, '')
-                       : isBullet ? t.replace(/^[-*•]\s/, '')
-                       : isHeader ? t.replace(/^#{1,3}\s/, '')
-                       : t;
-        const parts    = content.split(/(\*\*[^*]+\*\*)/g);
+        const prefix = isNum ? (t.match(/^(\d+\.)/)![1] + ' ')
+          : isBullet ? '• ' : '';
+        const content = isNum ? t.replace(/^\d+\.\s/, '')
+          : isBullet ? t.replace(/^[-*•]\s/, '')
+            : isHeader ? t.replace(/^#{1,3}\s/, '')
+              : t;
+        const parts = content.split(/(\*\*[^*]+\*\*)/g);
 
         return (
           <Text key={i} style={isHeader ? { fontWeight: '700' } : {}}>
@@ -101,26 +101,26 @@ function stripMarkdown(text: string): string {
 // ── Orb ────────────────────────────────────────────────────────────────────
 function VoiceOrb({ state }: { state: VoiceState }) {
   const breathe = useRef(new Animated.Value(1)).current;
-  const ring1   = useRef(new Animated.Value(0)).current;
-  const ring2   = useRef(new Animated.Value(0)).current;
+  const ring1 = useRef(new Animated.Value(0)).current;
+  const ring2 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const dur    = state === 'listening' ? 500 : state === 'speaking' ? 380 : 1200;
-    const scale  = state === 'listening' ? 1.08 : state === 'speaking' ? 1.12 : 1.03;
+    const dur = state === 'listening' ? 500 : state === 'speaking' ? 380 : 1200;
+    const scale = state === 'listening' ? 1.08 : state === 'speaking' ? 1.12 : 1.03;
     const rAlpha = state === 'idle' ? 0 : state === 'processing' ? 0.2 : 0.4;
 
     const b = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: scale,  duration: dur,       useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 0.96,   duration: dur,       useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: scale, duration: dur, useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 0.96, duration: dur, useNativeDriver: true }),
     ]));
     const r1 = Animated.loop(Animated.sequence([
-      Animated.timing(ring1, { toValue: rAlpha,        duration: dur * 1.2, useNativeDriver: true }),
-      Animated.timing(ring1, { toValue: 0,             duration: dur * 1.2, useNativeDriver: true }),
+      Animated.timing(ring1, { toValue: rAlpha, duration: dur * 1.2, useNativeDriver: true }),
+      Animated.timing(ring1, { toValue: 0, duration: dur * 1.2, useNativeDriver: true }),
     ]));
     const r2 = Animated.loop(Animated.sequence([
       Animated.delay(dur * 0.4),
       Animated.timing(ring2, { toValue: rAlpha * 0.55, duration: dur * 1.4, useNativeDriver: true }),
-      Animated.timing(ring2, { toValue: 0,             duration: dur * 1.4, useNativeDriver: true }),
+      Animated.timing(ring2, { toValue: 0, duration: dur * 1.4, useNativeDriver: true }),
     ]));
 
     b.start(); r1.start(); r2.start();
@@ -144,19 +144,19 @@ function VoiceOrb({ state }: { state: VoiceState }) {
 const ORB_SIZE = 130;
 
 const orb = StyleSheet.create({
-  wrap:   { width: ORB_SIZE + 60, height: ORB_SIZE + 60, alignItems: 'center', justifyContent: 'center' },
-  ring2:  { position: 'absolute', width: ORB_SIZE + 80, height: ORB_SIZE + 80, borderRadius: (ORB_SIZE + 80) / 2, backgroundColor: 'rgba(74,144,226,0.10)' },
-  ring1:  { position: 'absolute', width: ORB_SIZE + 50, height: ORB_SIZE + 50, borderRadius: (ORB_SIZE + 50) / 2, backgroundColor: 'rgba(74,144,226,0.18)' },
+  wrap: { width: ORB_SIZE + 60, height: ORB_SIZE + 60, alignItems: 'center', justifyContent: 'center' },
+  ring2: { position: 'absolute', width: ORB_SIZE + 80, height: ORB_SIZE + 80, borderRadius: (ORB_SIZE + 80) / 2, backgroundColor: 'rgba(74,144,226,0.10)' },
+  ring1: { position: 'absolute', width: ORB_SIZE + 50, height: ORB_SIZE + 50, borderRadius: (ORB_SIZE + 50) / 2, backgroundColor: 'rgba(74,144,226,0.18)' },
   sphere: {
     width: ORB_SIZE, height: ORB_SIZE, borderRadius: ORB_SIZE / 2,
     backgroundColor: '#4a8fd6', overflow: 'hidden',
     shadowColor: '#3a7bc8', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4, shadowRadius: 16, elevation: 14,
   },
-  highlight: { position: 'absolute', top: -30, left: -18,  width: 120, height: 95,  borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.58)', transform: [{ rotate: '-18deg' }] },
-  midBlue:   { position: 'absolute', top: 24,  left: 10,   width: 80,  height: 55,  borderRadius: 40, backgroundColor: 'rgba(140,200,255,0.55)', transform: [{ rotate: '8deg' }] },
-  deepBlue:  { position: 'absolute', bottom: -15, right: -15, width: 100, height: 80, borderRadius: 50, backgroundColor: 'rgba(25,85,185,0.4)' },
-  shine:     { position: 'absolute', top: 16,  left: 22,   width: 26,  height: 16,  borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.35)', transform: [{ rotate: '-30deg' }] },
+  highlight: { position: 'absolute', top: -30, left: -18, width: 120, height: 95, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.58)', transform: [{ rotate: '-18deg' }] },
+  midBlue: { position: 'absolute', top: 24, left: 10, width: 80, height: 55, borderRadius: 40, backgroundColor: 'rgba(140,200,255,0.55)', transform: [{ rotate: '8deg' }] },
+  deepBlue: { position: 'absolute', bottom: -15, right: -15, width: 100, height: 80, borderRadius: 50, backgroundColor: 'rgba(25,85,185,0.4)' },
+  shine: { position: 'absolute', top: 16, left: 22, width: 26, height: 16, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.35)', transform: [{ rotate: '-30deg' }] },
 });
 
 // ── VoiceMode ──────────────────────────────────────────────────────────────
@@ -166,19 +166,21 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState('');
-  const [messages,   setMessages]   = useState<VoiceMsg[]>([]);
+  const [messages, setMessages] = useState<VoiceMsg[]>([]);
   const [statusText, setStatusText] = useState('Toca para hablar');
+  const [isManualMode] = useState(true);
 
-  const recording   = useRef<Audio.Recording | null>(null);
-  const sound       = useRef<Audio.Sound | null>(null);
-  const scrollRef   = useRef<ScrollView>(null);
-  const sidRef      = useRef<string | null>(sessionId);
-  const silenceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sendingRef  = useRef(false);   // evita doble envío
-  const listeningRef = useRef(false);  // está grabando actualmente
-  const visibleRef  = useRef(visible);
+  const recording = useRef<Audio.Recording | null>(null);
+  const sound = useRef<Audio.Sound | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const sidRef = useRef<string | null>(sessionId);
+  const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceStartRef = useRef<number | null>(null); // inicio de voz sostenida (debounce)
+  const sendingRef = useRef(false);
+  const listeningRef = useRef(false);
+  const visibleRef = useRef(visible);
 
-  useEffect(() => { sidRef.current = sessionId; },  [sessionId]);
+  useEffect(() => { sidRef.current = sessionId; }, [sessionId]);
   useEffect(() => { visibleRef.current = visible; }, [visible]);
 
   useEffect(() => {
@@ -198,15 +200,16 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
   }, [visible]);
 
   const stopAll = useCallback(async () => {
-    sendingRef.current  = false;
+    sendingRef.current = false;
     listeningRef.current = false;
+    voiceStartRef.current = null;
     if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
     if (recording.current) {
-      try { await recording.current.stopAndUnloadAsync(); } catch {}
+      try { await recording.current.stopAndUnloadAsync(); } catch { }
       recording.current = null;
     }
     if (sound.current) {
-      try { await sound.current.stopAsync(); await sound.current.unloadAsync(); } catch {}
+      try { await sound.current.stopAsync(); await sound.current.unloadAsync(); } catch { }
       sound.current = null;
     }
     setVoiceState('idle');
@@ -215,7 +218,10 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
 
   // ── Grabar ────────────────────────────────────────────────────────────────
   const startListening = useCallback(async () => {
-    if (listeningRef.current || sendingRef.current) return;
+    if (listeningRef.current || sendingRef.current) {
+      console.log('[Voice] Already listening or sending, ignoring startListening');
+      return;
+    }
     listeningRef.current = true;
     setVoiceState('listening');
     setTranscript('');
@@ -228,18 +234,24 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
       {
         isMeteringEnabled: true,
         android: { extension: '.m4a', outputFormat: 2, audioEncoder: 3, sampleRate: 16000, numberOfChannels: 1, bitRate: 32000 },
-        ios:     { extension: '.m4a', audioQuality: 0.5, sampleRate: 16000, numberOfChannels: 1, bitRate: 32000, linearPCMBitDepth: 16, linearPCMIsBigEndian: false, linearPCMIsFloat: false },
-        web:     { mimeType: 'audio/webm', bitsPerSecond: 32000 },
+        ios: { extension: '.m4a', audioQuality: 0.5, sampleRate: 16000, numberOfChannels: 1, bitRate: 32000, linearPCMBitDepth: 16, linearPCMIsBigEndian: false, linearPCMIsFloat: false },
+        web: { mimeType: 'audio/webm', bitsPerSecond: 32000 },
       },
       (status) => {
-        if (!listeningRef.current) return;
+        if (!listeningRef.current || isManualMode) return;
         const db = status.metering ?? -160;
-        if (db > -38) {
-          // voz detectada — cancelar timer de silencio
-          if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
-        } else if (!silenceRef.current) {
-          // silencio — enviar en 1.2s
-          silenceRef.current = setTimeout(() => { silenceRef.current = null; sendVoice(); }, 1200);
+        if (db > -25) {
+          // Sonido detectado — debounce de 400ms para filtrar clicks/ruidos de fondo
+          if (!voiceStartRef.current) voiceStartRef.current = Date.now();
+          if (Date.now() - voiceStartRef.current >= 400) {
+            if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
+          }
+        } else {
+          // Silencio — reiniciar ventana y armar timer si no existe
+          voiceStartRef.current = null;
+          if (!silenceRef.current) {
+            silenceRef.current = setTimeout(() => { silenceRef.current = null; sendVoice(); }, 1200);
+          }
         }
       },
       80,
@@ -250,8 +262,9 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
   // ── Enviar ────────────────────────────────────────────────────────────────
   const sendVoice = useCallback(async () => {
     if (sendingRef.current || !listeningRef.current || !recording.current) return;
-    sendingRef.current   = true;
+    sendingRef.current = true;
     listeningRef.current = false;
+    voiceStartRef.current = null;
     if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
 
     setVoiceState('processing');
@@ -271,8 +284,28 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
         audioBase64,
         mimeType: Platform.OS === 'ios' ? 'audio/m4a' : 'audio/mp4',
       });
-      const userText = sttRes.data.transcript?.trim();
-      if (!userText) { sendingRef.current = false; startListening(); return; }
+      let userText = sttRes.data.transcript?.trim() || '';
+
+      // Filtrar alucinaciones comunes de Whisper en silencio/ruido
+      const hallucinations = [
+        'subtítulos por la comunidad de amara.org',
+        'subtitles by the amara.org community',
+        'gracias por ver',
+        'thanks for watching',
+        'amara.org',
+      ];
+      const lowerText = userText.toLowerCase();
+      if (hallucinations.some(h => lowerText.includes(h))) {
+        console.log('[Voice] Hallucination detected, ignoring:', userText);
+        userText = '';
+      }
+
+      if (!userText || userText.length < 2) { 
+        console.log('[Voice] Transcript too short or empty, ignoring');
+        sendingRef.current = false; 
+        startListening(); 
+        return; 
+      }
 
       // Agregar a messages y limpiar transcript de una vez para evitar duplicado
       setMessages(prev => [...prev, { role: 'user', text: userText }]);
@@ -309,7 +342,7 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
         if (!status.isLoaded || !status.didJustFinish) return;
         await s.unloadAsync();
         sound.current = null;
-        FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+        FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => { });
         setTranscript('');
         sendingRef.current = false;
         if (visibleRef.current) startListening(); // loop automático
@@ -319,14 +352,14 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
       console.error('[Voice] error:', err);
       setStatusText('Error — toca para reintentar');
       setVoiceState('idle');
-      sendingRef.current   = false;
+      sendingRef.current = false;
       listeningRef.current = false;
     }
   }, [voiceId, onSessionInit, onNewMessages, startListening]);
 
   const interrupt = useCallback(async () => {
     if (sound.current) {
-      try { await sound.current.stopAsync(); await sound.current.unloadAsync(); } catch {}
+      try { await sound.current.stopAsync(); await sound.current.unloadAsync(); } catch { }
       sound.current = null;
     }
     sendingRef.current = false;
@@ -334,11 +367,34 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
     startListening();
   }, [startListening]);
 
-  const handleOrbPress = useCallback(() => {
-    if      (voiceState === 'idle')      startListening();
+  const handleOrbPress = useCallback(async () => {
+    console.log('[Voice] handleOrbPress state:', voiceState, 'sending:', sendingRef.current, 'listening:', listeningRef.current);
+    if (voiceState === 'idle') {
+      if (sound.current) {
+        try { await sound.current.stopAsync(); await sound.current.unloadAsync(); } catch { }
+        sound.current = null;
+      }
+      startListening();
+    }
     else if (voiceState === 'listening') sendVoice();
-    else if (voiceState === 'speaking')  interrupt();
-  }, [voiceState, startListening, sendVoice, interrupt]);
+    else if (voiceState === 'speaking') {
+      sendingRef.current = false; // Reset sendingRef just in case
+      if (sound.current) {
+        try { 
+          await sound.current.stopAsync(); 
+          await sound.current.unloadAsync(); 
+        } catch (e) {
+          console.log('[Voice] Error stopping sound on interrupt:', e);
+        }
+        sound.current = null;
+      }
+      // Pequeño delay para asegurar que el hardware de audio se libere
+      setTimeout(() => {
+        setVoiceState('idle');
+        startListening();
+      }, 100);
+    }
+  }, [voiceState, startListening, sendVoice]);
 
   const hasMessages = messages.length > 0 || transcript.length > 0;
 
@@ -351,6 +407,7 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
 
         {/* Header */}
         <View style={[vs.header, { paddingTop: insets.top + 8 }]}>
+          <View style={{ width: 40 }} />
           <Text style={[vs.title, { color: PRIMARY }]}>Modo voz</Text>
           <TouchableOpacity
             style={[vs.closeBtn, { backgroundColor: CARD }]}
@@ -374,7 +431,7 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
                   vs.msgBubble,
                   m.role === 'user'
                     ? { backgroundColor: PRIMARY, borderBottomRightRadius: 4 }
-                    : { backgroundColor: CARD,    borderBottomLeftRadius: 4 },
+                    : { backgroundColor: CARD, borderBottomLeftRadius: 4 },
                 ]}>
                   <AnimText
                     text={m.text}
@@ -406,20 +463,29 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
           )}
         </View>
 
-        {/* Orb + estado */}
-        <View style={vs.orbArea}>
-          <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.9}>
-            <VoiceOrb state={voiceState} />
-          </TouchableOpacity>
+        {/* Orb + estado — toque en toda esta área interrumpe cuando está hablando */}
+        <TouchableOpacity
+          style={vs.orbArea}
+          onPress={handleOrbPress}
+          activeOpacity={voiceState === 'speaking' ? 0.7 : 0.9}
+        >
+          <VoiceOrb state={voiceState} />
           <Text style={[vs.status, { color: MUTED }]}>{statusText}</Text>
-        </View>
+          {voiceState === 'speaking' && (
+            <View style={vs.interruptBadge}>
+              <Ionicons name="stop-circle" size={14} color={MUTED} />
+              <Text style={[vs.interruptLabel, { color: MUTED }]}>Toca para interrumpir</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         {/* Hint inferior */}
         <View style={vs.footer}>
           <Text style={[vs.hint, { color: MUTED }]}>
-            {voiceState === 'idle'       ? 'Toca la esfera para hablar' :
-             voiceState === 'listening'  ? 'Toca para enviar · Silencio para auto-enviar' :
-             voiceState === 'speaking'   ? 'Toca para interrumpir' : 'Procesando tu mensaje...'}
+            {voiceState === 'idle' ? 'Toca la esfera para empezar a grabar' :
+              voiceState === 'listening' ? 'Toca la esfera para terminar y enviar' :
+                voiceState === 'speaking' ? 'Toca la esfera para interrumpir y hablar' :
+                  'Procesando tu mensaje...'}
           </Text>
         </View>
 
@@ -429,31 +495,37 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
 }
 
 const vs = StyleSheet.create({
-  container:    { flex: 1 },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingBottom: 8,
   },
-  title:    { fontSize: 17, fontWeight: '700' },
+  title: { fontSize: 17, fontWeight: '700' },
   closeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 
-  messagesWrap:  { flex: 1, position: 'relative' },
-  scroll:        { flex: 1 },
+  messagesWrap: { flex: 1, position: 'relative' },
+  scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, gap: 10 },
-  fadeGradient:  {
+  fadeGradient: {
     position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
   },
 
-  msgRow:    { maxWidth: '82%' },
-  msgRight:  { alignSelf: 'flex-end' },
-  msgLeft:   { alignSelf: 'flex-start' },
+  msgRow: { maxWidth: '82%' },
+  msgRight: { alignSelf: 'flex-end' },
+  msgLeft: { alignSelf: 'flex-start' },
   msgBubble: {
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
   },
   msgText: { fontSize: 15, lineHeight: 22 },
 
-  orbArea: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
-  status:  { marginTop: 10, fontSize: 14, fontWeight: '500' },
-  footer:  { paddingBottom: 20, paddingHorizontal: 20, alignItems: 'center' },
-  hint:    { fontSize: 12, textAlign: 'center' },
+  orbArea: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 40 },
+  modeBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  status: { marginTop: 10, fontSize: 14, fontWeight: '500' },
+  interruptBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 8, opacity: 0.7,
+  },
+  interruptLabel: { fontSize: 12 },
+  footer: { paddingBottom: 20, paddingHorizontal: 20, alignItems: 'center' },
+  hint: { fontSize: 12, textAlign: 'center' },
 });

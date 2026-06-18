@@ -71,9 +71,13 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  sessionWasRestored: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithBiometric: () => Promise<void>;
+  reAuthenticate: (email: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
+  softLogout: () => void;
   updateUser: (partial: Partial<User>) => void;
 };
 
@@ -81,15 +85,20 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAuthenticated: false,
+  sessionWasRestored: false,
   login: async () => {},
+  loginWithBiometric: async () => {},
+  reAuthenticate: async () => {},
   register: async () => {},
   logout: async () => {},
+  softLogout: () => {},
   updateUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionWasRestored, setSessionWasRestored] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -103,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (raw) {
             const parsedUser = JSON.parse(raw) as User;
             setUser(parsedUser);
+            setSessionWasRestored(true);
             if (parsedUser.pushNotificationsEnabled !== false) {
               registerPhonePushToken();   // silently, non-blocking
             }
@@ -133,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await deleteItem(TOKEN_KEY);
     setAuthToken(null);
     setUser(null);
+    setSessionWasRestored(false);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -155,6 +166,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace('/(tabs)/dashboard');
   }, [persistUser]);
 
+  // Re-authenticate in-place (refreshes token, does NOT navigate or logout)
+  const reAuthenticate = useCallback(async (email: string, password: string) => {
+    const { data } = await apiClient.post<LoginResponse>('/auth/login', { email, password });
+    if (data.accessToken) {
+      await setItem(TOKEN_KEY, data.accessToken);
+      setAuthToken(data.accessToken);
+    }
+    if (data.user) {
+      await setItem(USER_KEY, JSON.stringify(data.user));
+      setUser(data.user);
+    }
+  }, []);
+
+  const loginWithBiometric = useCallback(async () => {
+    const session = await getItem(SESSION_KEY);
+    const token   = await getItem(TOKEN_KEY);
+    if (session !== 'active' || !token) {
+      throw new Error('No hay sesión guardada. Inicia sesión con correo y contraseña.');
+    }
+    setAuthToken(token);
+    const raw = await getItem(USER_KEY);
+    if (raw) {
+      setUser(JSON.parse(raw) as User);
+      registerPhonePushToken();
+      syncRemotePreferences();
+      router.replace('/(tabs)/dashboard');
+      return;
+    }
+    // Fallback: fetch profile from server if user data was cleared
+    const { data: profileData } = await apiClient.get<ProfileData>('/profile');
+    await persistUser(profileData);
+    registerPhonePushToken();
+    syncRemotePreferences();
+    router.replace('/(tabs)/dashboard');
+  }, [persistUser]);
+
   const register = useCallback(async (payload: RegisterPayload) => {
     await apiClient.post<RegisterResponse>('/auth/register', payload);
     router.replace('/login?registered=1');
@@ -169,6 +216,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearSession();
     router.replace('/login');
   }, [clearSession]);
+
+  // Clears in-memory state only — keeps SecureStore intact so biometric login
+  // remains available from the login screen on the next attempt.
+  const softLogout = useCallback(() => {
+    setAuthToken(null);
+    setUser(null);
+    setSessionWasRestored(false);
+    router.replace('/login');
+  }, []);
 
   const updateUser = useCallback((partial: Partial<User>) => {
     setUser(prev => {
@@ -191,12 +247,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isLoading,
       isAuthenticated: !!user,
+      sessionWasRestored,
       login,
+      loginWithBiometric,
+      reAuthenticate,
       register,
       logout,
+      softLogout,
       updateUser,
     }),
-    [user, isLoading, login, register, logout, updateUser]
+    [user, isLoading, sessionWasRestored, login, loginWithBiometric, reAuthenticate, register, logout, softLogout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
