@@ -326,7 +326,7 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
     }
 
     /* ── CTA ── */
-    .cta-wrap { margin-top: 20px; }
+    .cta-wrap { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
     .call-btn {
       display: flex; align-items: center; justify-content: center; gap: 10px;
       background: var(--primary); color: #F9F6ED; text-decoration: none;
@@ -334,6 +334,7 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
       font-size: 15px; font-weight: 700; letter-spacing: -0.1px;
       padding: 17px 24px; border-radius: 18px; text-align: center;
     }
+    .call-btn-alt { background: #FAD957; color: #1A1512; }
     .call-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
     /* ── Footer ── */
@@ -377,7 +378,15 @@ router.get('/:userId', async (req: Request, res: Response): Promise<void> => {
   <div class="cta-wrap">
     <a href="tel:123" class="call-btn">
       <svg class="call-icon" viewBox="0 0 24 24" fill="none" stroke="#F9F6ED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.92a16 16 0 0 0 6.1 6.1l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-      Llamar emergencias · 123
+      Emergencias · 123
+    </a>
+    <a href="tel:132" class="call-btn call-btn-alt">
+      <svg class="call-icon" viewBox="0 0 24 24" fill="none" stroke="#1A1512" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.92a16 16 0 0 0 6.1 6.1l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Cruz Roja · 132
+    </a>
+    <a href="tel:119" class="call-btn call-btn-alt">
+      <svg class="call-icon" viewBox="0 0 24 24" fill="none" stroke="#1A1512" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.92a16 16 0 0 0 6.1 6.1l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Bomberos · 119
     </a>
   </div>
 

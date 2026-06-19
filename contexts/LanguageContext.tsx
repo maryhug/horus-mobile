@@ -259,6 +259,13 @@ export interface T {
   monitorActivateDevice: string;
   monitorDeactivateBtn: string;
   monitorActivateBtn: string;
+  monitorActivateCardTitle: string;
+  monitorActivateCardDesc: string;
+  monitorActivateCardBtn: string;
+  nfcModalScanningTitle: string;
+  nfcModalScanningDesc: string;
+  nfcAlertSuccess: string;
+  nfcAlertSuccessDesc: string;
   // ── Navbar tabs ───────────────────────────────────────────────────────────
   navHome: string;
   navMonitor: string;
@@ -518,6 +525,13 @@ const es: T = {
   monitorActivateDevice: '¿Deseas activar este dispositivo?',
   monitorDeactivateBtn: 'Desactivar',
   monitorActivateBtn: 'Activar',
+  monitorActivateCardTitle: 'Vincular Tarjeta Horus',
+  monitorActivateCardDesc: 'Activa tu tarjeta de emergencia acercándola al celular',
+  monitorActivateCardBtn: 'Vincular',
+  nfcModalScanningTitle: 'Listo para escanear',
+  nfcModalScanningDesc: 'Acerca tu tarjeta Horus a la parte posterior de tu teléfono.',
+  nfcAlertSuccess: '¡Vinculado y Activo!',
+  nfcAlertSuccessDesc: 'La tarjeta NFC ha sido vinculada correctamente a tu cuenta.',
   // Navbar
   navHome: 'Inicio',
   navMonitor: 'Monitor',
@@ -777,6 +791,13 @@ const en: T = {
   monitorActivateDevice: 'Do you want to activate this device?',
   monitorDeactivateBtn: 'Deactivate',
   monitorActivateBtn: 'Activate',
+  monitorActivateCardTitle: 'Link Horus Card',
+  monitorActivateCardDesc: 'Activate your emergency card by bringing it close to your phone',
+  monitorActivateCardBtn: 'Link',
+  nfcModalScanningTitle: 'Ready to scan',
+  nfcModalScanningDesc: 'Hold your Horus card near the back of your phone.',
+  nfcAlertSuccess: 'Linked and Active!',
+  nfcAlertSuccessDesc: 'The NFC card has been successfully linked to your account.',
   // Navbar
   navHome: 'Home',
   navMonitor: 'Monitor',
@@ -1036,6 +1057,13 @@ const pt: T = {
   monitorActivateDevice: 'Deseja ativar este dispositivo?',
   monitorDeactivateBtn: 'Desativar',
   monitorActivateBtn: 'Ativar',
+  monitorActivateCardTitle: 'Vincular Cartão Horus',
+  monitorActivateCardDesc: 'Ative seu cartão de emergência aproximando-o do celular',
+  monitorActivateCardBtn: 'Vincular',
+  nfcModalScanningTitle: 'Pronto para escanear',
+  nfcModalScanningDesc: 'Aproxime seu cartão Horus da parte de trás do seu telefone.',
+  nfcAlertSuccess: 'Vinculado e Ativo!',
+  nfcAlertSuccessDesc: 'O cartão NFC foi vinculado com sucesso à sua conta.',
   // Navbar
   navHome: 'Início',
   navMonitor: 'Monitor',

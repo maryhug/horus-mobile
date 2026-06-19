@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Modal, ActivityIndicator, Alert, FlatList, Switch,
+  TextInput, Modal, ActivityIndicator, Alert, FlatList, Switch, Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
@@ -69,6 +69,7 @@ type ConditionItem = { id: string; conditionName: string; severity: string | nul
 type MedItem = { id: string; name: string; dosage: string | null; frequency: string | null; isCurrent: boolean };
 type MedProfile = { heightCm: number | null; weightKg: number | null; organDonor: boolean; insuranceProvider: string | null };
 type MedicalData = { medicalProfile: MedProfile | null; allergies: AllergyItem[]; conditions: ConditionItem[]; medications: MedItem[] };
+type ContactItem = { id: string; name: string; relation: string; phone: string; email?: string };
 
 type EditDraft = {
   firstName: string; lastName: string; email: string;
@@ -100,9 +101,12 @@ const ChevronRightIcon = ({ color, size=14 }: { color: string; size?: number }) 
 const CheckIcon      = ({ color, size=14 }: { color: string; size?: number }) => <I size={size}><Path d="M20 6 9 17l-5-5" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" /></I>;
 const UserIcon       = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke={color} {...sw} /><Circle cx={12} cy={7} r={4} stroke={color} {...sw} /></I>;
 const IdCardIcon     = ({ color, size=18 }: { color: string; size?: number }) => <I size={size}><Rect x={2} y={5} width={20} height={14} rx={2} stroke={color} {...sw} /><Path d="M16 10h2M16 14h2M6 10h.01M6 14h.01" stroke={color} {...sw} /></I>;
+const NfcIcon        = ({ color, size=18 }: { color: string; size?: number }) => <I size={size}><Path d="M6 8.32a7.43 7.43 0 0 1 0 7.36" stroke={color} {...sw} /><Path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58" stroke={color} {...sw} /><Path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8" stroke={color} {...sw} /><Path d="M16.37 2a20.16 20.16 0 0 1 0 20" stroke={color} {...sw} /></I>;
 const UsersIcon      = ({ color, size=18 }: { color: string; size?: number }) => <I size={size}><Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke={color} {...sw} /><Circle cx={9} cy={7} r={4} stroke={color} {...sw} /><Path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke={color} {...sw} /></I>;
 const PlusIcon       = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M12 5v14M5 12h14" stroke={color} {...sw} /></I>;
 const HeartIcon      = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke={color} {...sw} /></I>;
+const PhoneIcon      = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.76a16 16 0 0 0 6.29 6.29l1.12-1.84a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z" stroke={color} {...sw} /></I>;
+const TrashIcon      = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke={color} {...sw} /></I>;
 
 // ── Picker modal ───────────────────────────────────────────────────────────
 function PickerModal({ visible, title, options, selected, onSelect, onClose }: {
@@ -365,7 +369,7 @@ export default function ProfileScreen() {
   const [editOpen,    setEditOpen]    = useState(false);
   const [logoutOpen,  setLogout]      = useState(false);
   // Accordion state
-  const [sections, setSections] = useState({ personal: true, medical: false, allergies: false, conditions: false, medications: false });
+  const [sections, setSections] = useState({ personal: true, medical: false, allergies: false, conditions: false, medications: false, contacts: false });
   const toggleSection = (k: keyof typeof sections) => setSections(p => ({ ...p, [k]: !p[k] }));
 
   // Edit draft
@@ -406,6 +410,15 @@ export default function ProfileScreen() {
   const [editMedDraft, setEditMedDraft] = useState({ name: '', dosage: '', frequency: '', isCurrent: true });
   const [savingEditMed, setSavingEditMed] = useState(false);
 
+  // Emergency contacts
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [addContactOpen, setAddContactOpen] = useState(false);
+  const [contactDraft, setContactDraft] = useState({ name: '', phone: '', relation: '', email: '' });
+  const [savingContact, setSavingContact] = useState(false);
+  const [editContactItem, setEditContactItem] = useState<ContactItem | null>(null);
+  const [editContactDraft, setEditContactDraft] = useState({ name: '', phone: '', relation: '', email: '' });
+  const [savingEditContact, setSavingEditContact] = useState(false);
+
   // ── Load data ─────────────────────────────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
@@ -413,6 +426,7 @@ export default function ProfileScreen() {
       Promise.all([
         apiClient.get<ProfileData>('/profile').then(r => setProfile(r.data)),
         apiClient.get<MedicalData>('/profile/medical').then(r => setMedData(r.data)),
+        apiClient.get<ContactItem[]>('/contacts').then(r => setContacts(r.data)).catch(() => {}),
       ]).catch(() => {}).finally(() => setLoading(false));
     }, [])
   );
@@ -663,6 +677,58 @@ export default function ProfileScreen() {
     finally { setSavingEditMed(false); }
   };
 
+  // ── Contact handlers ──────────────────────────────────────────────────────
+  const handleAddContact = async () => {
+    if (!contactDraft.name.trim() || !contactDraft.phone.trim()) {
+      Alert.alert('Campos requeridos', 'Nombre y teléfono son obligatorios.'); return;
+    }
+    setSavingContact(true);
+    try {
+      const { data } = await apiClient.post<ContactItem>('/contacts', {
+        name: contactDraft.name.trim(), phone: contactDraft.phone.trim(),
+        relation: contactDraft.relation.trim() || 'Contacto', email: contactDraft.email.trim() || undefined,
+      });
+      setContacts(p => [...p, data]);
+      setContactDraft({ name: '', phone: '', relation: '', email: '' });
+      setAddContactOpen(false);
+    } catch (err) { Alert.alert('Error', getErrorMessage(err)); }
+    finally { setSavingContact(false); }
+  };
+
+  const openEditContact = (item: ContactItem) => {
+    setEditContactDraft({ name: item.name, phone: item.phone, relation: item.relation, email: item.email ?? '' });
+    setEditContactItem(item);
+  };
+
+  const handleSaveEditContact = async () => {
+    if (!editContactItem) return;
+    if (!editContactDraft.name.trim() || !editContactDraft.phone.trim()) {
+      Alert.alert('Campos requeridos', 'Nombre y teléfono son obligatorios.'); return;
+    }
+    setSavingEditContact(true);
+    try {
+      const { data } = await apiClient.patch<ContactItem>(`/contacts/${editContactItem.id}`, {
+        name: editContactDraft.name.trim(), phone: editContactDraft.phone.trim(),
+        relation: editContactDraft.relation.trim() || 'Contacto', email: editContactDraft.email.trim() || undefined,
+      });
+      setContacts(p => p.map(c => c.id === editContactItem.id ? data : c));
+      setEditContactItem(null);
+    } catch (err) { Alert.alert('Error', getErrorMessage(err)); }
+    finally { setSavingEditContact(false); }
+  };
+
+  const handleDeleteContact = (item: ContactItem) => {
+    Alert.alert(item.name, '¿Eliminar este contacto de emergencia?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        try {
+          await apiClient.delete(`/contacts/${item.id}`);
+          setContacts(p => p.filter(c => c.id !== item.id));
+        } catch (err) { Alert.alert('Error', getErrorMessage(err)); }
+      }},
+    ]);
+  };
+
   const handleLogout = async () => { setLogout(false); try { await logout(); } catch {} router.replace('/login'); };
 
   // Picker display labels
@@ -714,6 +780,7 @@ export default function ProfileScreen() {
           <InfoRow label={t.profileGender}  value={genderLabel(profile?.gender)}              icon={<UsersIcon    color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
           <InfoRow label={t.profileDocType} value={idTypeLabel(profile?.identificationType)}  icon={<IdCardIcon   color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
           <InfoRow label={t.profileDocNumber} value={profile?.identificationNumber ?? '—'}   icon={<IdCardIcon   color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
+          <InfoRow label={t.profileNfcId}     value={profile?.nfcTagId ?? user?.nfcTagId ?? '—'} icon={<NfcIcon     color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
         </AccordionSection>
 
         {/* ── Médico ───────────────────────────────────────────────────── */}
@@ -819,6 +886,44 @@ export default function ProfileScreen() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, paddingVertical: 10, borderRadius: 12, backgroundColor: MUTED_BG, paddingHorizontal: 14, alignSelf: 'flex-start' }}>
             <PlusIcon color={PRIMARY} size={14} />
             <Text style={{ fontSize: 13, fontFamily: FONT.sansBold, color: PRIMARY }}>Agregar medicamento</Text>
+          </TouchableOpacity>
+        </AccordionSection>
+
+        {/* ── Contactos de emergencia ───────────────────────────────────── */}
+        <AccordionSection
+          title="Contactos de emergencia" icon={<PhoneIcon color={MUTED} size={16} />}
+          open={sections.contacts} onToggle={() => toggleSection('contacts')}
+          badge={contacts.length > 0 ? contacts.length : undefined}
+          PRIMARY={PRIMARY} CARD={CARD} MUTED={MUTED} MUTED_BG={MUTED_BG}
+        >
+          {contacts.length === 0 ? (
+            <Text style={{ fontSize: 13, color: MUTED, fontFamily: FONT.sansRegular, textAlign: 'center', paddingVertical: 8 }}>Sin contactos registrados</Text>
+          ) : contacts.map(c => (
+            <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: MUTED_BG }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontFamily: FONT.sansBold, color: PRIMARY }}>{c.name}</Text>
+                <Text style={{ fontSize: 12, fontFamily: FONT.sansRegular, color: MUTED }}>{c.relation}{c.email ? ` · ${c.email}` : ''}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`tel:${c.phone}`)} activeOpacity={0.75}
+                style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#22C55E22', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <PhoneIcon color="#22C55E" size={16} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openEditContact(c)} activeOpacity={0.75}
+                style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: MUTED_BG, alignItems: 'center', justifyContent: 'center' }}>
+                <PencilIcon color={PRIMARY} size={14} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeleteContact(c)} activeOpacity={0.75}
+                style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#EF444422', alignItems: 'center', justifyContent: 'center' }}>
+                <TrashIcon color="#EF4444" size={14} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          <TouchableOpacity onPress={() => setAddContactOpen(true)} activeOpacity={0.75}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, paddingVertical: 10, borderRadius: 12, backgroundColor: MUTED_BG, paddingHorizontal: 14, alignSelf: 'flex-start' }}>
+            <PlusIcon color={PRIMARY} size={14} />
+            <Text style={{ fontSize: 13, fontFamily: FONT.sansBold, color: PRIMARY }}>Agregar contacto</Text>
           </TouchableOpacity>
         </AccordionSection>
 
@@ -1073,6 +1178,62 @@ export default function ProfileScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={[s.sheetBtnDark, savingEditMed && { opacity: 0.7 }]} onPress={handleSaveEditMed} disabled={savingEditMed} activeOpacity={0.85}>
                 {savingEditMed ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={s.sheetBtnDarkText}>{t.save}</Text>}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Agregar contacto de emergencia ───────────────────────────────── */}
+      <Modal visible={addContactOpen} animationType="slide" transparent onRequestClose={() => setAddContactOpen(false)}>
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setAddContactOpen(false)}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Agregar contacto</Text>
+              <TouchableOpacity style={s.sheetClose} onPress={() => setAddContactOpen(false)}>
+                <XIcon color={PRIMARY} size={16} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ gap: 10 }}>
+              <SheetField label="Nombre completo *" value={contactDraft.name} onChange={v => setContactDraft(d => ({ ...d, name: v }))} placeholder="Ej: María García" />
+              <SheetField label="Teléfono *" value={contactDraft.phone} onChange={v => setContactDraft(d => ({ ...d, phone: v }))} placeholder="Ej: 3001234567" />
+              <SheetField label="Parentesco / relación" value={contactDraft.relation} onChange={v => setContactDraft(d => ({ ...d, relation: v }))} placeholder="Ej: Mamá, Esposo, Médico" />
+              <SheetField label="Correo (opcional)" value={contactDraft.email} onChange={v => setContactDraft(d => ({ ...d, email: v }))} placeholder="correo@ejemplo.com" />
+            </View>
+            <View style={s.sheetBtns}>
+              <TouchableOpacity style={s.sheetBtnGrey} onPress={() => setAddContactOpen(false)} disabled={savingContact} activeOpacity={0.85}>
+                <Text style={s.sheetBtnGreyText}>{t.cancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.sheetBtnDark, savingContact && { opacity: 0.7 }]} onPress={handleAddContact} disabled={savingContact} activeOpacity={0.85}>
+                {savingContact ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={s.sheetBtnDarkText}>Guardar</Text>}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Editar contacto de emergencia ─────────────────────────────────── */}
+      <Modal visible={!!editContactItem} animationType="slide" transparent onRequestClose={() => setEditContactItem(null)}>
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setEditContactItem(null)}>
+          <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Editar contacto</Text>
+              <TouchableOpacity style={s.sheetClose} onPress={() => setEditContactItem(null)}>
+                <XIcon color={PRIMARY} size={16} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ gap: 10 }}>
+              <SheetField label="Nombre completo *" value={editContactDraft.name} onChange={v => setEditContactDraft(d => ({ ...d, name: v }))} />
+              <SheetField label="Teléfono *" value={editContactDraft.phone} onChange={v => setEditContactDraft(d => ({ ...d, phone: v }))} />
+              <SheetField label="Parentesco / relación" value={editContactDraft.relation} onChange={v => setEditContactDraft(d => ({ ...d, relation: v }))} placeholder="Ej: Mamá, Esposo, Médico" />
+              <SheetField label="Correo (opcional)" value={editContactDraft.email} onChange={v => setEditContactDraft(d => ({ ...d, email: v }))} placeholder="correo@ejemplo.com" />
+            </View>
+            <View style={s.sheetBtns}>
+              <TouchableOpacity style={s.sheetBtnGrey} onPress={() => setEditContactItem(null)} disabled={savingEditContact} activeOpacity={0.85}>
+                <Text style={s.sheetBtnGreyText}>{t.cancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.sheetBtnDark, savingEditContact && { opacity: 0.7 }]} onPress={handleSaveEditContact} disabled={savingEditContact} activeOpacity={0.85}>
+                {savingEditContact ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={s.sheetBtnDarkText}>{t.save}</Text>}
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
