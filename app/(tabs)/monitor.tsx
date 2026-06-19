@@ -620,27 +620,29 @@ export default function MonitorScreen() {
               );
             })}
 
-            {/* Tarjeta de vinculación si no hay tarjeta NFC activa */}
-            {!devices.some(d => d.type === 'CARD') && (
-              <TouchableOpacity
-                style={[s.card, s.activationCard]}
-                onPress={startNfcScan}
-                activeOpacity={0.85}
-              >
-                <View style={s.activationContent}>
-                  <View style={[s.productIconWrap, { backgroundColor: `${GREEN}15` }]}>
-                    <Ionicons name="card-outline" size={20} color={GREEN} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.activationTitle}>{t.monitorActivateCardTitle}</Text>
-                    <Text style={s.activationDesc}>{t.monitorActivateCardDesc}</Text>
-                  </View>
-                  <View style={[s.activationBtn, { backgroundColor: PRIMARY }]}>
-                    <Text style={[s.activationBtnText, { color: BG }]}>{t.monitorActivateCardBtn}</Text>
-                  </View>
+            {/* Tarjeta de vinculación NFC — siempre visible */}
+            <TouchableOpacity
+              style={[s.card, s.activationCard]}
+              onPress={startNfcScan}
+              activeOpacity={0.85}
+            >
+              <View style={s.activationContent}>
+                <View style={[s.productIconWrap, { backgroundColor: `${GREEN}15` }]}>
+                  <Ionicons name="card-outline" size={20} color={GREEN} />
                 </View>
-              </TouchableOpacity>
-            )}
+                <View style={{ flex: 1 }}>
+                  <Text style={s.activationTitle}>
+                    {devices.some(d => d.type === 'CARD') ? 'Reemplazar tarjeta NFC' : t.monitorActivateCardTitle}
+                  </Text>
+                  <Text style={s.activationDesc}>
+                    {devices.some(d => d.type === 'CARD') ? 'Escanea una nueva tarjeta para vincularla' : t.monitorActivateCardDesc}
+                  </Text>
+                </View>
+                <View style={[s.activationBtn, { backgroundColor: PRIMARY }]}>
+                  <Text style={[s.activationBtnText, { color: BG }]}>{t.monitorActivateCardBtn}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
         )}
         {/* ── Números de emergencia Colombia ────────────────────────────── */}
