@@ -103,7 +103,6 @@ const ChevronRightIcon = ({ color, size=14 }: { color: string; size?: number }) 
 const CheckIcon      = ({ color, size=14 }: { color: string; size?: number }) => <I size={size}><Path d="M20 6 9 17l-5-5" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" /></I>;
 const UserIcon       = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke={color} {...sw} /><Circle cx={12} cy={7} r={4} stroke={color} {...sw} /></I>;
 const IdCardIcon     = ({ color, size=18 }: { color: string; size?: number }) => <I size={size}><Rect x={2} y={5} width={20} height={14} rx={2} stroke={color} {...sw} /><Path d="M16 10h2M16 14h2M6 10h.01M6 14h.01" stroke={color} {...sw} /></I>;
-const NfcIcon        = ({ color, size=18 }: { color: string; size?: number }) => <I size={size}><Path d="M6 8.32a7.43 7.43 0 0 1 0 7.36" stroke={color} {...sw} /><Path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58" stroke={color} {...sw} /><Path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8" stroke={color} {...sw} /><Path d="M16.37 2a20.16 20.16 0 0 1 0 20" stroke={color} {...sw} /></I>;
 const UsersIcon      = ({ color, size=18 }: { color: string; size?: number }) => <I size={size}><Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke={color} {...sw} /><Circle cx={9} cy={7} r={4} stroke={color} {...sw} /><Path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke={color} {...sw} /></I>;
 const PlusIcon       = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M12 5v14M5 12h14" stroke={color} {...sw} /></I>;
 const HeartIcon      = ({ color, size=16 }: { color: string; size?: number }) => <I size={size}><Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke={color} {...sw} /></I>;
@@ -831,7 +830,6 @@ export default function ProfileScreen() {
           <InfoRow label={t.profileGender}  value={genderLabel(profile?.gender)}              icon={<UsersIcon    color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
           <InfoRow label={t.profileDocType} value={idTypeLabel(profile?.identificationType)}  icon={<IdCardIcon   color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
           <InfoRow label={t.profileDocNumber} value={profile?.identificationNumber ?? '—'}   icon={<IdCardIcon   color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
-          <InfoRow label={t.profileNfcId}     value={profile?.nfcTagId ?? user?.nfcTagId ?? '—'} icon={<NfcIcon     color={MUTED} size={14} />} PRIMARY={PRIMARY} MUTED={MUTED} MUTED_BG={MUTED_BG} />
         </AccordionSection>
 
         {/* ── Médico ───────────────────────────────────────────────────── */}
