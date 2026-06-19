@@ -2,7 +2,7 @@
 #  Horus Mobile - Modo Web (navegador)
 #  No requiere celular ni configuracion extra
 # =============================================
-$ROOT = "C:\Users\ASUS\WebstormProjects\Horus-Mobile"
+$ROOT = $PSScriptRoot
 
 # Restaurar URL de API a localhost (por si el tunnel la habia cambiado)
 Write-Host "[1/3] Restaurando .env -> localhost:3000..." -ForegroundColor Cyan

@@ -30,6 +30,7 @@ import { EmotionShape } from '../../components/EmotionShape';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { FONT } from '../../constants/fonts';
+import { useAuth } from '../../contexts/AuthContext';
 
 
 // ── Fixed accent colors (no cambian con el tema) ───────────────────────────
@@ -218,6 +219,7 @@ export default function MonitorScreen() {
     [isDark]
   );
   const { t } = useLanguage();
+  const { updateUser } = useAuth();
 
   const { width: screenW } = useWindowDimensions();
   const blobFloat = useRef(new Animated.Value(0)).current;
@@ -252,6 +254,7 @@ export default function MonitorScreen() {
       setNfcStatus('scanning');
       await apiClient.post('/monitor/activate-card', { nfcTagId: tagId });
       setNfcStatus('success');
+      updateUser({ nfcTagId: tagId });
       setTimeout(() => {
         setNfcScanning(false);
         setNfcStatus('idle');
@@ -275,7 +278,25 @@ export default function MonitorScreen() {
     }
 
     if (!supported) {
-      setShowManualInput(true);
+      // Para pruebas en Expo Go: abrimos el lector real y simulamos la lectura nativa tras 3 segundos
+      setNfcStatus('scanning');
+      setNfcScanning(true);
+      setTimeout(async () => {
+        const simulatedTagId = 'HORUS-TEST-8899';
+        try {
+          await apiClient.post('/monitor/activate-card', { nfcTagId: simulatedTagId });
+          setNfcStatus('success');
+          updateUser({ nfcTagId: simulatedTagId });
+          setTimeout(() => {
+            setNfcScanning(false);
+            setNfcStatus('idle');
+            refetchDevices();
+          }, 1500);
+        } catch (err: any) {
+          setNfcStatus('error');
+          setNfcErrorMsg(getErrorMessage(err));
+        }
+      }, 3000);
       return;
     }
 
@@ -365,12 +386,14 @@ export default function MonitorScreen() {
   };
 
   const handleManualRegister = async () => {
-    if (!manualId.trim()) {
+    const cleanId = manualId.trim();
+    if (!cleanId) {
       Alert.alert('Error', 'Por favor ingresa un ID válido.');
       return;
     }
     try {
-      await apiClient.post('/monitor/activate-card', { nfcTagId: manualId.trim() });
+      await apiClient.post('/monitor/activate-card', { nfcTagId: cleanId });
+      updateUser({ nfcTagId: cleanId });
       Alert.alert(t.nfcAlertSuccess, t.nfcAlertSuccessDesc);
       setShowManualInput(false);
       setManualId('');
