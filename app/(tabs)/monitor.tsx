@@ -240,6 +240,7 @@ export default function MonitorScreen() {
   const [nfcErrorMsg, setNfcErrorMsg] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualId, setManualId] = useState('');
+  const [pendingDeviceType, setPendingDeviceType] = useState<'CARD' | 'BRACELET'>('CARD');
 
   const refetchDevices = useCallback(() => {
     setDevicesLoading(true);
@@ -249,25 +250,25 @@ export default function MonitorScreen() {
       .finally(() => setDevicesLoading(false));
   }, []);
 
-  const handleRegisterCard = async (tagId: string) => {
+  const handleRegisterDevice = async (tagId: string, deviceType: 'CARD' | 'BRACELET') => {
     try {
       setNfcStatus('scanning');
-      await apiClient.post('/monitor/activate-card', { nfcTagId: tagId });
+      await apiClient.post('/monitor/activate-card', { nfcTagId: tagId, deviceType });
       setNfcStatus('success');
-      updateUser({ nfcTagId: tagId });
+      if (deviceType === 'CARD') updateUser({ nfcTagId: tagId });
       setTimeout(() => {
         setNfcScanning(false);
         setNfcStatus('idle');
         refetchDevices();
       }, 1500);
     } catch (err: any) {
-      const errMsg = getErrorMessage(err);
       setNfcStatus('error');
-      setNfcErrorMsg(errMsg);
+      setNfcErrorMsg(getErrorMessage(err));
     }
   };
 
-  const startNfcScan = async () => {
+  const startNfcScan = async (deviceType: 'CARD' | 'BRACELET') => {
+    setPendingDeviceType(deviceType);
     let supported = false;
     if (Platform.OS !== 'web' && NfcManager) {
       try {
@@ -278,15 +279,14 @@ export default function MonitorScreen() {
     }
 
     if (!supported) {
-      // Para pruebas en Expo Go: abrimos el lector real y simulamos la lectura nativa tras 3 segundos
       setNfcStatus('scanning');
       setNfcScanning(true);
       setTimeout(async () => {
-        const simulatedTagId = 'HORUS-TEST-8899';
+        const simulatedTagId = deviceType === 'BRACELET' ? 'HORUS-BRACELET-0001' : 'HORUS-TEST-8899';
         try {
-          await apiClient.post('/monitor/activate-card', { nfcTagId: simulatedTagId });
+          await apiClient.post('/monitor/activate-card', { nfcTagId: simulatedTagId, deviceType });
           setNfcStatus('success');
-          updateUser({ nfcTagId: simulatedTagId });
+          if (deviceType === 'CARD') updateUser({ nfcTagId: simulatedTagId });
           setTimeout(() => {
             setNfcScanning(false);
             setNfcStatus('idle');
@@ -300,14 +300,13 @@ export default function MonitorScreen() {
       return;
     }
 
-    // Validar si el NFC está encendido en Android
     if (Platform.OS === 'android' && NfcManager) {
       try {
         const enabled = await NfcManager.isEnabled();
         if (!enabled) {
           Alert.alert(
             'NFC Desactivado',
-            'Por favor, activa el NFC en los ajustes de tu teléfono para vincular la tarjeta.',
+            'Por favor, activa el NFC en los ajustes de tu teléfono.',
             [
               { text: 'Ajustes', onPress: () => NfcManager.goToNfcSetting().catch(() => {}) },
               { text: 'Cancelar', style: 'cancel' }
@@ -325,7 +324,6 @@ export default function MonitorScreen() {
       setNfcScanning(true);
       await NfcManager.start();
 
-      // Utilizar tecnologías compatibles según la plataforma
       const techList = Platform.OS === 'ios'
         ? [NfcTech.MifareIOS, NfcTech.Ndef]
         : [NfcTech.NfcA, NfcTech.Ndef];
@@ -334,26 +332,16 @@ export default function MonitorScreen() {
       const tag = await NfcManager.getTag();
       let rawTagId = tag?.id;
 
-      if (!rawTagId) {
-        throw new Error('No se pudo leer el ID de la tarjeta.');
-      }
+      if (!rawTagId) throw new Error('No se pudo leer el ID del dispositivo.');
 
-      // Normalizar de forma robusta el ID del tag NFC (soporta string, byte array o buffer/objeto)
       let normalizedTagId = '';
       if (typeof rawTagId === 'string') {
         normalizedTagId = rawTagId;
       } else if (Array.isArray(rawTagId)) {
-        normalizedTagId = rawTagId.map((b: any) => {
-          const num = Number(b);
-          return (isNaN(num) ? 0 : num).toString(16).padStart(2, '0');
-        }).join('');
+        normalizedTagId = rawTagId.map((b: any) => (isNaN(Number(b)) ? 0 : Number(b)).toString(16).padStart(2, '0')).join('');
       } else if (rawTagId && typeof rawTagId === 'object') {
         try {
-          const arr = Array.from(rawTagId as any);
-          normalizedTagId = arr.map((b: any) => {
-            const num = Number(b);
-            return (isNaN(num) ? 0 : num).toString(16).padStart(2, '0');
-          }).join('');
+          normalizedTagId = Array.from(rawTagId as any).map((b: any) => (isNaN(Number(b)) ? 0 : Number(b)).toString(16).padStart(2, '0')).join('');
         } catch {
           normalizedTagId = JSON.stringify(rawTagId);
         }
@@ -362,14 +350,10 @@ export default function MonitorScreen() {
       }
 
       normalizedTagId = normalizedTagId.toUpperCase().trim();
+      if (!normalizedTagId) throw new Error('El ID del dispositivo quedó vacío tras la normalización.');
 
-      if (normalizedTagId) {
-        await handleRegisterCard(normalizedTagId);
-      } else {
-        throw new Error('El ID de la tarjeta quedó vacío después de la normalización.');
-      }
+      await handleRegisterDevice(normalizedTagId, deviceType);
     } catch (err: any) {
-      console.warn('NFC Scan Error:', err);
       const errStr = err?.toString() || '';
       if (errStr.includes('UserCancel') || errStr.includes('cancel')) {
         setNfcScanning(false);
@@ -377,23 +361,18 @@ export default function MonitorScreen() {
         return;
       }
       setNfcStatus('error');
-      setNfcErrorMsg(err?.message || 'Error al escanear tarjeta NFC');
+      setNfcErrorMsg(err?.message || 'Error al escanear dispositivo NFC');
     } finally {
-      try {
-        await NfcManager.cancelTechnologyRequest();
-      } catch {}
+      try { await NfcManager.cancelTechnologyRequest(); } catch {}
     }
   };
 
   const handleManualRegister = async () => {
     const cleanId = manualId.trim();
-    if (!cleanId) {
-      Alert.alert('Error', 'Por favor ingresa un ID válido.');
-      return;
-    }
+    if (!cleanId) { Alert.alert('Error', 'Por favor ingresa un ID válido.'); return; }
     try {
-      await apiClient.post('/monitor/activate-card', { nfcTagId: cleanId });
-      updateUser({ nfcTagId: cleanId });
+      await apiClient.post('/monitor/activate-card', { nfcTagId: cleanId, deviceType: pendingDeviceType });
+      if (pendingDeviceType === 'CARD') updateUser({ nfcTagId: cleanId });
       Alert.alert(t.nfcAlertSuccess, t.nfcAlertSuccessDesc);
       setShowManualInput(false);
       setManualId('');
@@ -620,10 +599,10 @@ export default function MonitorScreen() {
               );
             })}
 
-            {/* Tarjeta de vinculación NFC — siempre visible */}
+            {/* Tarjeta NFC */}
             <TouchableOpacity
               style={[s.card, s.activationCard]}
-              onPress={startNfcScan}
+              onPress={() => startNfcScan('CARD')}
               activeOpacity={0.85}
             >
               <View style={s.activationContent}>
@@ -632,10 +611,34 @@ export default function MonitorScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.activationTitle}>
-                    {devices.some(d => d.type === 'CARD') ? 'Reemplazar tarjeta NFC' : t.monitorActivateCardTitle}
+                    {devices.some(d => d.type === 'CARD') ? 'Reemplazar tarjeta NFC' : 'Vincular tarjeta NFC'}
                   </Text>
                   <Text style={s.activationDesc}>
-                    {devices.some(d => d.type === 'CARD') ? 'Escanea una nueva tarjeta para vincularla' : t.monitorActivateCardDesc}
+                    {devices.some(d => d.type === 'CARD') ? 'Acerca la tarjeta para reemplazarla' : 'Acerca tu tarjeta Horus al teléfono'}
+                  </Text>
+                </View>
+                <View style={[s.activationBtn, { backgroundColor: PRIMARY }]}>
+                  <Text style={[s.activationBtnText, { color: BG }]}>{t.monitorActivateCardBtn}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Manilla / Brazalete */}
+            <TouchableOpacity
+              style={[s.card, s.activationCard]}
+              onPress={() => startNfcScan('BRACELET')}
+              activeOpacity={0.85}
+            >
+              <View style={s.activationContent}>
+                <View style={[s.productIconWrap, { backgroundColor: `${GREEN}15` }]}>
+                  <Ionicons name="fitness-outline" size={20} color={GREEN} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.activationTitle}>
+                    {devices.some(d => d.type === 'BRACELET') ? 'Reemplazar manilla Horus' : 'Vincular manilla Horus'}
+                  </Text>
+                  <Text style={s.activationDesc}>
+                    {devices.some(d => d.type === 'BRACELET') ? 'Acerca la manilla para reemplazarla' : 'Acerca tu manilla Horus al teléfono'}
                   </Text>
                 </View>
                 <View style={[s.activationBtn, { backgroundColor: PRIMARY }]}>
@@ -717,9 +720,9 @@ export default function MonitorScreen() {
                   >
                     <Text style={[s.modalBtnText, { color: PRIMARY }]}>{t.cancel}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[s.modalBtn, { backgroundColor: PRIMARY, flex: 1 }]} 
-                    onPress={startNfcScan}
+                  <TouchableOpacity
+                    style={[s.modalBtn, { backgroundColor: PRIMARY, flex: 1 }]}
+                    onPress={() => startNfcScan(pendingDeviceType)}
                   >
                     <Text style={[s.modalBtnText, { color: BG }]}>Reintentar</Text>
                   </TouchableOpacity>

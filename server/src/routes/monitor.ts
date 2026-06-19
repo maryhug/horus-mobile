@@ -54,9 +54,10 @@ router.get('/devices', requireAuth, async (req: AuthRequest, res: Response): Pro
 });
 
 // POST /api/monitor/activate-card
+// Body: { nfcTagId: string, deviceType?: 'CARD' | 'BRACELET' }
 router.post('/activate-card', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { nfcTagId } = req.body;
+    const { nfcTagId, deviceType } = req.body;
     const userId = req.userId!;
 
     if (!nfcTagId) {
@@ -65,55 +66,36 @@ router.post('/activate-card', requireAuth, async (req: AuthRequest, res: Respons
     }
 
     const trimmedTagId = nfcTagId.trim();
+    const type: 'CARD' | 'BRACELET' = deviceType === 'BRACELET' ? 'BRACELET' : 'CARD';
 
     // 1. Verificar si el tag ya está en uso por otro usuario
     const existingUser = await prisma.user.findFirst({
-      where: {
-        nfcTagId: trimmedTagId,
-        NOT: { id: userId },
-      },
+      where: { nfcTagId: trimmedTagId, NOT: { id: userId } },
     });
-
     if (existingUser) {
-      res.status(409).json({ message: 'Esta tarjeta ya está vinculada a otra cuenta.' });
+      res.status(409).json({ message: 'Este dispositivo ya está vinculado a otra cuenta.' });
       return;
     }
 
-    // 2. Actualizar el nfcTagId en el modelo User
-    await prisma.user.update({
-      where: { id: userId },
-      data: { nfcTagId: trimmedTagId },
-    });
-
-    // 3. Buscar si ya existe un UserDevice de tipo CARD para este usuario
-    const existingDevice = await prisma.userDevice.findFirst({
-      where: {
-        userId,
-        type: 'CARD',
-      },
-    });
-
-    if (existingDevice) {
-      // Actualizar el identifier
-      await prisma.userDevice.update({
-        where: { id: existingDevice.id },
-        data: { identifier: trimmedTagId },
-      });
-    } else {
-      // Crear un nuevo UserDevice de tipo CARD
-      await prisma.userDevice.create({
-        data: {
-          userId,
-          type: 'CARD',
-          identifier: trimmedTagId,
-        },
-      });
+    // 2. Guardar nfcTagId en User (solo para tarjetas CARD — es el ID principal de acceso)
+    if (type === 'CARD') {
+      await prisma.user.update({ where: { id: userId }, data: { nfcTagId: trimmedTagId } });
     }
 
-    res.json({ ok: true, message: 'Tarjeta vinculada y activada correctamente.' });
+    // 3. Upsert UserDevice del tipo correspondiente
+    const existingDevice = await prisma.userDevice.findFirst({ where: { userId, type } });
+
+    if (existingDevice) {
+      await prisma.userDevice.update({ where: { id: existingDevice.id }, data: { identifier: trimmedTagId } });
+    } else {
+      await prisma.userDevice.create({ data: { userId, type, identifier: trimmedTagId } });
+    }
+
+    const label = type === 'BRACELET' ? 'Manilla' : 'Tarjeta';
+    res.json({ ok: true, message: `${label} vinculada y activada correctamente.` });
   } catch (err) {
     console.error('[monitor/activate-card]', err);
-    res.status(500).json({ message: 'Error al activar la tarjeta NFC' });
+    res.status(500).json({ message: 'Error al activar el dispositivo NFC' });
   }
 });
 
