@@ -3,18 +3,34 @@ import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Animated, RefreshControl, useWindowDimensions, Linking, Alert,
+  Platform, Modal, ActivityIndicator, TextInput,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
+
+let NfcManager: any = null;
+let NfcTech: any = {};
+
+try {
+  if (Platform.OS !== 'web') {
+    const NfcLib = require('react-native-nfc-manager');
+    NfcManager = NfcLib.default || NfcLib;
+    NfcTech = NfcLib.NfcTech || NfcLib.default?.NfcTech || {};
+  }
+} catch (error) {
+  // Ignore safely when not in native build
+}
+
 import { useApi } from '../../hooks/useApi';
-import { apiClient } from '../../services/api';
+import { apiClient, getErrorMessage } from '../../services/api';
 import type { DashboardData, AppNotification } from '../../types/api';
 import { EmotionShape } from '../../components/EmotionShape';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { FONT } from '../../constants/fonts';
+
 
 // ── Fixed accent colors (no cambian con el tema) ───────────────────────────
 const BLUE    = '#A5CCF4';
@@ -216,12 +232,161 @@ export default function MonitorScreen() {
   const [devices, setDevices]         = useState<ApiDevice[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
 
+  // NFC activation states
+  const [nfcScanning, setNfcScanning] = useState(false);
+  const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
+  const [nfcErrorMsg, setNfcErrorMsg] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualId, setManualId] = useState('');
+
+  const refetchDevices = useCallback(() => {
+    setDevicesLoading(true);
+    apiClient.get<{ devices: ApiDevice[] }>('/monitor/devices')
+      .then(r => setDevices(r.data.devices))
+      .catch(() => {})
+      .finally(() => setDevicesLoading(false));
+  }, []);
+
+  const handleRegisterCard = async (tagId: string) => {
+    try {
+      setNfcStatus('scanning');
+      await apiClient.post('/monitor/activate-card', { nfcTagId: tagId });
+      setNfcStatus('success');
+      setTimeout(() => {
+        setNfcScanning(false);
+        setNfcStatus('idle');
+        refetchDevices();
+      }, 1500);
+    } catch (err: any) {
+      const errMsg = getErrorMessage(err);
+      setNfcStatus('error');
+      setNfcErrorMsg(errMsg);
+    }
+  };
+
+  const startNfcScan = async () => {
+    let supported = false;
+    if (Platform.OS !== 'web' && NfcManager) {
+      try {
+        supported = await NfcManager.isSupported();
+      } catch {
+        supported = false;
+      }
+    }
+
+    if (!supported) {
+      setShowManualInput(true);
+      return;
+    }
+
+    // Validar si el NFC está encendido en Android
+    if (Platform.OS === 'android' && NfcManager) {
+      try {
+        const enabled = await NfcManager.isEnabled();
+        if (!enabled) {
+          Alert.alert(
+            'NFC Desactivado',
+            'Por favor, activa el NFC en los ajustes de tu teléfono para vincular la tarjeta.',
+            [
+              { text: 'Ajustes', onPress: () => NfcManager.goToNfcSetting().catch(() => {}) },
+              { text: 'Cancelar', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn('Error al verificar NFC habilitado:', err);
+      }
+    }
+
+    try {
+      setNfcStatus('scanning');
+      setNfcScanning(true);
+      await NfcManager.start();
+
+      // Utilizar tecnologías compatibles según la plataforma
+      const techList = Platform.OS === 'ios'
+        ? [NfcTech.MifareIOS, NfcTech.Ndef]
+        : [NfcTech.NfcA, NfcTech.Ndef];
+
+      await NfcManager.requestTechnology(techList);
+      const tag = await NfcManager.getTag();
+      let rawTagId = tag?.id;
+
+      if (!rawTagId) {
+        throw new Error('No se pudo leer el ID de la tarjeta.');
+      }
+
+      // Normalizar de forma robusta el ID del tag NFC (soporta string, byte array o buffer/objeto)
+      let normalizedTagId = '';
+      if (typeof rawTagId === 'string') {
+        normalizedTagId = rawTagId;
+      } else if (Array.isArray(rawTagId)) {
+        normalizedTagId = rawTagId.map((b: any) => {
+          const num = Number(b);
+          return (isNaN(num) ? 0 : num).toString(16).padStart(2, '0');
+        }).join('');
+      } else if (rawTagId && typeof rawTagId === 'object') {
+        try {
+          const arr = Array.from(rawTagId as any);
+          normalizedTagId = arr.map((b: any) => {
+            const num = Number(b);
+            return (isNaN(num) ? 0 : num).toString(16).padStart(2, '0');
+          }).join('');
+        } catch {
+          normalizedTagId = JSON.stringify(rawTagId);
+        }
+      } else {
+        normalizedTagId = String(rawTagId);
+      }
+
+      normalizedTagId = normalizedTagId.toUpperCase().trim();
+
+      if (normalizedTagId) {
+        await handleRegisterCard(normalizedTagId);
+      } else {
+        throw new Error('El ID de la tarjeta quedó vacío después de la normalización.');
+      }
+    } catch (err: any) {
+      console.warn('NFC Scan Error:', err);
+      const errStr = err?.toString() || '';
+      if (errStr.includes('UserCancel') || errStr.includes('cancel')) {
+        setNfcScanning(false);
+        setNfcStatus('idle');
+        return;
+      }
+      setNfcStatus('error');
+      setNfcErrorMsg(err?.message || 'Error al escanear tarjeta NFC');
+    } finally {
+      try {
+        await NfcManager.cancelTechnologyRequest();
+      } catch {}
+    }
+  };
+
+  const handleManualRegister = async () => {
+    if (!manualId.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un ID válido.');
+      return;
+    }
+    try {
+      await apiClient.post('/monitor/activate-card', { nfcTagId: manualId.trim() });
+      Alert.alert(t.nfcAlertSuccess, t.nfcAlertSuccessDesc);
+      setShowManualInput(false);
+      setManualId('');
+      refetchDevices();
+    } catch (err: any) {
+      Alert.alert('Error', getErrorMessage(err));
+    }
+  };
+
   const { data, loading, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
   );
 
-  // Refetch whenever screen comes into focus (e.g. after tapping a QR notification)
-  useFocusEffect(useCallback(() => { refetch(); }, []));
+  // Refetch whenever screen comes into focus
+  useFocusEffect(useCallback(() => { refetch(); refetchDevices(); }, [refetch, refetchDevices]));
+
 
   const syncTime = (() => {
     if (!data?.timestamp) return '10:41';
@@ -410,12 +575,6 @@ export default function MonitorScreen() {
           <View style={[s.productCard, { justifyContent: 'center' }]}>
             <Text style={[s.productDesc, { textAlign: 'center', flex: 1 }]}>{t.monitorWaitingGps}</Text>
           </View>
-        ) : devices.length === 0 ? (
-          <View style={[s.card, s.emptyCard]}>
-            <Ionicons name="hardware-chip-outline" size={36} color={MUTED} />
-            <Text style={s.emptyTitle}>Sin dispositivos</Text>
-            <Text style={s.emptySub}>No tienes dispositivos Horus registrados</Text>
-          </View>
         ) : (
           <View style={{ gap: 8 }}>
             {devices.map((d, idx) => {
@@ -437,10 +596,137 @@ export default function MonitorScreen() {
                 </View>
               );
             })}
+
+            {/* Tarjeta de vinculación si no hay tarjeta NFC activa */}
+            {!devices.some(d => d.type === 'CARD') && (
+              <TouchableOpacity
+                style={[s.card, s.activationCard]}
+                onPress={startNfcScan}
+                activeOpacity={0.85}
+              >
+                <View style={s.activationContent}>
+                  <View style={[s.productIconWrap, { backgroundColor: `${GREEN}15` }]}>
+                    <Ionicons name="card-outline" size={20} color={GREEN} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.activationTitle}>{t.monitorActivateCardTitle}</Text>
+                    <Text style={s.activationDesc}>{t.monitorActivateCardDesc}</Text>
+                  </View>
+                  <View style={[s.activationBtn, { backgroundColor: PRIMARY }]}>
+                    <Text style={[s.activationBtnText, { color: BG }]}>{t.monitorActivateCardBtn}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
+
+      {/* ── NFC Scanning Modal ── */}
+      <Modal visible={nfcScanning} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={[s.modalContent, { backgroundColor: CARD }]}>
+            {nfcStatus === 'scanning' && (
+              <View style={s.modalInner}>
+                <ActivityIndicator size="large" color={PRIMARY} style={{ marginBottom: 16 }} />
+                <Text style={s.modalTitle}>{t.nfcModalScanningTitle}</Text>
+                <Text style={s.modalDesc}>{t.nfcModalScanningDesc}</Text>
+                <TouchableOpacity 
+                  style={[s.modalBtn, { backgroundColor: MUTED_BG }]} 
+                  onPress={async () => {
+                    try { await NfcManager.cancelTechnologyRequest(); } catch {}
+                    setNfcScanning(false);
+                    setNfcStatus('idle');
+                  }}
+                >
+                  <Text style={[s.modalBtnText, { color: PRIMARY }]}>{t.cancel}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {nfcStatus === 'success' && (
+              <View style={s.modalInner}>
+                <View style={[s.iconStatusWrap, { backgroundColor: `${GREEN}15` }]}>
+                  <Ionicons name="checkmark-circle" size={56} color={GREEN} />
+                </View>
+                <Text style={s.modalTitle}>{t.nfcAlertSuccess}</Text>
+                <Text style={s.modalDesc}>{t.nfcAlertSuccessDesc}</Text>
+              </View>
+            )}
+
+            {nfcStatus === 'error' && (
+              <View style={s.modalInner}>
+                <View style={[s.iconStatusWrap, { backgroundColor: '#FF3B3015' }]}>
+                  <Ionicons name="alert-circle" size={56} color="#FF3B30" />
+                </View>
+                <Text style={s.modalTitle}>Error de vinculación</Text>
+                <Text style={s.modalDesc}>{nfcErrorMsg}</Text>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, width: '100%' }}>
+                  <TouchableOpacity 
+                    style={[s.modalBtn, { backgroundColor: MUTED_BG, flex: 1 }]} 
+                    onPress={() => {
+                      setNfcScanning(false);
+                      setNfcStatus('idle');
+                    }}
+                  >
+                    <Text style={[s.modalBtnText, { color: PRIMARY }]}>{t.cancel}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[s.modalBtn, { backgroundColor: PRIMARY, flex: 1 }]} 
+                    onPress={startNfcScan}
+                  >
+                    <Text style={[s.modalBtnText, { color: BG }]}>Reintentar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Manual Simulation Modal (for Web / Simulator) ── */}
+      <Modal visible={showManualInput} transparent animationType="fade" onRequestClose={() => setShowManualInput(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalContent, { backgroundColor: CARD }]}>
+            <View style={s.modalInner}>
+              <View style={[s.iconStatusWrap, { backgroundColor: `${PRIMARY}15` }]}>
+                <Ionicons name="hardware-chip" size={40} color={PRIMARY} />
+              </View>
+              <Text style={s.modalTitle}>Simulador de Tarjeta NFC</Text>
+              <Text style={s.modalDesc}>El NFC no está disponible en este entorno. Ingresa un ID de tag ficticio para simular la vinculación.</Text>
+              
+              <TextInput
+                style={[s.textInput, { borderColor: `${PRIMARY}20`, color: PRIMARY, backgroundColor: MUTED_BG }]}
+                placeholder="Ej: HORUS-TAG-9988"
+                placeholderTextColor={MUTED}
+                value={manualId}
+                onChangeText={setManualId}
+                autoCapitalize="characters"
+              />
+
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, width: '100%' }}>
+                <TouchableOpacity 
+                  style={[s.modalBtn, { backgroundColor: MUTED_BG, flex: 1 }]} 
+                  onPress={() => {
+                    setShowManualInput(false);
+                    setManualId('');
+                  }}
+                >
+                  <Text style={[s.modalBtnText, { color: PRIMARY }]}>{t.cancel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[s.modalBtn, { backgroundColor: PRIMARY, flex: 1 }]} 
+                  onPress={handleManualRegister}
+                >
+                  <Text style={[s.modalBtnText, { color: BG }]}>Vincular</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
+
   );
 }
 
@@ -539,5 +825,108 @@ function makeStyles(
       width: 26, height: 26, borderRadius: 13,
       backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center',
     },
+    activationCard: {
+      borderWidth: 1.5,
+      borderColor: `${PRIMARY}20`,
+      borderStyle: 'dashed',
+      padding: 16,
+      borderRadius: 20,
+    },
+    activationContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    activationTitle: {
+      fontSize: 14,
+      fontFamily: FONT.displayBold,
+      color: PRIMARY,
+    },
+    activationDesc: {
+      fontSize: 12,
+      fontFamily: FONT.sansRegular,
+      color: MUTED,
+      marginTop: 2,
+    },
+    activationBtn: {
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    activationBtnText: {
+      fontSize: 12,
+      fontFamily: FONT.displayBold,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modalContent: {
+      borderRadius: 28,
+      padding: 24,
+      width: '100%',
+      maxWidth: 340,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    modalInner: {
+      width: '100%',
+      alignItems: 'center',
+      gap: 12,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontFamily: FONT.displayBold,
+      color: PRIMARY,
+      textAlign: 'center',
+    },
+    modalDesc: {
+      fontSize: 13,
+      fontFamily: FONT.sansRegular,
+      color: MUTED,
+      textAlign: 'center',
+      lineHeight: 18,
+      marginBottom: 8,
+    },
+    modalBtn: {
+      borderRadius: 14,
+      height: 46,
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: '100%',
+    },
+    modalBtnText: {
+      fontSize: 14,
+      fontFamily: FONT.displayBold,
+    },
+    iconStatusWrap: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    textInput: {
+      borderWidth: 1,
+      borderRadius: 14,
+      height: 48,
+      width: '100%',
+      paddingHorizontal: 16,
+      fontSize: 14,
+      fontFamily: FONT.sansMedium,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
   });
 }
+
