@@ -2,8 +2,9 @@ import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Modal, ActivityIndicator, Alert, FlatList, Switch, Linking,
+  TextInput, Modal, ActivityIndicator, Alert, FlatList, Switch, Linking, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 import { router } from 'expo-router';
@@ -63,6 +64,7 @@ type ProfileData = {
   firstName: string; lastName: string; email: string;
   bloodType?: string; dateOfBirth?: string;
   gender?: string; identificationType?: string; identificationNumber?: string;
+  photoUrl?: string;
 };
 type AllergyItem = { id: string; allergenName: string; allergyType: string; severity: string; reactionDescription: string | null; isActive: boolean };
 type ConditionItem = { id: string; conditionName: string; severity: string | null; status: string; notes: string | null };
@@ -367,6 +369,8 @@ export default function ProfileScreen() {
   const [loading,     setLoading]     = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [editOpen,    setEditOpen]    = useState(false);
+  const [photoUrl,    setPhotoUrl]    = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [logoutOpen,  setLogout]      = useState(false);
   // Accordion state
   const [sections, setSections] = useState({ personal: true, medical: false, allergies: false, conditions: false, medications: false, contacts: false });
@@ -424,7 +428,7 @@ export default function ProfileScreen() {
     useCallback(() => {
       setLoading(true);
       Promise.all([
-        apiClient.get<ProfileData>('/profile').then(r => setProfile(r.data)),
+        apiClient.get<ProfileData>('/profile').then(r => { setProfile(r.data); if (r.data.photoUrl) setPhotoUrl(r.data.photoUrl); }),
         apiClient.get<MedicalData>('/profile/medical').then(r => setMedData(r.data)),
         apiClient.get<ContactItem[]>('/contacts').then(r => setContacts(r.data)).catch(() => {}),
       ]).catch(() => {}).finally(() => setLoading(false));
@@ -729,6 +733,45 @@ export default function ProfileScreen() {
     ]);
   };
 
+  // ── Photo upload ──────────────────────────────────────────────────────────
+  const handlePickPhoto = async () => {
+    Alert.alert('Foto de perfil', '¿Cómo quieres agregar tu foto?', [
+      {
+        text: 'Cámara', onPress: async () => {
+          const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+          if (!granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en ajustes.'); return; }
+          const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.85 });
+          if (!result.canceled) await uploadPhoto(result.assets[0].uri);
+        },
+      },
+      {
+        text: 'Galería', onPress: async () => {
+          const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la galería en ajustes.'); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.85, mediaTypes: 'images' });
+          if (!result.canceled) await uploadPhoto(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
+
+  const uploadPhoto = async (uri: string) => {
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('photo', { uri, name: 'avatar.jpg', type: 'image/jpeg' } as any);
+      const { data } = await apiClient.post<{ photoUrl: string }>('/profile/photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPhotoUrl(data.photoUrl);
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleLogout = async () => { setLogout(false); try { await logout(); } catch {} router.replace('/login'); };
 
   // Picker display labels
@@ -754,11 +797,19 @@ export default function ProfileScreen() {
             <View style={s.avatar}>
               {loading
                 ? <ActivityIndicator color={PINK_FG} />
-                : <Text style={s.avatarText}>{initials}</Text>
+                : photoUrl
+                  ? <Image source={{ uri: photoUrl }} style={s.avatarImg} />
+                  : <Text style={s.avatarText}>{initials}</Text>
               }
             </View>
-            <TouchableOpacity style={s.cameraBtn} activeOpacity={0.85}>
-              <CameraIcon color="#FFFFFF" size={14} />
+            <TouchableOpacity
+              style={s.cameraBtn} activeOpacity={0.85}
+              onPress={handlePickPhoto} disabled={uploadingPhoto}
+            >
+              {uploadingPhoto
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <CameraIcon color="#FFFFFF" size={14} />
+              }
             </TouchableOpacity>
           </View>
           <Text style={s.userName}>{firstName} {lastName}</Text>
@@ -1279,7 +1330,8 @@ function makeStyles(
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
     },
     avatarWrap: { position: 'relative', marginBottom: 4 },
-    avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: PINK, alignItems: 'center', justifyContent: 'center' },
+    avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: PINK, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    avatarImg: { width: 96, height: 96, borderRadius: 48 },
     avatarText: { fontSize: 32, fontFamily: FONT.displayBold, color: PINK_FG },
     cameraBtn: {
       position: 'absolute', bottom: 0, right: 0,

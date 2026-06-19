@@ -61,6 +61,13 @@
       "expo-secure-store",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Horus necesita acceso a tu galería para actualizar tu foto de perfil.",
+          "cameraPermission": "Horus necesita acceso a tu cámara para tomar tu foto de perfil."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "HORUS necesita acceso a tu ubicación para mostrarla en el monitor de seguridad.",

@@ -1,7 +1,17 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../lib/prisma';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { db } from '../lib/firestore';
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -480,6 +490,41 @@ router.put('/preferences', requireAuth, async (req: AuthRequest, res: Response):
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: 'Error al guardar preferencias' });
+  }
+});
+
+// POST /api/profile/photo
+router.post('/photo', requireAuth, upload.single('photo'), async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.file) {
+    res.status(400).json({ message: 'No se recibió ninguna imagen' });
+    return;
+  }
+  try {
+    const result = await new Promise<any>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder:         `profile-photos/${req.userId}`,
+          public_id:      'avatar',
+          overwrite:      true,
+          resource_type:  'image',
+          transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
+        },
+        (err, result) => { if (err) reject(err); else resolve(result); }
+      );
+      stream.end(req.file!.buffer);
+    });
+
+    const photoUrl = result.secure_url;
+
+    await prisma.personalInformation.update({
+      where: { userId: req.userId },
+      data:  { photoUrl },
+    });
+
+    res.json({ photoUrl });
+  } catch (err) {
+    console.error('[profile/photo]', err);
+    res.status(500).json({ message: 'Error al subir la foto de perfil' });
   }
 });
 
