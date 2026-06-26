@@ -21,6 +21,9 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAssistant } from '../../hooks/useAssistant';
 import { useVoice } from '../../hooks/useVoice';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSubscription } from '../../hooks/useSubscription';
+import { router } from 'expo-router';
+import { FONT } from '../../constants/fonts';
 import VoiceMode from './VoiceMode';
 import ConversationHistory from './ConversationHistory';
 import { notificationStore } from '../../stores/notificationStore';
@@ -166,8 +169,9 @@ function FloatingAvatar({ image }: { image: ReturnType<typeof require> }) {
 
 // ── Main screen ───────────────────────────────────────────────────────────
 export default function AssistantScreen() {
-  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, isDark } = useAppTheme();
+  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE, YELLOW, isDark } = useAppTheme();
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, BLUE), [isDark]);
+  const { hasSubscription, loading: subLoading } = useSubscription();
   const { assistant } = useAssistant();
   const { voiceId } = useVoice();
   const { t } = useLanguage();
@@ -408,6 +412,30 @@ export default function AssistantScreen() {
 
   const hasSession = sessionId !== null || messages.length > 0;
   const isEmpty    = messages.length === 0 && !typing;
+
+  if (!subLoading && !hasSubscription) {
+    return (
+      <SafeAreaView edges={['top','left','right']} style={[s.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }]}>
+        <View style={{ alignItems: 'center', gap: 16 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 24, backgroundColor: (YELLOW ?? '#FAD957') + '30', justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ fontSize: 36 }}>🤖</Text>
+          </View>
+          <Text style={{ fontFamily: FONT.bold, fontSize: 18, color: PRIMARY, textAlign: 'center' }}>
+            La IA de Horus te espera
+          </Text>
+          <Text style={{ fontFamily: FONT.regular, fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 21 }}>
+            Tu asistente médico inteligente está disponible cuando adquieras tu manilla o tarjeta Horus.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push('/tienda' as never)}
+            style={{ marginTop: 8, backgroundColor: PRIMARY, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 16 }}
+          >
+            <Text style={{ fontFamily: FONT.bold, fontSize: 14, color: '#FFFFFF' }}>Ver productos Horus</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={s.container}>

@@ -23,6 +23,8 @@ import { apiClient } from '../../services/api';
 import { FONT } from '../../constants/fonts';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSubscription } from '../../hooks/useSubscription';
+import { router } from 'expo-router';
 
 // ── Foreground colors (do not change between themes) ──────────────────────
 const YELLOW_FG = '#3D2C00';
@@ -77,6 +79,7 @@ export default function QrMedicoScreen() {
   const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, isDark } = useAppTheme();
   const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK), [isDark]);
 
+  const { hasSubscription, loading: subLoading } = useSubscription();
   const { user } = useAuth();
   const { t } = useLanguage();
   const [toggles,      setToggles]      = useState(INITIAL_TOGGLES);
@@ -209,6 +212,30 @@ export default function QrMedicoScreen() {
   const qrTranslateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] });
   const qrOpacity    = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const arrowRotate  = arrowAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+
+  if (!subLoading && !hasSubscription) {
+    return (
+      <SafeAreaView style={[s.container, { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }]}>
+        <View style={{ alignItems: 'center', gap: 16 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 24, backgroundColor: YELLOW + '30', justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ fontSize: 36 }}>🔒</Text>
+          </View>
+          <Text style={{ fontFamily: FONT.bold, fontSize: 18, color: PRIMARY, textAlign: 'center' }}>
+            Tu QR médico te espera
+          </Text>
+          <Text style={{ fontFamily: FONT.regular, fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 21 }}>
+            Adquiere tu manilla o tarjeta Horus para activar tu código QR de emergencia y que socorristas accedan a tu información vital.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push('/tienda' as never)}
+            style={{ marginTop: 8, backgroundColor: PRIMARY, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 16 }}
+          >
+            <Text style={{ fontFamily: FONT.bold, fontSize: 14, color: '#FFFFFF' }}>Ver productos Horus</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container}>

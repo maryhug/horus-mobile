@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   useWindowDimensions,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -100,10 +101,11 @@ export default function LoginScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBox}>
-              <Ionicons name="shield-checkmark" size={20} color="#FAFAF7" />
-            </View>
-            <Text style={styles.logoText}>Horus</Text>
+            <Image
+              source={require('../assets/logos-horus-3.svg')}
+              style={{ height: 36, width: 140 }}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Title block — offset clears the tallest shape (star at ~top:176+size:70 = 246px) */}
@@ -243,20 +245,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 40,
     zIndex: 1,
-  },
-  logoBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: PRIMARY,
-    letterSpacing: -0.5,
   },
 
   // Title — marginTop set dynamically in JSX

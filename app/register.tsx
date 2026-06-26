@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
-  useWindowDimensions,
+  useWindowDimensions, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -112,10 +112,11 @@ export default function RegisterScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBox}>
-              <Ionicons name="shield-checkmark" size={20} color="#FAFAF7" />
-            </View>
-            <Text style={styles.logoText}>Horus</Text>
+            <Image
+              source={require('../assets/logos-horus-4.svg')}
+              style={{ height: 36, width: 140 }}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Title */}
@@ -204,11 +205,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 24, paddingTop: 32, zIndex: 1,
   },
-  logoBox: {
-    width: 40, height: 40, borderRadius: 14,
-    backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center',
-  },
-  logoText: { fontSize: 20, fontWeight: '700', color: PRIMARY, letterSpacing: -0.5 },
 
   titleBlock: { paddingHorizontal: 24, zIndex: 1 },
   title:    { fontSize: 34, fontWeight: '800', color: PRIMARY, lineHeight: 36, letterSpacing: -0.8 },
