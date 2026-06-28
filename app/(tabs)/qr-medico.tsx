@@ -155,8 +155,7 @@ export default function QrMedicoScreen() {
   const arrowAnim  = useRef(new Animated.Value(0)).current;
 
   const fullName    = user ? `${user.firstName} ${user.lastName}` : '—';
-  const apiBase     = (process.env.EXPO_PUBLIC_API_URL ?? 'https://app.horus.health/api').replace(/\/api$/, '');
-  const emergencyUrl = `${apiBase}/emergency/${user?.id ?? 'demo'}`;
+  const emergencyUrl = `https://horus-emergency-2eum.vercel.app/emergency/${user?.id ?? 'demo'}`;
 
   const flip = (key: string) => {
     setToggles(prev => {

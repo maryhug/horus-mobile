@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: horus-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: FIREBASE_FCM_JSON
+        sync: false
+      - key: FIREBASE_FIRESTORE_JSON
+        sync: false
+      - key: HORUS_API_URL
+        sync: false
+      - key: HORUS_API_SECRET
+        sync: false
+      - key: BRASLET_URL
+        value: https://horus-web-psi.vercel.app
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

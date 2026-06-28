@@ -15,6 +15,7 @@ export interface User {
   phone?: string;
   location?: string;
   pushNotificationsEnabled?: boolean;
+  userDisabledPush?: boolean;
 }
 
 // POST /api/auth/login — TODO: ajustar según la respuesta real de la API

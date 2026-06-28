@@ -362,8 +362,20 @@ router.put('/medical', requireAuth, async (req: AuthRequest, res: Response): Pro
   try {
     const { heightCm, weightKg, organDonor, insuranceProvider } = req.body;
     const data: Record<string, any> = {};
-    if (heightCm         !== undefined) data.heightCm         = heightCm         ? parseFloat(heightCm)  : null;
-    if (weightKg         !== undefined) data.weightKg         = weightKg         ? parseFloat(weightKg)  : null;
+    if (heightCm !== undefined) {
+      const h = heightCm ? parseFloat(heightCm) : null;
+      if (h !== null && (isNaN(h) || h < 50 || h > 250)) {
+        res.status(400).json({ message: 'La altura debe estar entre 50 y 250 cm.' }); return;
+      }
+      data.heightCm = h;
+    }
+    if (weightKg !== undefined) {
+      const w = weightKg ? parseFloat(weightKg) : null;
+      if (w !== null && (isNaN(w) || w < 10 || w > 500)) {
+        res.status(400).json({ message: 'El peso debe estar entre 10 y 500 kg.' }); return;
+      }
+      data.weightKg = w;
+    }
     if (organDonor       !== undefined) data.organDonor       = Boolean(organDonor);
     if (insuranceProvider !== undefined) data.insuranceProvider = insuranceProvider || null;
     await prisma.medicalProfile.upsert({

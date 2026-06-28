@@ -452,13 +452,6 @@ export default function AssistantScreen() {
                 <Text style={s.welcomeTitle}>{t.dashHelloIm} {assistant.name}</Text>
                 <Text style={s.welcomeSub}>{t.chatWelcomeSub}</Text>
               </View>
-              <View style={s.suggestions}>
-                {[t.chatSuggestion1, t.chatSuggestion2, t.chatSuggestion3].map(p => (
-                  <TouchableOpacity key={p} style={s.suggestionBtn} onPress={() => send(p)} activeOpacity={0.75}>
-                    <Text style={s.suggestionText}>{p}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           ) : null}
           renderItem={({ item: m }) => {

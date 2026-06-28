@@ -43,6 +43,7 @@ const XIcon = ({ c }: { c: string }) => <Icon size={16}><Path d="M18 6 6 18M6 6l
 const QrCodeIcon = ({ c }: { c: string }) => <Icon><Rect x={3} y={3} width={5} height={5} rx={1} stroke={c} {...sw} /><Rect x={16} y={3} width={5} height={5} rx={1} stroke={c} {...sw} /><Rect x={3} y={16} width={5} height={5} rx={1} stroke={c} {...sw} /><Path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" stroke={c} {...sw} /></Icon>;
 const SpeakerIcon = ({ c }: { c: string }) => <Icon size={16}><Path d="M11 5 6 9H2v6h4l5 4V5Z" stroke={c} {...sw} /><Path d="M15.54 8.46a5 5 0 0 1 0 7.07" stroke={c} {...sw} /></Icon>;
 const MicVoiceIcon = ({ c }: { c: string }) => <Icon><Path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z" stroke={c} {...sw} /><Path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke={c} {...sw} /><Line x1={12} y1={19} x2={12} y2={22} stroke={c} {...sw} /></Icon>;
+const ScanFaceIcon = ({ c }: { c: string }) => <Icon><Path d="M3 7V5a2 2 0 0 1 2-2h2" stroke={c} {...sw} /><Path d="M17 3h2a2 2 0 0 1 2 2v2" stroke={c} {...sw} /><Path d="M21 17v2a2 2 0 0 1-2 2h-2" stroke={c} {...sw} /><Path d="M7 21H5a2 2 0 0 1-2-2v-2" stroke={c} {...sw} /><Path d="M8 14s1.5 2 4 2 4-2 4-2" stroke={c} {...sw} /><Path d="M9 9h.01" stroke={c} {...sw} /><Path d="M15 9h.01" stroke={c} {...sw} /></Icon>;
 const WatchIcon = ({ c }: { c: string }) => <Icon size={64}><Rect x={5} y={2} width={14} height={20} rx={7} stroke={c} {...sw} /><Path d="M16 2h-2l-1-2h-2l-1 2H8M16 22h-2l-1 2h-2l-1-2H8M12 12v-4M12 12h3" stroke={c} {...sw} /></Icon>;
 
 // ── Custom Toggle ──────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ export default function SettingsScreen() {
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioHardware, setBioHardware] = useState(false);
+  const [bioType, setBioType] = useState<'face' | 'fingerprint' | 'iris' | null>(null);
   const [langOpen, setLangOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
@@ -177,8 +179,12 @@ export default function SettingsScreen() {
   const handleToggleBio = async () => {
     const next = !bioEnabled;
     if (next) {
+      const promptMessage =
+        bioType === 'face'        ? 'Confirma con Face ID / reconocimiento facial para continuar' :
+        bioType === 'iris'        ? 'Confirma con reconocimiento de iris para continuar' :
+                                    'Confirma con tu huella dactilar para continuar';
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Confirma tu identidad para activar la autenticación biométrica',
+        promptMessage,
         cancelLabel: 'Cancelar',
         disableDeviceFallback: false,
       });
@@ -194,21 +200,28 @@ export default function SettingsScreen() {
     setNotifLoading(true);
     try {
       if (!notifs.push) {
-        // Pedir permisos y registrar token (con projectId correcto)
         const token = await registerForPushNotifications();
         if (!token) {
           Alert.alert('Permisos', 'Activa las notificaciones en la configuración del dispositivo.');
           return;
         }
-        // Usar el mismo endpoint que AuthContext para consistencia
-        await apiClient.post('/profile/push-token', { pushToken: token });
-        updateUser({ pushNotificationsEnabled: true });
+        // Persist intent locally FIRST so it survives if the network call fails
+        updateUser({ pushNotificationsEnabled: true, userDisabledPush: false });
         setNotifs(p => ({ ...p, push: true }));
+        try {
+          await apiClient.post('/profile/push-token', { pushToken: token });
+        } catch {
+          // Token will be re-synced on next startup via registerPhonePushToken
+        }
       } else {
-        // Eliminar token del servidor
-        await apiClient.delete('/notifications/token');
-        updateUser({ pushNotificationsEnabled: false });
+        // Persist intent locally FIRST
+        updateUser({ pushNotificationsEnabled: false, userDisabledPush: true });
         setNotifs(p => ({ ...p, push: false }));
+        try {
+          await apiClient.delete('/notifications/token');
+        } catch {
+          // Server-side token will expire naturally; local intent is already saved
+        }
       }
     } catch (err) {
       Alert.alert('Error', getErrorMessage(err));
@@ -289,9 +302,17 @@ export default function SettingsScreen() {
       LocalAuthentication.hasHardwareAsync(),
       LocalAuthentication.isEnrolledAsync(),
       getBiometricEnabled(),
-    ]).then(([hw, enrolled, enabled]) => {
+      LocalAuthentication.supportedAuthenticationTypesAsync(),
+    ]).then(([hw, enrolled, enabled, types]) => {
       setBioHardware(hw && enrolled);
       setBioEnabled(enabled);
+      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        setBioType('face');
+      } else if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
+        setBioType('iris');
+      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        setBioType('fingerprint');
+      }
     }).catch(() => { });
   }, []);
 
@@ -480,7 +501,14 @@ export default function SettingsScreen() {
         <Text style={s.sectionTitle}>{t.settingsPrivacy}</Text>
         <View style={s.list}>
           {bioHardware && (
-            <Row s={s} icon={<Fingerprint c={MUTED} />} label={t.settingsBiometric}
+            <Row s={s}
+              icon={bioType === 'face' || bioType === 'iris' ? <ScanFaceIcon c={MUTED} /> : <Fingerprint c={MUTED} />}
+              label={
+                bioType === 'face'        ? 'Face ID / Reconocimiento facial' :
+                bioType === 'iris'        ? 'Reconocimiento de iris' :
+                bioType === 'fingerprint' ? 'Touch ID / Huella dactilar' :
+                                            t.settingsBiometric
+              }
               right={<Toggle green={GREEN} mutedBg={MUTED_BG} value={bioEnabled} onToggle={handleToggleBio} />}
             />
           )}

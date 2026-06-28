@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "tunnel": "node tunnel.js",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "db:push": "prisma db push",
     "db:generate": "prisma generate"
@@ -20,6 +20,7 @@
     "dotenv": "^16.5.0",
     "expo-server-sdk": "^6.1.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
     "firebase-admin": "^13.10.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",

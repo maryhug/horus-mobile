@@ -146,6 +146,7 @@ export default function FilesScreen() {
   const [showReview, setShowReview]     = useState(false);
   const [reviewState, setReviewState]   = useState<ReviewState | null>(null);
   const [pendingNormalized, setPendingNormalized] = useState<Record<string, string>>({});
+  const [lastUploadedPublicId, setLastUploadedPublicId] = useState<string | null>(null);
 
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<CloudFile | null>(null);
@@ -203,6 +204,7 @@ export default function FilesScreen() {
       } as any);
 
       const res = await apiClient.post<{
+        publicId?: string;
         structuredData: any;
         normalizedMedications: Record<string, string>;
       }>('/files/upload', formData, {
@@ -212,11 +214,12 @@ export default function FilesScreen() {
 
       await loadData();
 
-      const { structuredData, normalizedMedications } = res.data;
+      const { publicId, structuredData, normalizedMedications } = res.data;
       if (structuredData) {
         const rs = buildReviewState(structuredData);
         setReviewState(rs);
         setPendingNormalized(normalizedMedications || {});
+        setLastUploadedPublicId(publicId ?? null);
         setShowReview(true);
       } else {
         Alert.alert('Archivo subido', 'El documento se guardó pero no se detectó información médica estructurada.');
@@ -242,6 +245,7 @@ export default function FilesScreen() {
       });
       setShowReview(false);
       setReviewState(null);
+      setLastUploadedPublicId(null);
       Alert.alert('¡Guardado!', 'Los datos médicos se añadieron a tu perfil correctamente.');
     } catch (err) {
       Alert.alert('Error', getErrorMessage(err));
@@ -284,6 +288,20 @@ export default function FilesScreen() {
       Alert.alert('Error', `No se pudo descargar el archivo.\n${msg}`);
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  // ── Cancel review — delete the just-uploaded file from Cloudinary ─────────
+  const handleCancelReview = async () => {
+    setShowReview(false);
+    setReviewState(null);
+    if (lastUploadedPublicId) {
+      const encodedId = btoa(lastUploadedPublicId);
+      try {
+        await apiClient.delete(`/files/${encodedId}`);
+        setFiles(prev => prev.filter(f => f.publicId !== lastUploadedPublicId));
+      } catch { /* best-effort */ }
+      setLastUploadedPublicId(null);
     }
   };
 
@@ -431,7 +449,7 @@ export default function FilesScreen() {
           state={reviewState}
           onChange={setReviewState}
           onConfirm={handleConfirmExtraction}
-          onCancel={() => { setShowReview(false); setReviewState(null); }}
+          onCancel={handleCancelReview}
           loading={confirming}
           existingProfile={existingProfile}
         />

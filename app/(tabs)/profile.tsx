@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   TextInput, Modal, ActivityIndicator, Alert, FlatList, Switch, Linking, Image,
+  KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -159,20 +160,33 @@ const pm = StyleSheet.create({
 });
 
 // ── SheetField / PickerField / InlinePickerField ───────────────────────────
-function SheetField({ label, value, onChange, placeholder, locked, multiline }: {
+function SheetField({ label, value, onChange, placeholder, locked, multiline, numeric, maxLength }: {
   label: string; value: string; placeholder?: string;
   onChange: (v: string) => void; locked?: boolean; multiline?: boolean;
+  numeric?: boolean; maxLength?: number;
 }) {
   const { CARD, PRIMARY, MUTED } = useAppTheme();
+  const handleChange = (v: string) => {
+    if (numeric) {
+      const clean = v.replace(/[^0-9.]/g, '');
+      const parts = clean.split('.');
+      const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
+      onChange(sanitized);
+    } else {
+      onChange(v);
+    }
+  };
   return (
     <View style={[sf.field, { backgroundColor: CARD }, locked && sf.locked]}>
       <Text style={[sf.label, { color: MUTED }]}>{label}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TextInput
           style={[sf.input, { color: PRIMARY, flex: 1 }]}
-          value={value} onChangeText={onChange}
+          value={value} onChangeText={handleChange}
           placeholder={placeholder ?? '—'} placeholderTextColor={MUTED + '80'}
           editable={!locked} multiline={multiline}
+          keyboardType={numeric ? 'decimal-pad' : 'default'}
+          maxLength={maxLength}
         />
         {locked && <LockIcon color={MUTED} size={14} />}
       </View>
@@ -344,6 +358,7 @@ export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const { height: SCREEN_H } = useWindowDimensions();
 
   // ── Translated pickers ────────────────────────────────────────────────────
   const GENDERS_T = React.useMemo(() => [
@@ -480,6 +495,18 @@ export default function ProfileScreen() {
   const handleSave = async () => {
     if (!draft.firstName.trim() || !draft.lastName.trim()) {
       Alert.alert(t.profileRequiredFields, t.profileRequiredMsg); return;
+    }
+    if (draft.heightCm) {
+      const h = parseFloat(draft.heightCm);
+      if (isNaN(h) || h < 50 || h > 250) {
+        Alert.alert('Altura inválida', 'La altura debe estar entre 50 y 250 cm.'); return;
+      }
+    }
+    if (draft.weightKg) {
+      const w = parseFloat(draft.weightKg);
+      if (isNaN(w) || w < 10 || w > 500) {
+        Alert.alert('Peso inválido', 'El peso debe estar entre 10 y 500 kg.'); return;
+      }
     }
     const emailChanged = draft.email.trim().toLowerCase() !== email.toLowerCase();
 
@@ -685,6 +712,13 @@ export default function ProfileScreen() {
     if (!contactDraft.name.trim() || !contactDraft.phone.trim()) {
       Alert.alert('Campos requeridos', 'Nombre y teléfono son obligatorios.'); return;
     }
+    const phoneClean = contactDraft.phone.trim().replace(/\s+/g, '');
+    if (!/^\+?[0-9]{7,15}$/.test(phoneClean)) {
+      Alert.alert('Teléfono inválido', 'Ingresa un número válido de 7 a 15 dígitos.'); return;
+    }
+    if (contactDraft.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactDraft.email.trim())) {
+      Alert.alert('Correo inválido', 'Ingresa un correo electrónico válido.'); return;
+    }
     setSavingContact(true);
     try {
       const { data } = await apiClient.post<ContactItem>('/contacts', {
@@ -707,6 +741,13 @@ export default function ProfileScreen() {
     if (!editContactItem) return;
     if (!editContactDraft.name.trim() || !editContactDraft.phone.trim()) {
       Alert.alert('Campos requeridos', 'Nombre y teléfono son obligatorios.'); return;
+    }
+    const phoneClean = editContactDraft.phone.trim().replace(/\s+/g, '');
+    if (!/^\+?[0-9]{7,15}$/.test(phoneClean)) {
+      Alert.alert('Teléfono inválido', 'Ingresa un número válido de 7 a 15 dígitos.'); return;
+    }
+    if (editContactDraft.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editContactDraft.email.trim())) {
+      Alert.alert('Correo inválido', 'Ingresa un correo electrónico válido.'); return;
     }
     setSavingEditContact(true);
     try {
@@ -992,6 +1033,11 @@ export default function ProfileScreen() {
 
       {/* ── Edit bottom sheet ─────────────────────────────────────────────── */}
       <Modal visible={editOpen} animationType="slide" transparent onRequestClose={() => !saving && setEditOpen(false)}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
         <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => !saving && setEditOpen(false)}>
           <TouchableOpacity style={[s.sheet, { paddingBottom: insets.bottom + 16 }]} activeOpacity={1}>
             <View style={s.sheetHeader}>
@@ -1000,7 +1046,12 @@ export default function ProfileScreen() {
                 <XIcon color={PRIMARY} size={16} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }} contentContainerStyle={{ gap: 10 }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: SCREEN_H * 0.58 }}
+              contentContainerStyle={{ gap: 10 }}
+              keyboardShouldPersistTaps="handled"
+            >
               {/* Datos básicos */}
               <Text style={s.editSectionLabel}>Datos básicos</Text>
               <SheetField label={t.profileName}     value={draft.firstName} onChange={v => setDraft(d => ({ ...d, firstName: v }))} />
@@ -1032,10 +1083,10 @@ export default function ProfileScreen() {
               <InlinePickerField label={t.profileBloodType} displayValue={bloodDisplay} options={BLOOD_TYPES as unknown as PickerOption[]} selected={draft.bloodType} onSelect={() => {}} locked />
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <View style={{ flex: 1 }}>
-                  <SheetField label="Altura (cm)" value={draft.heightCm} onChange={v => setDraft(d => ({ ...d, heightCm: v }))} placeholder="170" />
+                  <SheetField label="Altura (cm)" value={draft.heightCm} onChange={v => setDraft(d => ({ ...d, heightCm: v }))} placeholder="170" numeric maxLength={5} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <SheetField label="Peso (kg)"   value={draft.weightKg} onChange={v => setDraft(d => ({ ...d, weightKg: v }))} placeholder="65" />
+                  <SheetField label="Peso (kg)"   value={draft.weightKg} onChange={v => setDraft(d => ({ ...d, weightKg: v }))} placeholder="65" numeric maxLength={6} />
                 </View>
               </View>
               <View style={[sf.field, { backgroundColor: CARD, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
@@ -1055,6 +1106,7 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
 

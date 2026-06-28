@@ -39,6 +39,18 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   const justUnlockRef = useRef<number>(0);
   const isPromptingRef = useRef(false);
   const didInitRef = useRef(false);
+  // Prevents re-prompting when user explicitly chose "use password"
+  const skipBioRef = useRef(false);
+  // Always-current ref to avoid stale closures in AppState listener
+  const isAuthRef = useRef(isAuthenticated);
+
+  // Keep isAuthRef in sync to avoid stale closures
+  useEffect(() => { isAuthRef.current = isAuthenticated; }, [isAuthenticated]);
+
+  // Reset skipBio on fresh login (not a session restore)
+  useEffect(() => {
+    if (isAuthenticated && !sessionWasRestored) skipBioRef.current = false;
+  }, [isAuthenticated, sessionWasRestored]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const canUseBiometric = useCallback(async (): Promise<boolean> => {
@@ -52,12 +64,18 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const tryBiometric = useCallback(async () => {
-    if (isPromptingRef.current) return;
+    if (isPromptingRef.current || skipBioRef.current) return;
     isPromptingRef.current = true;
     setAuthFailed(false);
     try {
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const promptMessage =
+        types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION) ||
+        types.includes(LocalAuthentication.AuthenticationType.IRIS)
+          ? 'Usa el reconocimiento facial para continuar'
+          : 'Usa tu huella dactilar para continuar';
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Verifica tu identidad para continuar',
+        promptMessage,
         cancelLabel: 'Cancelar',
         disableDeviceFallback: false,
       });
@@ -74,6 +92,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkAndLock = useCallback(async () => {
+    if (skipBioRef.current) return;
     const ok = await canUseBiometric();
     if (ok) {
       setTimeout(tryBiometric, 350);
@@ -115,7 +134,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'background' || next === 'inactive') {
         bgTimeRef.current = Date.now();
-      } else if (next === 'active' && isAuthenticated) {
+      } else if (next === 'active' && isAuthRef.current) {
         if (isPromptingRef.current) return;
         const elapsed = bgTimeRef.current ? Date.now() - bgTimeRef.current : 0;
         const sinceAuth = Date.now() - authTimeRef.current;
@@ -145,7 +164,15 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
             <Ionicons name="finger-print" size={20} color="#3D2C00" />
             <Text style={bioS.btnText}>Verificar identidad</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={bioS.secondaryBtn} onPress={softLogout} activeOpacity={0.75}>
+          <TouchableOpacity
+            style={bioS.secondaryBtn}
+            onPress={() => {
+              skipBioRef.current = true;
+              setLocked(false);
+              softLogout();
+            }}
+            activeOpacity={0.75}
+          >
             <Text style={bioS.secondaryText}>Usar correo y contraseña</Text>
           </TouchableOpacity>
         </View>

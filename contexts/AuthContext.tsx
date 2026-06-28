@@ -52,12 +52,16 @@ async function registerPhonePushToken() {
     const { status } = existing === 'granted'
       ? { status: existing }
       : await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return;
-
+    if (status !== 'granted') {
+      console.warn('[Push] permission not granted:', status);
+      return;
+    }
     const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    if (!projectId) console.warn('[Push] no projectId found — token may be invalid');
     const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    console.log('[Push] expo token obtained:', tokenData.data);
     await apiClient.post('/profile/push-token', { pushToken: tokenData.data });
-    console.log('[Push] phone token registered');
+    console.log('[Push] phone token saved to server');
   } catch (err) {
     console.warn('[Push] failed to register phone token:', err);
   }
@@ -113,7 +117,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const parsedUser = JSON.parse(raw) as User;
             setUser(parsedUser);
             setSessionWasRestored(true);
-            if (parsedUser.pushNotificationsEnabled !== false) {
+            // Only skip registration if the user explicitly disabled notifications.
+            // A user who never registered (pushNotificationsEnabled = false, userDisabledPush = undefined)
+            // should always retry so the first-registration deadlock is broken.
+            if (!parsedUser.userDisabledPush) {
               registerPhonePushToken();   // silently, non-blocking
             }
             syncRemotePreferences();    // silently, non-blocking

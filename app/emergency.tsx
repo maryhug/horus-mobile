@@ -177,6 +177,11 @@ export default function Emergency() {
       Alert.alert('Campos requeridos', 'El nombre y teléfono son obligatorios.');
       return;
     }
+    const phoneClean = newContact.phone.trim().replace(/\s+/g, '');
+    if (!/^\+?[0-9]{7,15}$/.test(phoneClean)) {
+      Alert.alert('Teléfono inválido', 'Ingresa un número válido de 7 a 15 dígitos.');
+      return;
+    }
     setIsSaving(true);
     try {
       await apiClient.post('/contacts', newContact);

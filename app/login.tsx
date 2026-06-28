@@ -73,6 +73,10 @@ export default function LoginScreen() {
       setErrorMsg(t.loginErrorRequired);
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErrorMsg('Ingresa un correo electrónico válido.');
+      return;
+    }
     setErrorMsg(null);
     setIsLoading(true);
     try {
