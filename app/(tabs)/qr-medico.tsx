@@ -1,538 +1,420 @@
-/**
- * qr-medico.tsx — ID Médico QR para Horus Mobile
- *
- * Genera un QR con la ficha médica completa del usuario.
- * - Sin internet para leerlo
- * - Sin app para escanearlo (cámara nativa)
- * - El QR abre una página HTML auto-contenida con toda la info
- * - Respeta PrivacySettings del usuario
- * - El usuario puede elegir qué datos incluir
- */
-
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
+import type { ComponentProps } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
-    View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    ActivityIndicator, Share, Dimensions, Switch,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  Share, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
-import * as MediaLibrary from 'expo-media-library';
-import { captureRef } from 'react-native-view-shot';
-import { useTheme } from '../../contexts/ThemeContext';
+
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+type ToggleItem = {
+  key:     string;
+  label:   string;
+  desc:    string;
+  icon:    IoniconsName;
+  enabled: boolean;
+};
 import { useAuth } from '../../contexts/AuthContext';
-import { useApi } from '../../hooks/useApi';
 import { apiClient } from '../../services/api';
-import { AppColors } from '../../constants/colors';
+import { FONT } from '../../constants/fonts';
+import { useAppTheme } from '../../hooks/useAppTheme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
-const { width: SW } = Dimensions.get('window');
-const H_PAD = 20;
-const CARD_GAP = 12;
-const QR_SIZE = SW - H_PAD * 2 - 48;
+// ── Foreground colors (do not change between themes) ──────────────────────
+const YELLOW_FG = '#3D2C00';
+const BLUE_FG   = '#1A3A5C';
+const PINK_FG   = '#7A1A3A';
 
-// TYPES
+// ── Privacy toggles ────────────────────────────────────────────────────────
+const INITIAL_TOGGLES: ToggleItem[] = [
+  { key: 'blood',      label: 'Tipo de sangre',         desc: 'O+',                    icon: 'water-outline',         enabled: true  },
+  { key: 'allergies',  label: 'Alergias',                desc: 'Severidad y reacción',  icon: 'fitness-outline',       enabled: true  },
+  { key: 'meds',       label: 'Medicamentos actuales',   desc: 'Dosis y frecuencia',    icon: 'medical-outline',       enabled: true  },
+  { key: 'conditions', label: 'Condiciones crónicas',    desc: 'Solo activas',          icon: 'heart-outline',         enabled: true  },
+  { key: 'contacts',   label: 'Contactos de emergencia', desc: 'Nombre y teléfono',     icon: 'call-outline',          enabled: true  },
+  { key: 'notes',      label: 'Notas médicas',           desc: 'Información adicional', icon: 'document-text-outline', enabled: false },
+];
 
-type ProfileData = {
-    personalInfo?: {
-        firstName: string;
-        lastName: string;
-        dateOfBirth?: string;
-        gender?: string;
-        bloodType?: string;
-        identificationNumber?: string;
-    };
-    medicalProfile?: {
-        heightCm?: number;
-        weightKg?: number;
-        organDonor?: boolean;
-        insuranceProvider?: string;
-        additionalNotes?: string;
-    };
-    allergies?: Array<{
-        allergenName: string;
-        allergyType: string;
-        severity: string;
-        reactionDescription?: string;
-    }>;
-    chronicConditions?: Array<{
-        conditionName: string;
-        severity?: string;
-        status: string;
-    }>;
-    medications?: Array<{
-        customMedicationName?: string;
-        medication?: { genericName: string };
-        dosage?: string;
-        frequency?: string;
-        route?: string;
-    }>;
-    emergencyContacts?: Array<{
-        fullName: string;
-        relationship: string;
-        phonePrimary: string;
-        phoneSecondary?: string;
-    }>;
-    privacySettings?: {
-        showFullName?: boolean;
-        showBloodType?: boolean;
-        showMedications?: boolean;
-        showAllergies?: boolean;
-        showEmergencyContacts?: boolean;
-        showMedicalHistory?: boolean;
-        showAge?: boolean;
-    };
-};
+// ── Custom toggle ──────────────────────────────────────────────────────────
+function Toggle({ value, onToggle, green, mutedBg }: { value: boolean; onToggle: () => void; green: string; mutedBg: string }) {
+  const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
-type QrConfig = {
-    includeBloodType: boolean;
-    includeAllergies: boolean;
-    includeMedications: boolean;
-    includeConditions: boolean;
-    includeContacts: boolean;
-    includeMedicalNotes: boolean;
-};
+  // Sync thumb position when value changes externally (API load, parent state update)
+  React.useEffect(() => {
+    Animated.timing(anim, { toValue: value ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+  }, [value]);
 
-// HELPERS
-
-function bloodTypeLabel(bt?: string): string {
-    if (!bt) return '—';
-    return bt.replace('_POSITIVE', '+').replace('_NEGATIVE', '-').replace('_', '');
+  const toggle = () => {
+    Animated.timing(anim, {
+      toValue: value ? 0 : 1, duration: 180, useNativeDriver: true,
+    }).start();
+    onToggle();
+  };
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
+  return (
+    <TouchableOpacity
+      onPress={toggle} activeOpacity={0.85}
+      style={[ts.track, { backgroundColor: value ? green : mutedBg }]}
+    >
+      <Animated.View style={[ts.thumb, { transform: [{ translateX }] }]} />
+    </TouchableOpacity>
+  );
 }
-
-function ageFromDob(dob?: string): string {
-    if (!dob) return '';
-    const age = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 3600 * 1000));
-    return `${age} años`;
-}
-
-function severityColor(s: string): string {
-    switch (s?.toUpperCase()) {
-        case 'LIFE_THREATENING': return '#EF233C';
-        case 'SEVERE':           return '#FF5722';
-        case 'MODERATE':         return '#FF9800';
-        default:                 return '#4CAF50';
-    }
-}
-
-function severityLabel(s: string): string {
-    switch (s?.toUpperCase()) {
-        case 'LIFE_THREATENING': return '⚠️ Riesgo vital';
-        case 'SEVERE':           return 'Severa';
-        case 'MODERATE':         return 'Moderada';
-        default:                 return 'Leve';
-    }
-}
-
-/**
- * buildQrUrl — genera la URL pública de la ficha médica
- * El QR solo contiene la URL — liviano, siempre funciona
- */
-function buildQrUrl(userId: string): string {
-    const base = 'https://arla-roomiest-iconoclastically.ngrok-free.dev';
-    return `${base}/emergency/${userId}`;
-}
-
-// STYLES
-
-function makeStyles(c: AppColors) {
-    return StyleSheet.create({
-        container:    { flex: 1, backgroundColor: c.background },
-        header: {
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-            paddingHorizontal: H_PAD, paddingVertical: 14,
-            borderBottomWidth: 1, borderBottomColor: c.border,
-            backgroundColor: c.surface,
-        },
-        headerBrand:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
-        brandIcon: {
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: c.accent10, borderWidth: 1, borderColor: c.accent20,
-            justifyContent: 'center', alignItems: 'center',
-        },
-        brandName:    { color: c.accent, fontSize: 14, fontWeight: '800', letterSpacing: 1.5, lineHeight: 17 },
-        brandSub:     { color: c.textMuted, fontSize: 9, fontWeight: '600', letterSpacing: 2, lineHeight: 12 },
-        headerActions:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
-        headerBtn: {
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: c.surfaceElevated, borderWidth: 1, borderColor: c.border,
-            justifyContent: 'center', alignItems: 'center',
-        },
-        scroll:       { paddingHorizontal: H_PAD, paddingBottom: 40 },
-        titleSection: {
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-            paddingTop: 20, marginBottom: 20,
-        },
-        titleLeft:    { flex: 1 },
-        pageTitle:    { fontSize: 30, fontWeight: '800', color: c.textPrimary, lineHeight: 36, marginBottom: 6 },
-        pageTitleAccent: { color: c.accent },
-        pageSubtitle: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
-        statusPill: {
-            flexDirection: 'row', alignItems: 'center',
-            backgroundColor: c.accent10, borderRadius: 20,
-            paddingHorizontal: 10, paddingVertical: 6, gap: 6, marginLeft: 12,
-        },
-        statusDot:    { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.accent },
-        statusLabel:  { color: c.accent, fontSize: 11, fontWeight: '700' },
-
-        // QR card
-        qrCard: {
-            backgroundColor: c.surface, borderRadius: 20,
-            borderWidth: 1, borderColor: c.border,
-            padding: 24, alignItems: 'center',
-            marginBottom: CARD_GAP,
-        },
-        qrWrap: {
-            backgroundColor: '#FFFFFF', borderRadius: 16,
-            padding: 16, marginBottom: 16,
-        },
-        qrName:       { fontSize: 16, fontWeight: '700', color: c.textPrimary, marginBottom: 4 },
-        qrMeta:       { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
-        qrBlood: {
-            flexDirection: 'row', alignItems: 'center', gap: 6,
-            backgroundColor: c.accent10, borderRadius: 20,
-            paddingHorizontal: 12, paddingVertical: 5, marginTop: 8,
-        },
-        qrBloodText:  { fontSize: 14, fontWeight: '800', color: c.accent },
-
-        // Botones de acción
-        actionsRow:   { flexDirection: 'row', gap: CARD_GAP, marginBottom: CARD_GAP },
-        actionBtn: {
-            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            gap: 8, paddingVertical: 14, borderRadius: 14,
-            backgroundColor: c.surfaceElevated, borderWidth: 1, borderColor: c.border,
-        },
-        actionBtnPrimary: { backgroundColor: c.accent, borderColor: c.accent },
-        actionBtnText:    { fontSize: 14, fontWeight: '700', color: c.textPrimary },
-        actionBtnTextPrimary: { color: '#FFFFFF' },
-
-        // Config card
-        card: {
-            backgroundColor: c.surface, borderRadius: 18,
-            borderWidth: 1, borderColor: c.border,
-            marginBottom: CARD_GAP, overflow: 'hidden',
-        },
-        cardHead: {
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-            paddingHorizontal: 16, paddingVertical: 13,
-            borderBottomWidth: 1, borderBottomColor: c.border,
-        },
-        cardHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-        cardTitle:    { fontSize: 15, fontWeight: '700', color: c.textPrimary },
-        toggleRow: {
-            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-            paddingHorizontal: 16, paddingVertical: 13,
-            borderBottomWidth: 1, borderBottomColor: c.border,
-        },
-        toggleRowLast:  { borderBottomWidth: 0 },
-        toggleLeft:     { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-        toggleIconWrap: {
-            width: 32, height: 32, borderRadius: 9,
-            justifyContent: 'center', alignItems: 'center',
-        },
-        toggleLabel:    { fontSize: 14, fontWeight: '600', color: c.textPrimary },
-        toggleSub:      { fontSize: 11, color: c.textSecondary, marginTop: 2 },
-
-        // Info card
-        infoCard: {
-            backgroundColor: c.accent10, borderRadius: 14,
-            borderWidth: 1, borderColor: c.accent20,
-            padding: 14, flexDirection: 'row', gap: 12,
-            alignItems: 'flex-start', marginBottom: CARD_GAP,
-        },
-        infoText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
-
-        // Loading / error
-        centered:     { alignItems: 'center', paddingVertical: 40, gap: 12 },
-        errorText:    { fontSize: 14, color: c.textSecondary, textAlign: 'center' },
-    });
-}
-
-// TOGGLE ROW
-
-function ToggleRow({ icon, iconBg, iconColor, label, sub, value, onChange, last, styles, c }: {
-    icon: React.ComponentProps<typeof Ionicons>['name'];
-    iconBg: string; iconColor: string;
-    label: string; sub: string;
-    value: boolean; onChange: (v: boolean) => void;
-    last?: boolean;
-    styles: ReturnType<typeof makeStyles>;
-    c: AppColors;
-}) {
-    return (
-        <View style={[styles.toggleRow, last && styles.toggleRowLast]}>
-            <View style={styles.toggleLeft}>
-                <View style={[styles.toggleIconWrap, { backgroundColor: iconBg }]}>
-                    <Ionicons name={icon} size={16} color={iconColor} />
-                </View>
-                <View>
-                    <Text style={styles.toggleLabel}>{label}</Text>
-                    <Text style={styles.toggleSub}>{sub}</Text>
-                </View>
-            </View>
-            <Switch
-                value={value}
-                onValueChange={onChange}
-                trackColor={{ false: c.border, true: c.accent20 }}
-                thumbColor={value ? c.accent : c.textMuted}
-            />
-        </View>
-    );
-}
-
-// SCREEN
+const ts = StyleSheet.create({
+  track: { width: 44, height: 24, borderRadius: 12, justifyContent: 'center' },
+  thumb: {
+    width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF',
+    shadowColor: '#000', shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 2,
+  },
+});
 
 export default function QrMedicoScreen() {
-    const { colors, isDark, toggleTheme } = useTheme();
-    const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK, isDark } = useAppTheme();
+  const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, MUTED_BG, GREEN, YELLOW, BLUE, PINK), [isDark]);
 
-    const qrRef = useRef<View>(null);
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const [toggles,      setToggles]      = useState(INITIAL_TOGGLES);
+  const [open,         setOpen]         = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [privacySaved, setPrivacySaved] = useState(false);
 
-    const [saving, setSaving] = useState(false);
-    const [cfg, setCfg] = useState<QrConfig>({
-        includeBloodType:    true,
-        includeAllergies:    true,
-        includeMedications:  true,
-        includeConditions:   true,
-        includeContacts:     true,
-        includeMedicalNotes: false,
-    });
+  // Edad y tipo de sangre desde API
+  const [ageLabel,   setAgeLabel]   = useState<string>('—');
+  const [bloodType,  setBloodType]  = useState<string>('—');
 
-    const { data, loading, error, refetch } = useApi<ProfileData>(
-        () => apiClient.get<ProfileData>('/profile/full').then(r => r.data)
-    );
+  // Mapa toggle key → campo de privacidad en la API
+  const PRIVACY_KEY_MAP: Record<string, string> = {
+    blood:      'showBloodType',
+    allergies:  'showAllergies',
+    meds:       'showMedications',
+    conditions: 'showChronicConditions',
+    contacts:   'showEmergencyContacts',
+    notes:      'showMedicalHistory',
+  };
 
-    const { user } = useAuth();
+  useFocusEffect(
+    useCallback(() => {
+      apiClient.get<{
+        personalInfo?: {
+          dateOfBirth?: string;
+          bloodType?: string;
+        };
+        privacySettings?: {
+          showBloodType?: boolean;
+          showAllergies?: boolean;
+          showMedications?: boolean;
+          showChronicConditions?: boolean;
+          showEmergencyContacts?: boolean;
+          showMedicalHistory?: boolean;
+        };
+      }>('/profile/full')
+        .then(r => {
+          const dob = r.data.personalInfo?.dateOfBirth;
+          if (dob) {
+            const today = new Date();
+            const d     = new Date(dob + 'T00:00:00');
+            let age = today.getFullYear() - d.getFullYear();
+            if (
+              today.getMonth() < d.getMonth() ||
+              (today.getMonth() === d.getMonth() && today.getDate() < d.getDate())
+            ) age -= 1;
+            setAgeLabel(`${age} ${t.qrAge}`);
+          }
+          const bt = r.data.personalInfo?.bloodType;
+          if (bt) {
+            const labels: Record<string, string> = {
+              A_POSITIVE: 'A+',  A_NEGATIVE: 'A-',
+              B_POSITIVE: 'B+',  B_NEGATIVE: 'B-',
+              AB_POSITIVE: 'AB+',AB_NEGATIVE: 'AB-',
+              O_POSITIVE: 'O+',  O_NEGATIVE: 'O-',
+            };
+            setBloodType(labels[bt] ?? bt);
+          }
+          if (r.data.privacySettings) {
+            const priv = r.data.privacySettings;
+            setToggles(prev => prev.map(item => {
+              const apiField = PRIVACY_KEY_MAP[item.key];
+              if (!apiField) return item;
+              const val = priv[apiField as keyof typeof priv];
+              return val !== undefined ? { ...item, enabled: val } : item;
+            }));
+          }
+        })
+        .catch(() => {});
+    }, [])
+  );
 
-    const qrUrl = useMemo(() => {
-        if (!user?.id) return null;
-        return buildQrUrl(user.id);
-    }, [user?.id]);
+  // Animation values
+  const slideAnim  = useRef(new Animated.Value(0)).current;
+  const arrowAnim  = useRef(new Animated.Value(0)).current;
 
-    const toggle = useCallback((key: keyof QrConfig) => {
-        setCfg(prev => ({ ...prev, [key]: !prev[key] }));
-    }, []);
+  const fullName    = user ? `${user.firstName} ${user.lastName}` : '—';
+  const emergencyUrl = `https://horus-emergency-2eum.vercel.app/emergency/${user?.id ?? 'demo'}`;
 
-    const handleShare = useCallback(async () => {
-        if (!qrUrl) return;
-        await Share.share({
-            message: qrUrl,
-            title: 'Mi ID Médico Horus',
-        });
-    }, [qrUrl]);
-
-    const handleSave = useCallback(async () => {
-        if (!qrRef.current || saving) return;
-        setSaving(true);
-        try {
-            // Pedir permiso a la galería
-            const { status } = await MediaLibrary.requestPermissionsAsync();
-            if (status !== 'granted') {
-                alert('Necesitamos permiso para guardar en tu galería.');
-                setSaving(false);
-                return;
-            }
-            // Capturar el QR como imagen PNG
-            const uri = await captureRef(qrRef, {
-                format: 'png',
-                quality: 1,
-                result: 'tmpfile',
+  const flip = (key: string) => {
+    setToggles(prev => {
+      const next = prev.map(item => item.key === key ? { ...item, enabled: !item.enabled } : item);
+      const changed = next.find(item => item.key === key);
+      if (changed) {
+        const apiField = PRIVACY_KEY_MAP[key];
+        if (apiField) {
+          apiClient.put('/profile/privacy', { [apiField]: changed.enabled })
+            .then(() => {
+              setPrivacySaved(true);
+              setTimeout(() => setPrivacySaved(false), 1500);
+            })
+            .catch((err) => {
+              console.error('[Privacy] PUT error:', err?.response?.data ?? err?.message);
             });
-            // Guardar en galería
-            const asset = await MediaLibrary.createAssetAsync(uri);
-            await MediaLibrary.createAlbumAsync('Horus', asset, false);
-            alert('✅ QR guardado en tu galería en el álbum "Horus"');
-        } catch (e: any) {
-            alert('Error al guardar: ' + e.message);
-        } finally {
-            setSaving(false);
         }
-    }, [saving]);
+      }
+      return next;
+    });
+  };
 
-    const p = data?.personalInfo;
-    const name = p ? `${p.firstName} ${p.lastName}` : '';
-    const blood = bloodTypeLabel(p?.bloodType);
-    const age = ageFromDob(p?.dateOfBirth);
+  const handleToggleQR = () => {
+    const next = !open;
+    setOpen(next);
+    Animated.parallel([
+      Animated.spring(slideAnim, {
+        toValue: next ? 1 : 0,
+        useNativeDriver: true,
+        tension: 65, friction: 10,
+      }),
+      Animated.timing(arrowAnim, {
+        toValue: next ? 1 : 0,
+        duration: 280, useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
-    return (
-        <SafeAreaView style={styles.container}>
-            {/* ── Header ── */}
-            <View style={styles.header}>
-                <View style={styles.headerBrand}>
-                    <View style={styles.brandIcon}>
-                        <Ionicons name="qr-code-outline" size={20} color={colors.accent} />
-                    </View>
-                    <View>
-                        <Text style={styles.brandName}>ID MÉDICO</Text>
-                        <Text style={styles.brandSub}>HORUS · QR</Text>
-                    </View>
+  const handleShare = async () => {
+    try { await Share.share({ message: `Mi ID Médico Horus: ${emergencyUrl}`, url: emergencyUrl }); }
+    catch {}
+  };
+
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
+  };
+
+  // Derived animated styles
+  const qrTranslateY = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] });
+  const qrOpacity    = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const arrowRotate  = arrowAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+
+  return (
+    <SafeAreaView style={s.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.scroll}
+      >
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View style={{ gap: 2 }}>
+          <Text style={s.title}>{t.qrTitle}</Text>
+          <Text style={s.subtitle}>{t.qrSubtitle}</Text>
+        </View>
+
+        {/* ── QR Card ──────────────────────────────────────────────────── */}
+        <View style={s.card}>
+
+          {/* QR expandido — nombre, QR, botones */}
+          {open && (
+            <Animated.View style={[s.qrAnimWrap, { opacity: qrOpacity, transform: [{ translateY: qrTranslateY }] }]}>
+              <Text style={s.userName}>{fullName}</Text>
+              <View style={s.metaRow}>
+                <Text style={s.metaAge}>{ageLabel}</Text>
+                <View style={s.dot} />
+                <View style={s.bloodBadge}>
+                  <Text style={s.bloodText}>{bloodType}</Text>
                 </View>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.headerBtn} onPress={toggleTheme}>
-                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerBtn} onPress={refetch}>
-                        <Ionicons name="refresh-outline" size={18} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
+              </View>
+              <View style={s.qrBox}>
+                <QRCode value={emergencyUrl} size={180} color="#1A1512" backgroundColor="#FFFFFF" />
+              </View>
+              <View style={s.btnRow}>
+                <TouchableOpacity style={s.btnDark} onPress={handleShare} activeOpacity={0.85}>
+                  <Ionicons name="share-outline" size={17} color="#FFFFFF" />
+                  <Text style={s.btnDarkText}>{t.qrShare}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.btnYellow} onPress={handleSave} activeOpacity={0.85}>
+                  <Ionicons name={saved ? 'checkmark' : 'arrow-down-circle-outline'} size={17} color={YELLOW_FG} />
+                  <Text style={s.btnYellowText}>{saved ? t.qrSaved : t.qrSaveBtn}</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          )}
+
+          <TouchableOpacity style={[s.toggleRow, { marginTop: open ? 20 : 0 }]} onPress={handleToggleQR} activeOpacity={0.75}>
+            <Text style={s.generateLabel}>{open ? t.qrCompress : t.qrGenerate}</Text>
+            <View style={s.cornerArrow}>
+              <Animated.View style={{ transform: [{ rotate: arrowRotate }] }}>
+                <Ionicons name="chevron-down" size={16} color={MUTED} />
+              </Animated.View>
             </View>
+          </TouchableOpacity>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        </View>
 
-                {/* ── Título ── */}
-                <View style={styles.titleSection}>
-                    <View style={styles.titleLeft}>
-                        <Text style={styles.pageTitle}>
-                            Mi <Text style={styles.pageTitleAccent}>ID Médico</Text>
-                        </Text>
-                        <Text style={styles.pageSubtitle}>
-                            Escaneable sin internet ni app desde cualquier cámara
-                        </Text>
-                    </View>
-                    <View style={styles.statusPill}>
-                        <View style={styles.statusDot} />
-                        <Text style={styles.statusLabel}>QR</Text>
-                    </View>
+        {/* ── Privacy toggles ─────────────────────────────────────────── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={s.sectionTitle}>{t.qrPrivacyTitle}</Text>
+          {privacySaved && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="checkmark-circle" size={14} color={GREEN} />
+              <Text style={{ fontSize: 12, color: GREEN, fontFamily: FONT.sansMedium }}>Guardado</Text>
+            </View>
+          )}
+        </View>
+        <View style={{ gap: 8 }}>
+          {toggles.map(item => {
+            const labelMap: Record<string,string> = {
+              blood: t.qrBlood, allergies: t.qrAllergies, meds: t.qrMeds,
+              conditions: t.qrConditions, contacts: t.qrContacts, notes: t.qrNotes,
+            };
+            const descMap: Record<string,string> = {
+              blood: '', allergies: t.qrAllergiesDesc, meds: t.qrMedsDesc,
+              conditions: t.qrConditionsDesc, contacts: t.qrContactsDesc, notes: t.qrNotesDesc,
+            };
+            return (
+              <View key={item.key} style={s.toggleCard}>
+                <View style={s.toggleIcon}>
+                  <Ionicons name={item.icon} size={18} color={PRIMARY} />
                 </View>
-
-                {/* ── Info ── */}
-                <View style={styles.infoCard}>
-                    <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-                    <Text style={styles.infoText}>
-                        Muestra este QR en tu reloj como fondo de pantalla. Cualquier persona puede escanearlo con la cámara del teléfono para ver tu ficha médica, sin internet y sin instalar ninguna app.
-                    </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.toggleLabel}>{labelMap[item.key] ?? item.label}</Text>
+                  <Text style={s.toggleDesc}>{descMap[item.key] ?? item.desc}</Text>
                 </View>
+                <Toggle value={item.enabled} onToggle={() => flip(item.key)} green={GREEN} mutedBg={MUTED_BG} />
+              </View>
+            );
+          })}
+        </View>
 
-                {/* ── QR ── */}
-                {loading ? (
-                    <View style={[styles.card, styles.centered]}>
-                        <ActivityIndicator size="large" color={colors.accent} />
-                        <Text style={styles.errorText}>Cargando tu perfil médico…</Text>
-                    </View>
-                ) : error ? (
-                    <View style={[styles.card, styles.centered]}>
-                        <Ionicons name="cloud-offline-outline" size={32} color={colors.textMuted} />
-                        <Text style={styles.errorText}>{error}</Text>
-                        <TouchableOpacity onPress={refetch}>
-                            <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>Reintentar</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : qrUrl ? (
-                    <View style={styles.qrCard}>
-                        <View style={styles.qrWrap} ref={qrRef} collapsable={false}>
-                            <QRCode
-                                value={qrUrl}
-                                size={QR_SIZE}
-                                color="#14151F"
-                                backgroundColor="#FFFFFF"
-                                ecl="M"
-                            />
-                        </View>
-                        {name ? <Text style={styles.qrName}>{name}</Text> : null}
-                        {age ? <Text style={styles.qrMeta}>{age}</Text> : null}
-                        {blood !== '—' && (
-                            <View style={styles.qrBlood}>
-                                <Ionicons name="water" size={14} color={colors.accent} />
-                                <Text style={styles.qrBloodText}>Tipo {blood}</Text>
-                            </View>
-                        )}
-                    </View>
-                ) : null}
-
-                {/* ── Acciones ── */}
-                {qrUrl && (
-                    <View style={styles.actionsRow}>
-                        <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-                            <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
-                            <Text style={styles.actionBtnText}>Compartir</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.actionBtn, styles.actionBtnPrimary, saving && { opacity: 0.7 }]}
-                            onPress={handleSave}
-                            disabled={saving}
-                        >
-                            {saving
-                                ? <ActivityIndicator size="small" color="#FFF" />
-                                : <Ionicons name="download-outline" size={18} color="#FFF" />
-                            }
-                            <Text style={styles.actionBtnTextPrimary}>{saving ? 'Guardando…' : 'Guardar'}</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                {/* ── Configuración del QR ── */}
-                <View style={styles.card}>
-                    <View style={styles.cardHead}>
-                        <View style={styles.cardHeadLeft}>
-                            <Ionicons name="options-outline" size={16} color={colors.accent} />
-                            <Text style={styles.cardTitle}>Datos incluidos en el QR</Text>
-                        </View>
-                    </View>
-                    <ToggleRow
-                        icon="water" iconBg="rgba(239,35,60,0.10)" iconColor={colors.accent}
-                        label="Tipo de sangre" sub="Visible al escanear"
-                        value={cfg.includeBloodType} onChange={() => toggle('includeBloodType')}
-                        styles={styles} c={colors}
-                    />
-                    <ToggleRow
-                        icon="warning" iconBg="rgba(255,87,34,0.10)" iconColor="#FF5722"
-                        label="Alergias" sub="Incluye severidad y reacción"
-                        value={cfg.includeAllergies} onChange={() => toggle('includeAllergies')}
-                        styles={styles} c={colors}
-                    />
-                    <ToggleRow
-                        icon="medical" iconBg="rgba(33,150,243,0.10)" iconColor="#2196F3"
-                        label="Medicamentos" sub="Medicación actual"
-                        value={cfg.includeMedications} onChange={() => toggle('includeMedications')}
-                        styles={styles} c={colors}
-                    />
-                    <ToggleRow
-                        icon="fitness" iconBg="rgba(76,175,80,0.10)" iconColor="#4CAF50"
-                        label="Condiciones crónicas" sub="Solo condiciones activas"
-                        value={cfg.includeConditions} onChange={() => toggle('includeConditions')}
-                        styles={styles} c={colors}
-                    />
-                    <ToggleRow
-                        icon="call" iconBg="rgba(255,167,38,0.10)" iconColor="#FFA726"
-                        label="Contactos de emergencia" sub="Nombre y teléfono"
-                        value={cfg.includeContacts} onChange={() => toggle('includeContacts')}
-                        styles={styles} c={colors}
-                    />
-                    <ToggleRow
-                        icon="document-text" iconBg={colors.surfaceElevated} iconColor={colors.textMuted}
-                        label="Notas médicas" sub="Información adicional del perfil"
-                        value={cfg.includeMedicalNotes} onChange={() => toggle('includeMedicalNotes')}
-                        last styles={styles} c={colors}
-                    />
+        {/* ── Watch instructions ───────────────────────────────────────── */}
+        <View style={s.watchCard}>
+          <View style={s.watchHeader}>
+            <Ionicons name="watch-outline" size={18} color={BLUE_FG} />
+            <Text style={s.watchTitle}>{t.qrWatchTitle}</Text>
+          </View>
+          <View style={{ gap: 12, marginTop: 16 }}>
+            {[t.qrWatchStep1, t.qrWatchStep2, t.qrWatchStep3, t.qrWatchStep4].map((step, i) => (
+              <View key={i} style={s.step}>
+                <View style={s.stepNum}>
+                  <Text style={s.stepNumText}>{i + 1}</Text>
                 </View>
+                <Text style={s.stepText}>{step}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
 
-                {/* ── Instrucciones reloj ── */}
-                <View style={styles.card}>
-                    <View style={styles.cardHead}>
-                        <View style={styles.cardHeadLeft}>
-                            <Ionicons name="watch-outline" size={16} color={colors.accent} />
-                            <Text style={styles.cardTitle}>Cómo ponerlo en tu reloj</Text>
-                        </View>
-                    </View>
-                    {[
-                        { n: '1', icon: 'download-outline',      text: 'Toca "Guardar" para descargar el QR como imagen a tu galería' },
-                        { n: '2', icon: 'watch-outline',          text: 'En tu Redmi Watch: Ajustes → Carátula → Foto personal → selecciona la imagen del QR' },
-                        { n: '3', icon: 'scan-outline',           text: 'Cualquier persona puede escanearlo con la cámara nativa de cualquier teléfono' },
-                        { n: '4', icon: 'globe-outline',          text: 'Se abre automáticamente tu ficha médica en el navegador, sin internet ni app' },
-                    ].map((step, i, arr) => (
-                        <View key={i} style={[styles.toggleRow, i === arr.length - 1 && styles.toggleRowLast]}>
-                            <View style={styles.toggleLeft}>
-                                <View style={[styles.toggleIconWrap, { backgroundColor: colors.accent10 }]}>
-                                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.accent }}>{step.n}</Text>
-                                </View>
-                                <Text style={[styles.toggleLabel, { fontSize: 13, fontWeight: '500', flex: 1, flexWrap: 'wrap' }]}>
-                                    {step.text}
-                                </Text>
-                            </View>
-                        </View>
-                    ))}
-                </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
 
-            </ScrollView>
-        </SafeAreaView>
-    );
+function makeStyles(
+  BG: string, CARD: string, PRIMARY: string, MUTED: string, MUTED_BG: string,
+  GREEN: string, YELLOW: string, BLUE: string, PINK: string,
+) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: BG },
+    scroll:    { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 120, gap: 16 },
+
+    title:    { fontSize: 26, fontFamily: FONT.displayBold, color: PRIMARY, letterSpacing: -0.5 },
+    subtitle: { fontSize: 14, color: MUTED, fontFamily: FONT.sansMedium },
+
+    // QR card
+    card: {
+      backgroundColor: CARD, borderRadius: 20,
+      paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12,
+      alignItems: 'center',
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    },
+    userName: { fontSize: 20, fontWeight: '800', color: PRIMARY, letterSpacing: -0.3 },
+    metaRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 4 },
+    metaAge:  { fontSize: 13, color: MUTED },
+    dot:      { width: 4, height: 4, borderRadius: 2, backgroundColor: MUTED + '80' },
+    bloodBadge: {
+      backgroundColor: PINK, borderRadius: 999,
+      paddingHorizontal: 10, paddingVertical: 2,
+    },
+    bloodText: { fontSize: 13, fontWeight: '700', color: PINK_FG },
+
+    // QR slide section
+    qrAnimWrap: { width: '100%', alignItems: 'center', marginTop: 16 },
+    qrBox: {
+      backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
+    },
+    btnRow: { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
+    btnDark: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, backgroundColor: '#1A1512', borderRadius: 18, paddingVertical: 14,
+    },
+    btnDarkText:   { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+    btnYellow: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, backgroundColor: YELLOW, borderRadius: 18, paddingVertical: 14,
+    },
+    btnYellowText: { color: YELLOW_FG, fontSize: 14, fontWeight: '700' },
+
+    toggleRow: {
+      flexDirection: 'row', alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+    },
+    generateLabel: {
+      fontSize: 14, fontWeight: '600', color: MUTED,
+    },
+    cornerArrow: {
+      width: 28, height: 28, borderRadius: 14,
+      backgroundColor: MUTED_BG,
+      alignItems: 'center', justifyContent: 'center',
+    },
+
+    // Section title
+    sectionTitle: { fontSize: 17, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
+
+    // Toggle rows
+    toggleCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: CARD, borderRadius: 20, padding: 14,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    },
+    toggleIcon: {
+      width: 36, height: 36, borderRadius: 12,
+      backgroundColor: MUTED_BG,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    toggleLabel: { fontSize: 14, fontWeight: '700', color: PRIMARY },
+    toggleDesc:  { fontSize: 12, color: MUTED, marginTop: 1 },
+
+    // Watch card
+    watchCard: {
+      backgroundColor: BLUE, borderRadius: 28, padding: 20,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    },
+    watchHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    watchTitle:  { fontSize: 15, fontWeight: '700', color: BLUE_FG },
+    step:        { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    stepNum: {
+      width: 24, height: 24, borderRadius: 12,
+      backgroundColor: BLUE_FG,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    stepNumText: { fontSize: 12, fontWeight: '700', color: BLUE },
+    stepText:    { flex: 1, fontSize: 13, fontWeight: '500', color: BLUE_FG, lineHeight: 19 },
+  });
 }

@@ -4,10 +4,6 @@ const path = require('path');
 
 const PORT = 3000;
 const ENV_PATH = path.join(__dirname, '..', '.env');
-// Ruta absoluta por si cloudflared no está en PATH del proceso hijo
-const CLOUDFLARED_PATH =
-  process.env.CLOUDFLARED_PATH ||
-  'C:\\Program Files (x86)\\cloudflared\\cloudflared.exe';
 
 function updateEnv(url) {
   const newUrl = `${url}/api`;
@@ -21,32 +17,48 @@ function updateEnv(url) {
   return newUrl;
 }
 
-function startTunnel() {
-  const bin = fs.existsSync(CLOUDFLARED_PATH) ? CLOUDFLARED_PATH : 'cloudflared';
-  console.log(`Iniciando Cloudflare tunnel (${bin}) en puerto ${PORT}...`);
+async function getPublicIp() {
+  try {
+    const res = await fetch('https://api.ipify.org');
+    return await res.text();
+  } catch (e) {
+    return 'No se pudo obtener la IP pública automáticamente';
+  }
+}
 
-  const proc = spawn(bin, ['tunnel', '--url', `http://localhost:${PORT}`], {
-    stdio: ['ignore', 'pipe', 'pipe'],
+function startTunnel() {
+  console.log(`Iniciando LocalTunnel en puerto ${PORT}...`);
+
+  const proc = spawn('npx', ['localtunnel', '--port', PORT.toString(), '--local-host', '127.0.0.1'], {
+    shell: true
   });
 
   let urlFound = false;
 
-  function checkOutput(data) {
-    if (urlFound) return;
+  proc.stdout.on('data', async (data) => {
     const text = data.toString();
-    const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-    if (match) {
+    const match = text.match(/your url is:\s*(https:\/\/\S+)/);
+    if (match && !urlFound) {
       urlFound = true;
-      const apiUrl = updateEnv(match[0]);
+      const url = match[1];
+      const apiUrl = updateEnv(url);
+      const ip = await getPublicIp();
+      
       console.log('\n========================================');
-      console.log(`  Tunnel activo:  ${match[0]}`);
+      console.log(`  Tunnel activo:  ${url}`);
       console.log(`  .env actualizado: ${apiUrl}`);
+      console.log(`  Contraseña del túnel (IP Pública): ${ip}`);
       console.log('========================================\n');
     }
-  }
+  });
 
-  proc.stdout.on('data', checkOutput);
-  proc.stderr.on('data', checkOutput);
+  proc.stderr.on('data', (data) => {
+    // Ignore harmless warnings from localtunnel/npx
+    const errText = data.toString().trim();
+    if (errText && !errText.includes('npm WARN') && !errText.includes('npx: installed')) {
+      console.error('Error de tunnel:', errText);
+    }
+  });
 
   proc.on('close', (code) => {
     console.log(`Tunnel cerrado (${code}). Reconectando en 3s...`);
@@ -55,12 +67,7 @@ function startTunnel() {
   });
 
   proc.on('error', (err) => {
-    if (err.code === 'ENOENT') {
-      console.error('\nERROR: cloudflared no encontrado en:', bin);
-      console.error('Instálalo con:  winget install Cloudflare.cloudflared\n');
-      process.exit(1);
-    }
-    console.error('Error en tunnel:', err.message, '— Reintentando en 5s...');
+    console.error('Error al iniciar tunnel:', err.message, '— Reintentando en 5s...');
     setTimeout(startTunnel, 5000);
   });
 }

@@ -3,11 +3,21 @@
 # Dependencies
 node_modules/
 
+# VS Code local settings
+.vscode/
+
 # Expo
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+
+# Firebase / Google service account credentials — NEVER commit these
+google-credentials.json
+firebase-horus-main.json
+*firebase-adminsdk*.json
+*service-account*.json
+*google-credentials*.json
 
 # Native generated folders (created by expo prebuild)
 /ios

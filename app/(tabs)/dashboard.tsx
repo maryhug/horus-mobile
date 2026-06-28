@@ -1,465 +1,414 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
   RefreshControl,
+  Animated,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../contexts/ThemeContext';
+import { router } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import { apiClient } from '../../services/api';
-import { AppColors } from '../../constants/colors';
 import type { DashboardData } from '../../types/api';
+import { HealthRing, MetricChips } from '../../components/HealthRing';
+import type { HealthMetric } from '../../components/HealthRing';
+import { Image } from 'react-native';
+import { useAppTheme } from '../../hooks/useAppTheme';
+import { useAssistant } from '../../hooks/useAssistant';
+import { useLanguage } from '../../contexts/LanguageContext';
+import type { T } from '../../contexts/LanguageContext';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const H_PAD = 20;
-const CARD_GAP = 12;
-const METRIC_W = (SCREEN_WIDTH - H_PAD * 2 - CARD_GAP) / 2;
-const CHART_H = 140;
+// ── Local UI types ─────────────────────────────────────────────────────────
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
-const BAR_HOURS = ['00:00', '06:00', '12:00', '18:00', '24:00'];
+type StatusItem = {
+  icon:  IoniconsName;
+  label: string;
+  value: string;
+  sub:   string;
+  color: string;
+};
 
-function makeStyles(c: AppColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: H_PAD,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-      backgroundColor: c.surface,
-    },
-    headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    brandIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: c.accent10,
-      borderWidth: 1,
-      borderColor: c.accent20,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    brandName: { color: c.accent, fontSize: 14, fontWeight: '800', letterSpacing: 1.5, lineHeight: 17 },
-    brandSub: { color: c.textMuted, fontSize: 9, fontWeight: '600', letterSpacing: 2, lineHeight: 12 },
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: c.surfaceElevated,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    avatarCircle: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: c.accentDark,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    avatarText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+type QuickAction = {
+  icon:  IoniconsName;
+  label: string;
+  color: string;
+  route: Href;
+};
 
-    scroll: { paddingHorizontal: H_PAD, paddingBottom: 28 },
+// ASSIST_BG se calcula dinámicamente dentro del componente
 
-    titleSection: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      paddingTop: 20,
-      marginBottom: 20,
-    },
-    titleLeft: { flex: 1 },
-    pageTitle: { fontSize: 30, fontWeight: '800', color: c.textPrimary, lineHeight: 36, marginBottom: 6 },
-    pageTitleAccent: { color: c.accent },
-    pageSubtitle: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
-    syncPill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: c.accent10,
-      borderRadius: 20,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      gap: 6,
-      marginLeft: 12,
-    },
-    syncDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.accent },
-    syncLabel: { color: c.accent, fontSize: 11, fontWeight: '700' },
-
-    statusRow: { flexDirection: 'row', gap: CARD_GAP, marginBottom: CARD_GAP },
-    statusCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    statusCardHalf: { flex: 1 },
-    statusCardFull: { marginBottom: CARD_GAP },
-    statusCardHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 10,
-    },
-    statusCardLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '500', flex: 1 },
-    smallBadge: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
-    onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 5 },
-    onlineDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: c.success },
-    statusValue: { fontSize: 22, fontWeight: '700', color: c.textPrimary },
-    statusValueLg: { fontSize: 26, fontWeight: '800', color: c.textPrimary },
-    statusSub: { fontSize: 11, color: c.textSecondary, marginTop: 4 },
-    batteryTrack: { height: 5, backgroundColor: c.border, borderRadius: 3, marginVertical: 10, overflow: 'hidden' },
-    batteryFill: { height: '100%', backgroundColor: c.accent, borderRadius: 3 },
-    syncRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-    syncOkBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: 'rgba(76, 175, 80, 0.12)',
-      borderRadius: 10,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-    },
-    syncOkText: { fontSize: 11, color: c.success, fontWeight: '600' },
-
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.textPrimary, marginBottom: 12 },
-
-    metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, marginBottom: 20 },
-    metricCard: {
-      width: METRIC_W,
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    metricTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-    metricIcon: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
-    changeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      backgroundColor: 'rgba(76, 175, 80, 0.12)',
-      borderRadius: 8,
-      paddingHorizontal: 6,
-      paddingVertical: 3,
-    },
-    changeText: { fontSize: 11, color: c.success, fontWeight: '700' },
-    metricLabel: { fontSize: 12, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
-    metricBottom: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-    metricValue: { fontSize: 26, fontWeight: '800', color: c.textPrimary },
-    metricUnit: { fontSize: 13, color: c.textSecondary, fontWeight: '500' },
-
-    chartCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-      marginBottom: 20,
-    },
-    chartHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 20,
-    },
-    chartTitle: { fontSize: 15, fontWeight: '700', color: c.textPrimary },
-    chartSub: { fontSize: 12, color: c.textSecondary, marginTop: 3 },
-    livePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: c.accent10,
-      borderRadius: 12,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      gap: 5,
-    },
-    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.accent },
-    liveLabel: { fontSize: 11, color: c.accent, fontWeight: '700' },
-    barsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, flex: 1 },
-    barCol: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', height: CHART_H },
-    bar: { width: '100%', backgroundColor: c.accent, borderRadius: 3, opacity: 0.7, minHeight: 4 },
-    xLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    xLabel: { fontSize: 10, color: c.textMuted },
-
-    alertsCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    alertsHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    alertsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    alertsTitle: { fontSize: 15, fontWeight: '700', color: c.textPrimary },
-    seeAll: { fontSize: 13, color: c.accent, fontWeight: '600' },
-    alertRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 14,
-      paddingVertical: 13,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
-    },
-    alertDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, flexShrink: 0 },
-    alertBody: { flex: 1 },
-    alertTitle: { fontSize: 14, color: c.textPrimary, fontWeight: '500', lineHeight: 20, marginBottom: 3 },
-    alertTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    alertTime: { fontSize: 12, color: c.textMuted },
-
-    // Loading skeleton
-    skeletonBlock: { backgroundColor: c.surfaceElevated, borderRadius: 8 },
-    errorCard: {
-      backgroundColor: c.surface,
-      borderRadius: 18,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      alignItems: 'center',
-      gap: 10,
-      marginBottom: CARD_GAP,
-    },
-    errorText: { color: c.textSecondary, fontSize: 14, textAlign: 'center' },
-  });
+function buildMetrics(t: T, health?: DashboardData['health']): HealthMetric[] {
+  return [
+    { key: 'heart',    label: t.dashMetricHeart,    value: health?.heartRate       ?? '—', unit: 'bpm',                icon: 'heart',      color: 'pink'   },
+    { key: 'steps',    label: t.dashMetricSteps,    value: health?.steps           ?? '—', unit: t.dashMetricStepsUnit, icon: 'footprints', color: 'blue'   },
+    { key: 'calories', label: t.dashMetricCalories, value: health?.calories        ?? '—', unit: 'kcal',               icon: 'flame',      color: 'yellow' },
+    { key: 'activity', label: t.dashMetricActivity, value: health?.activityMinutes ?? '—', unit: 'min',                icon: 'activity',   color: 'green'  },
+  ];
 }
 
-type MetricProps = { icon: string; iconColor: string; label: string; value: string; unit: string };
-type AlertProps = { dotColor: string; title: string; time: string; isLocation?: boolean };
+function RingCard({ metrics, score }: { metrics: HealthMetric[]; score: string }) {
+  const { CARD, PRIMARY } = useAppTheme();
+  const cardStyle = {
+    backgroundColor: CARD, borderRadius: 32,
+    padding: 16, paddingBottom: 20,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 16, elevation: 3,
+  };
+  const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
+  return (
+    <View style={cardStyle}>
+      <HealthRing
+        metrics={metrics}
+        score={score}
+        selectedKey={selectedKey}
+        onSelectKey={setSelectedKey}
+      />
+      <MetricChips metrics={metrics} selectedKey={selectedKey} />
+    </View>
+  );
+}
+
 
 export default function DashboardScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { user } = useAuth();
+  const { BG, CARD, PRIMARY, MUTED, GREEN, YELLOW, BLUE, PINK, isDark, toggleTheme } = useAppTheme();
+  const ASSIST_BG = isDark ? '#2D1520' : '#FAECEA';
+  const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED, GREEN, PINK, YELLOW, BLUE, ASSIST_BG), [isDark]);
 
-  const { data, loading, error, refetch } = useApi<DashboardData>(
+  const { user } = useAuth();
+  const { assistant } = useAssistant();
+  const { t } = useLanguage();
+  const livePulse  = useRef(new Animated.Value(1)).current;
+
+  const { data, refetch } = useApi<DashboardData>(
     () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
   );
 
-  const avatarInitials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'HB'
-    : 'HB';
+  // health y metrics DESPUÉS de data para que no sean siempre null
+  const health  = data?.health ?? null;
+  const metrics = React.useMemo(() => buildMetrics(t, health), [t, health]);
 
-  const syncTime = data?.timestamp
-    ? new Date(data.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-    : '—';
+  const [mockLoading, setMockLoading] = useState(false);
+  const handleMockData = useCallback(async () => {
+    setMockLoading(true);
+    try {
+      await apiClient.post('/wearable/mock', {});
+      await refetch();
+    } catch { /* silently ignore */ } finally {
+      setMockLoading(false);
+    }
+  }, [refetch]);
 
-  function MetricCard({ icon, iconColor, label, value, unit }: MetricProps) {
-    return (
-      <View style={styles.metricCard}>
-        <View style={styles.metricTop}>
-          <View style={[styles.metricIcon, { backgroundColor: iconColor + '28' }]}>
-            <Ionicons name={icon as any} size={20} color={iconColor} />
-          </View>
-        </View>
-        <Text style={styles.metricLabel}>{label}</Text>
-        <View style={styles.metricBottom}>
-          <Text style={styles.metricValue}>{value}</Text>
-          <Text style={styles.metricUnit}>{unit}</Text>
-        </View>
-      </View>
-    );
-  }
+  // Refresh manual (muestra spinner) vs auto-poll silencioso
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const handleManualRefresh = useCallback(async () => {
+    setManualRefreshing(true);
+    await refetch();
+    setManualRefreshing(false);
+  }, [refetch]);
 
-  function AlertRow({ dotColor, title, time, isLocation }: AlertProps) {
-    return (
-      <View style={styles.alertRow}>
-        <View style={[styles.alertDot, { backgroundColor: dotColor }]} />
-        <View style={styles.alertBody}>
-          <Text style={styles.alertTitle}>{title}</Text>
-          <View style={styles.alertTimeRow}>
-            {isLocation && <Ionicons name="location-outline" size={12} color={colors.textMuted} />}
-            <Text style={styles.alertTime}>{time}</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  // Auto-poll silencioso cada 15s — sin spinner
+  useEffect(() => {
+    const id = setInterval(refetch, 15_000);
+    return () => clearInterval(id);
+  }, [refetch]);
+
+  // Barras de actividad: normalizar 24 valores a rango [8, 80]
+  const barHeights = React.useMemo(() => {
+    const raw = data?.hourlyActivity;
+    if (!raw || raw.length < 24) return Array.from({ length: 24 }, (_, i) => 8 + ((i * 37 + 19) % 40));
+    const max = Math.max(...raw, 1);
+    return raw.map(v => Math.round(8 + (v / max) * 72));
+  }, [data?.hourlyActivity]);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, { toValue: 1.5, duration: 900, useNativeDriver: true }),
+        Animated.timing(livePulse, { toValue: 1,   duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const syncTime = React.useMemo(() => {
+    if (!data?.timestamp) return '—';
+    const d = new Date(data.timestamp);
+    const h = d.getHours();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    return `${h % 12 || 12}:${m} ${h >= 12 ? 'pm' : 'am'}`;
+  }, [data?.timestamp]);
+
+  const batteryVal = health?.battery != null ? `${health.battery}%` : '—';
+  const statusItems = React.useMemo<StatusItem[]>(() => [
+    { icon: 'hardware-chip-outline', label: t.dashDevice,   value: data ? 'Online' : '—', sub: 'v2.4.1', color: GREEN },
+    { icon: 'battery-half-outline',  label: t.dashBattery,  value: batteryVal,                 sub: '',       color: PINK  },
+    { icon: 'time-outline',          label: t.dashLastSync, value: syncTime,                   sub: t.dashToday, color: BLUE },
+  ], [t, data, syncTime, batteryVal, GREEN, PINK, BLUE]);
+
+  const quickActions = React.useMemo<QuickAction[]>(() => [
+    { icon: 'qr-code-outline',     label: t.dashQrId,    color: PINK,   route: '/(tabs)/qr-medico' },
+    { icon: 'chatbubble-outline',  label: t.dashAI,      color: BLUE,   route: '/(tabs)/assistant' },
+    { icon: 'folder-open-outline', label: t.dashFiles,   color: YELLOW, route: '/(tabs)/files'     },
+    { icon: 'person-outline',      label: t.dashProfile, color: GREEN,  route: '/(tabs)/profile'   },
+  ], [t, PINK, BLUE, YELLOW, GREEN]);
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? t.greetingMorning : hour < 18 ? t.greetingAfternoon : t.greetingEvening;
+  const firstName = user?.firstName ?? 'usuario';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerBrand}>
-          <View style={styles.brandIcon}>
-            <Image
-              source={require('../../assets/icon.png')}
-              style={{ width: 28, height: 28 }}
-              resizeMode="contain"
-            />
-          </View>
-          <View>
-            <Text style={styles.brandName}>HORUS</Text>
-            <Text style={styles.brandSub}>BRASLET</Text>
-          </View>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={toggleTheme}>
-            <Ionicons
-              name={isDark ? 'sunny-outline' : 'moon-outline'}
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn}>
-            <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{avatarInitials}</Text>
-          </View>
-        </View>
-      </View>
-
+    <SafeAreaView style={s.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.accent} />
-        }
+        contentContainerStyle={s.scroll}
+        refreshControl={<RefreshControl refreshing={manualRefreshing} onRefresh={handleManualRefresh} tintColor={GREEN} />}
       >
-        <View style={styles.titleSection}>
-          <View style={styles.titleLeft}>
-            <Text style={styles.pageTitle}>
-              Panel de{'\n'}<Text style={styles.pageTitleAccent}>control</Text>
-            </Text>
-            <Text style={styles.pageSubtitle}>
-              {user
-                ? `Bienvenido/a, ${user.firstName ?? user.email}`
-                : 'Información en tiempo real de tu manilla Horus'}
-            </Text>
-          </View>
-          <View style={styles.syncPill}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncLabel}>En vivo</Text>
-          </View>
-        </View>
 
-        {error && (
-          <View style={styles.errorCard}>
-            <Ionicons name="cloud-offline-outline" size={28} color={colors.textMuted} />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={refetch}>
-              <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 14 }}>Reintentar</Text>
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View style={s.header}>
+          <View>
+            <Text style={s.greeting}>{greeting},</Text>
+            <Text style={s.name}>{firstName}</Text>
+          </View>
+          <View style={s.headerRight}>
+            <View style={s.livePill}>
+              <Animated.View style={[s.liveDot, { transform: [{ scale: livePulse }] }]} />
+              <Text style={s.liveText}>{t.dashLive}</Text>
+            </View>
+            <TouchableOpacity style={s.themeBtn} onPress={toggleTheme}>
+              <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={MUTED} />
             </TouchableOpacity>
           </View>
-        )}
-
-        <View style={styles.statusRow}>
-          <View style={[styles.statusCard, styles.statusCardHalf]}>
-            <View style={styles.statusCardHead}>
-              <Text style={styles.statusCardLabel}>Dispositivo</Text>
-              <View style={[styles.smallBadge, { backgroundColor: colors.accent10 }]}>
-                <Ionicons name="wifi" size={14} color={colors.accent} />
-              </View>
-            </View>
-            <View style={styles.onlineRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.statusValue}>{loading ? '...' : data ? 'Online' : 'Sin datos'}</Text>
-            </View>
-            {/* TODO: ajustar según la respuesta real de la API — mostrar nfcTagId o device info */}
-            <Text style={styles.statusSub}>
-              {user?.nfcTagId ? `ID: ${user.nfcTagId}` : 'HRS-BR · v2.4.1'}
-            </Text>
-          </View>
-
-          <View style={[styles.statusCard, styles.statusCardHalf]}>
-            <View style={styles.statusCardHead}>
-              <Text style={styles.statusCardLabel}>Batería</Text>
-              <View style={[styles.smallBadge, { backgroundColor: colors.accent10 }]}>
-                <Ionicons name="battery-charging" size={14} color={colors.accent} />
-              </View>
-            </View>
-            <Text style={[styles.statusValue, { color: colors.textMuted }]}>—</Text>
-            <View style={styles.batteryTrack}>
-              <View style={[styles.batteryFill, { width: '0%' }]} />
-            </View>
-            <Text style={styles.statusSub}>Sin datos del dispositivo</Text>
-          </View>
         </View>
 
-        <View style={[styles.statusCard, styles.statusCardFull]}>
-          <View style={styles.statusCardHead}>
-            <Text style={styles.statusCardLabel}>Última sincronización</Text>
-            <View style={[styles.smallBadge, { backgroundColor: colors.accent10 }]}>
-              <Ionicons name="time-outline" size={14} color={colors.accent} />
-            </View>
+        {/* ── Assistant strip ──────────────────────────────────────────── */}
+        <TouchableOpacity
+          style={s.assistantStrip}
+          onPress={() => router.push('/(tabs)/assistant')}
+          activeOpacity={0.85}
+        >
+          <View style={s.assistantAvatarWrap}>
+            <Image source={assistant.image} style={{ width: 44, height: 44 }} resizeMode="contain" />
           </View>
-          <View style={styles.syncRow}>
-            <Text style={styles.statusValueLg}>
-              {loading ? <ActivityIndicator size="small" color={colors.accent} /> : syncTime}
+          <View style={s.assistantText}>
+            <Text style={s.assistantName}>{t.dashHelloIm} {assistant.name}</Text>
+            <Text style={s.assistantTagline} numberOfLines={1}>
+              {assistant.tagline}
             </Text>
-            {data && (
-              <View style={styles.syncOkBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                <Text style={styles.syncOkText}>Exitoso</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={MUTED} />
+        </TouchableOpacity>
+
+        {/* ── Metrics ring ────────────────────────────────────────────── */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>{t.dashMetrics}</Text>
+          {health ? (
+            <TouchableOpacity
+              style={[s.sensorPill, { backgroundColor: GREEN + '33', flexDirection: 'row', alignItems: 'center' }]}
+              onPress={handleMockData}
+              activeOpacity={0.7}
+              disabled={mockLoading}
+            >
+              {mockLoading ? (
+                <ActivityIndicator size={10} color={GREEN} />
+              ) : (
+                <>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN, marginRight: 5, flexShrink: 0 }} />
+                  <Text style={[s.sensorText, { color: GREEN }]} numberOfLines={1}>
+                    {health.updatedAt ? (() => {
+                      const d = new Date(health.updatedAt);
+                      const h = d.getHours(), m = d.getMinutes().toString().padStart(2, '0');
+                      return `${h % 12 || 12}:${m} ${h >= 12 ? 'pm' : 'am'}`;
+                    })() : 'Reloj'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={s.sensorPill} onPress={handleMockData} activeOpacity={0.7} disabled={mockLoading}>
+              {mockLoading
+                ? <ActivityIndicator size={10} />
+                : <Text style={s.sensorText}>{t.dashWaitingSensor}</Text>}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <RingCard metrics={metrics} score={health?.score != null ? String(health.score) : '—'} />
+
+        {/* ── Device status row ────────────────────────────────────────── */}
+        <View style={s.statusRow}>
+          {statusItems.map(item => (
+            <View key={item.label} style={s.statCard}>
+              <View style={[s.statIcon, { backgroundColor: item.color + '55' }]}>
+                <Ionicons name={item.icon} size={20} color={PRIMARY} />
+              </View>
+              <Text style={s.statLabel}>{item.label}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
+                <Text style={s.statValue}>{item.value}</Text>
+                {!!item.sub && <Text style={s.statSub}>{item.sub}</Text>}
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Activity 24h ─────────────────────────────────────────────── */}
+        <View style={s.card}>
+          <View style={s.chartHeader}>
+            <Text style={s.sectionTitle}>{t.dashActivity}</Text>
+            {data?.hourlyActivity && data.hourlyActivity.some(v => v > 0) ? (
+              <View style={[s.sensorPill, { backgroundColor: GREEN + '22' }]}>
+                <Text style={[s.sensorText, { color: GREEN }]}>
+                  {data.hourlyActivity.reduce((a, b) => a + b, 0).toLocaleString()} {t.dashMetricStepsUnit}
+                </Text>
+              </View>
+            ) : (
+              <View style={s.sensorPill}>
+                <Text style={s.sensorText}>{t.dashNoDataSensor}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.statusSub}>
-            {data?.timestamp
-              ? new Date(data.timestamp).toLocaleDateString('es-MX', { weekday: 'long' })
-              : 'Hoy'}
-          </Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Métricas de salud</Text>
-        <View style={styles.metricsGrid}>
-          <MetricCard icon="heart" iconColor={colors.strawberryRed} label="Frecuencia cardíaca" value="—" unit="bpm" />
-          <MetricCard icon="footsteps" iconColor={colors.lavenderGrey} label="Pasos hoy" value="—" unit="pasos" />
-          <MetricCard icon="flame" iconColor="#FF9800" label="Calorías" value="—" unit="kcal" />
-          <MetricCard icon="pulse" iconColor={colors.spaceIndigo} label="Actividad" value="—" unit="min" />
-        </View>
-
-        <View style={styles.chartCard}>
-          <View style={styles.chartHead}>
-            <View>
-              <Text style={styles.chartTitle}>Actividad de las últimas 24h</Text>
-              <Text style={styles.chartSub}>Sin datos del sensor aún</Text>
-            </View>
+          <View style={s.bars}>
+            {barHeights.map((h, i) => (
+              <View key={i} style={[s.bar, { height: h, opacity: h <= 8 ? 0.35 : 1 }]} />
+            ))}
           </View>
-          <View style={{ height: CHART_H, justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="analytics-outline" size={36} color={colors.textMuted} />
-            <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8 }}>
-              Conecta tu manilla para ver datos
-            </Text>
-          </View>
-          <View style={styles.xLabels}>
-            {BAR_HOURS.map((h, i) => <Text key={i} style={styles.xLabel}>{h}</Text>)}
+          <View style={s.chartLabels}>
+            {['00h', '06h', '12h', '18h', '24h'].map(t => (
+              <Text key={t} style={s.chartLabel}>{t}</Text>
+            ))}
           </View>
         </View>
 
-        <View style={styles.alertsCard}>
-          <View style={styles.alertsHead}>
-            <View style={styles.alertsTitleRow}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
-              <Text style={styles.alertsTitle}>Alertas recientes</Text>
-            </View>
-          </View>
-          <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
-            <Ionicons name="notifications-off-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.errorText}>Sin alertas recientes</Text>
-          </View>
+        {/* ── Quick actions ─────────────────────────────────────────────── */}
+        <Text style={[s.sectionTitle, { marginBottom: 14 }]}>{t.dashQuickActions}</Text>
+        <View style={s.quickRow}>
+          {quickActions.map(item => (
+            <TouchableOpacity
+              key={item.label}
+              style={s.quickItem}
+              onPress={() => router.push(item.route)}
+              activeOpacity={0.82}
+            >
+              <View style={[s.quickIcon, { backgroundColor: item.color }]}>
+                <Ionicons name={item.icon} size={22} color="#1A1512" />
+              </View>
+              <Text style={s.quickLabel}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+
+
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function makeStyles(
+  BG: string, CARD: string, PRIMARY: string, MUTED: string,
+  GREEN: string, PINK: string, YELLOW: string, BLUE: string, ASSIST_BG: string,
+) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: BG },
+    scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 120, gap: 16 },
+
+    // Header
+    header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    greeting:    { fontSize: 14, fontWeight: '500', color: MUTED },
+    name:        { fontSize: 26, fontWeight: '800', color: PRIMARY, letterSpacing: -0.5 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    livePill: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: CARD, borderRadius: 999,
+      paddingHorizontal: 12, paddingVertical: 7,
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    },
+    liveDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
+    liveText: { fontSize: 12, fontWeight: '700', color: PRIMARY },
+    themeBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: CARD, alignItems: 'center', justifyContent: 'center',
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    },
+
+    // Assistant strip
+    assistantStrip: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: ASSIST_BG, borderRadius: 24,
+      padding: 12, paddingRight: 16,
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
+    },
+    assistantAvatarWrap: {
+      width: 52, height: 52,
+      borderRadius: 26,
+      backgroundColor: PINK + '30',
+      alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    },
+    assistantText:    { flex: 1, minWidth: 0 },
+    assistantName:    { fontSize: 15, fontWeight: '700', color: PRIMARY },
+    assistantTagline: { fontSize: 12, color: MUTED, marginTop: 1 },
+
+    // Section header
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sectionTitle:  { fontSize: 17, fontWeight: '700', color: PRIMARY, letterSpacing: -0.3 },
+    sensorPill: {
+      backgroundColor: 'rgba(136,130,110,0.12)',
+      borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+    },
+    sensorText: { fontSize: 11, fontWeight: '600', color: MUTED },
+
+    // Card
+    card: {
+      backgroundColor: CARD, borderRadius: 32,
+      padding: 16, paddingBottom: 20,
+      shadowColor: PRIMARY, shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.07, shadowRadius: 16, elevation: 3,
+    },
+
+    // Device status
+    statusRow: { flexDirection: 'row', gap: 10 },
+    statCard: {
+      flex: 1, backgroundColor: CARD, borderRadius: 24, padding: 14,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    },
+    statIcon: {
+      width: 40, height: 40, borderRadius: 14,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    },
+    statLabel: { fontSize: 11, color: MUTED, fontWeight: '500', marginBottom: 2 },
+    statValue: { fontSize: 16, fontWeight: '800', color: PRIMARY, lineHeight: 20 },
+    statSub:   { fontSize: 10, color: MUTED, marginTop: 2 },
+
+    // Chart
+    chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    bars: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 2 },
+    bar:  { flex: 1, backgroundColor: 'rgba(136,130,110,0.2)', borderRadius: 4 },
+    chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+    chartLabel:  { fontSize: 10, color: MUTED, fontWeight: '500' },
+
+    // Quick actions
+    quickRow:  { flexDirection: 'row', gap: 10 },
+    quickItem: { flex: 1, alignItems: 'center', gap: 8 },
+    quickIcon: {
+      width: '100%',
+      height: 58,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickLabel: { fontSize: 11, fontWeight: '600', color: PRIMARY, textAlign: 'center' },
+
+  });
 }

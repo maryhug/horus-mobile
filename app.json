@@ -16,16 +16,19 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#413117"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.horus.mobile"
+      "bundleIdentifier": "com.horus.mobile",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Horus usa Face ID para proteger tu información médica."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#413117"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -33,7 +36,9 @@
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.NFC"
+        "android.permission.NFC",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -52,7 +57,23 @@
           "nfcPermission": "Required to scan Horus NFC bracelets in emergency situations"
         }
       ],
-      "expo-secure-store"
+      "expo-local-authentication",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Horus necesita acceso a tu galería para actualizar tu foto de perfil.",
+          "cameraPermission": "Horus necesita acceso a tu cámara para tomar tu foto de perfil."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "HORUS necesita acceso a tu ubicación para mostrarla en el monitor de seguridad.",
+          "locationWhenInUsePermission": "HORUS necesita acceso a tu ubicación para mostrarla en el monitor de seguridad."
+        }
+      ]
     ],
     "extra": {
       "eas": {
