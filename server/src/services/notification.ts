@@ -61,9 +61,10 @@ export async function sendPushNotification(userId: string, title: string, body: 
       getWatchToken(userId).catch(() => null),
     ]);
 
-    const extraData: Record<string, string> | undefined = data
+    const extraData: Record<string, string> = data
       ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
-      : undefined;
+      : {};
+    extraData.userId = userId;
 
     // Phone
     if (user?.pushToken) {
