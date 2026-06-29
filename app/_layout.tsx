@@ -139,7 +139,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
         const elapsed = bgTimeRef.current ? Date.now() - bgTimeRef.current : 0;
         const sinceAuth = Date.now() - authTimeRef.current;
         const sinceUnlock = Date.now() - justUnlockRef.current;
-        if (elapsed > 3000 && sinceAuth > 5000 && sinceUnlock > 3000) {
+        if (elapsed > 300000 && sinceAuth > 5000 && sinceUnlock > 3000) {
           setLocked(true);
           checkAndLock();
         }

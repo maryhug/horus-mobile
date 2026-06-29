@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, Platform, Animated, Keyboard, LayoutAnimation,
-  UIManager, Modal, Alert,
+  UIManager, Modal, Alert, KeyboardAvoidingView
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
@@ -184,7 +184,7 @@ export default function AssistantScreen() {
   const [ending,       setEnding]       = useState(false);
   const [showAttach,   setShowAttach]   = useState(false);
   const [streamingId,  setStreamingId]  = useState<string | null>(null);
-  const [inputBottom,  setInputBottom]  = useState(BASE_BOTTOM);
+  const [kbVisible,    setKbVisible]    = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ base64: string; mimeType: string; info: MediaInfo } | null>(null);
   const [viewImageUri, setViewImageUri] = useState<string | null>(null);
   const [voiceModeOn,  setVoiceModeOn]  = useState(false);
@@ -195,22 +195,22 @@ export default function AssistantScreen() {
   const initLock   = useRef(false);
   const pickingRef = useRef(false);
 
-  // ── Keyboard tracking (posiciona el input exactamente sobre el teclado) ──
+  // ── Keyboard tracking (para ajustar padding) ──
   useEffect(() => {
-    const onShow = (e: any) => {
+    const onShow = () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setInputBottom(e.endCoordinates.height + 8);
+      setKbVisible(true);
     };
     const onHide = () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setInputBottom(BASE_BOTTOM);
+      setKbVisible(false);
     };
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const s1 = Keyboard.addListener(showEvent, onShow);
     const s2 = Keyboard.addListener(hideEvent, onHide);
     return () => { s1.remove(); s2.remove(); };
-  }, [BASE_BOTTOM]);
+  }, []);
 
   const scrollToBottom = useCallback(() =>
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80), []);
@@ -406,13 +406,16 @@ export default function AssistantScreen() {
       pickingRef.current = false;
     }
   }, []);
-
   const hasSession = sessionId !== null || messages.length > 0;
   const isEmpty    = messages.length === 0 && !typing;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={s.container}>
-      <View style={s.flex}>
+      <KeyboardAvoidingView 
+        style={s.flex} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={s.flex}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={s.header}>
           <View style={s.headerAvatar}>
@@ -442,7 +445,7 @@ export default function AssistantScreen() {
           data={messages}
           keyExtractor={m => m.id}
           style={s.flex}
-          contentContainerStyle={[s.listContent, isEmpty && s.listEmpty, { paddingBottom: inputBottom + 70 }]}
+          contentContainerStyle={[s.listContent, isEmpty && s.listEmpty, { paddingBottom: 16 }]}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={scrollToBottom}
           ListHeaderComponent={isEmpty ? (
@@ -522,8 +525,8 @@ export default function AssistantScreen() {
           ) : null}
         />
 
-        {/* ── Input bar — posición absoluta, sigue al teclado ─────────── */}
-        <View style={[s.inputArea, { bottom: inputBottom }]}>
+        {/* ── Input bar ─────────── */}
+        <View style={[s.inputArea, { paddingBottom: kbVisible ? 10 : BASE_BOTTOM }]}>
 
           {/* Preview del adjunto pendiente */}
           {pendingMedia && (
@@ -575,7 +578,8 @@ export default function AssistantScreen() {
           </View>
         </View>
 
-      </View>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* ── Attach modal ─────────────────────────────────────────────────── */}
       <Modal visible={showAttach} transparent animationType="none" onRequestClose={() => setShowAttach(false)}>
@@ -735,10 +739,9 @@ function makeStyles(
     pendingPdfName: { flex: 1, fontSize: 13, color: PRIMARY, fontWeight: '500' },
     pendingRemove: { padding: 2 },
 
-    // Input bar — absoluto, el bottom se setea dinámicamente con el estado del teclado
+    // Input bar
     inputArea: {
-      position: 'absolute', left: 0, right: 0,
-      paddingHorizontal: 16, paddingVertical: 10,
+      paddingHorizontal: 16, paddingTop: 10,
       backgroundColor: BG,
     },
     inputRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
