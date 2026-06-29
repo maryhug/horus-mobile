@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 
 const BASE_URL =
-    process.env.EXPO_PUBLIC_API_URL ?? 'https://arla-roomiest-iconoclastically.ngrok-free.dev/api';
+    process.env.EXPO_PUBLIC_API_URL ?? 'https://horus-mobile.onrender.com/api';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

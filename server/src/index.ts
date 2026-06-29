@@ -20,6 +20,7 @@ import { db } from './lib/firestore';
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+app.set('trust proxy', 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '20mb' }));
