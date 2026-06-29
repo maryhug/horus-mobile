@@ -1,755 +1,588 @@
 # Horus Mobile
 
-Aplicación móvil de salud personal conectada a la manilla inteligente **Horus Bráslet**. Monitorea métricas vitales en tiempo real, genera un QR médico de emergencia, gestiona archivos clínicos y permite comunicarse con un asistente de IA personalizado.
+> The central hub of the Horus health ecosystem — a React Native / Expo application that unifies medical identity, real-time vitals monitoring, AI-assisted health guidance, and emergency response into a single cross-platform experience.
 
 ---
 
-## Índice
+## Table of Contents
 
-1. [¿Qué hace la app?](#1-qué-hace-la-app)
-2. [Stack tecnológico](#2-stack-tecnológico)
-3. [Librerías y dependencias](#3-librerías-y-dependencias)
-4. [Estructura de carpetas](#4-estructura-de-carpetas)
-5. [Archivos principales y su propósito](#5-archivos-principales-y-su-propósito)
-6. [Contexts (estado global)](#6-contexts-estado-global)
-7. [Hooks personalizados](#7-hooks-personalizados)
-8. [Pantallas](#8-pantallas)
-9. [Componentes reutilizables](#9-componentes-reutilizables)
-10. [Sistema de temas](#10-sistema-de-temas)
-11. [Sistema de idiomas (i18n)](#11-sistema-de-idiomas-i18n)
-12. [API y backend](#12-api-y-backend)
-13. [Cómo correr la aplicación](#13-cómo-correr-la-aplicación)
-14. [Variables de entorno](#14-variables-de-entorno)
-15. [Notas de desarrollo](#15-notas-de-desarrollo)
+1. [Ecosystem Overview](#1-ecosystem-overview)
+2. [What Horus Mobile Does](#2-what-horus-mobile-does)
+3. [Architecture](#3-architecture)
+4. [Tech Stack](#4-tech-stack)
+5. [Project Structure](#5-project-structure)
+6. [Core Modules](#6-core-modules)
+7. [Embedded Backend](#7-embedded-backend)
+8. [API Reference](#8-api-reference)
+9. [Design System](#9-design-system)
+10. [Internationalization](#10-internationalization)
+11. [Running the App](#11-running-the-app)
+12. [Environment Variables](#12-environment-variables)
+13. [Building for Production](#13-building-for-production)
 
 ---
 
-## 1. ¿Qué hace la app?
+## 1. Ecosystem Overview
 
-| Funcionalidad | Descripción |
+Horus is a personal medical identity and emergency response ecosystem composed of five interconnected products:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        HORUS ECOSYSTEM                          │
+│                                                                 │
+│   ┌──────────────┐      ┌──────────────┐     ┌──────────────┐  │
+│   │ horus-mobile │◄────►│horus-braslet │     │  horus-watch │  │
+│   │  (this repo) │      │  (wristband) │     │  (Wear OS)   │  │
+│   │  React Native│      │  Next.js PWA │     │   Kotlin     │  │
+│   └──────┬───────┘      └──────────────┘     └──────┬───────┘  │
+│          │                                           │          │
+│          │            ┌──────────────┐              │          │
+│          └───────────►│horus-emergency│◄─────────────┘          │
+│                       │  QR Scanner  │                          │
+│                       │  Next.js     │                          │
+│                       └──────────────┘                          │
+│                                                                 │
+│                    Firebase (FCM + Firestore)                   │
+│                    PostgreSQL · Cloudinary · Render             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Product | Role |
 |---|---|
-| 🏥 **ID Médico QR** | Genera un código QR con información médica escaneable en emergencias, sin necesidad de app |
-| 📊 **Dashboard de salud** | Visualiza métricas vitales (ritmo cardíaco, pasos, calorías, actividad) sincronizadas con la manilla |
-| 📡 **Monitor NFC/BLE** | Monitorea el estado del dispositivo wearable en tiempo real vía Bluetooth y NFC |
-| 🤖 **Asistente IA** | Chat con un asistente médico personalizado (3 personajes: Tinto, Oblea, Bocadillo) |
-| 📁 **Archivos clínicos** | Sube, organiza y descarga documentos médicos (PDF, CSV, PNG, JSON) |
-| 👤 **Perfil médico** | Gestiona datos personales y médicos con lógica de "llenar una sola vez" para campos sensibles |
-| ⚙️ **Configuración** | Tema claro/oscuro, idioma (ES/EN/PT), asistente, notificaciones, privacidad, vincular manilla |
-| 🚨 **Emergencia pública** | Pantalla accesible sin autenticación con datos médicos críticos del portador del QR |
+| **horus-mobile** | Central app — health dashboard, AI assistant, medical QR ID, file manager |
+| **horus-braslet** | Next.js PWA displayed on the smart wristband; reads OCR'd clinical files |
+| **horus-watch** | Wear OS companion app; receives FCM push alerts when the user's QR is scanned |
+| **horus-emergency** | Public Next.js scanner; reads QR codes and triggers notifications to phone + watch |
+| **horus-mobile/server** | Express.js REST API embedded in this repo; serves all clients |
+
+### How the products connect
+
+1. The user registers in **horus-mobile** and completes their medical profile.
+2. The app generates a **medical QR ID** encoding the user's server ID.
+3. A first responder scans the QR with **horus-emergency** — which pulls the medical profile, saves a notification to Firestore, and sends push alerts to the user's phone (Expo) and watch (FCM).
+4. The **horus-watch** receives the FCM alert via its registered token, stored in Firestore by the mobile server after login.
+5. **horus-braslet** connects to the same backend to display clinical files and OCR data on the wristband screen.
 
 ---
 
-## 2. Stack tecnológico
+## 2. What Horus Mobile Does
 
-| Categoría | Tecnología | Versión |
+| Feature | Description |
+|---|---|
+| **Medical QR ID** | Generates a personal emergency QR code readable by any camera — no app required on the scanner side |
+| **Health Dashboard** | Displays real-time vitals (heart rate, steps, calories, activity) synced from the wearable |
+| **Wearable Monitor** | Tracks BLE/NFC wristband status, battery, GPS, firmware version and last sync |
+| **AI Health Assistant** | Context-aware chat with three selectable assistant personas (Tinto, Oblea, Bocadillo) |
+| **Clinical File Manager** | Upload, organize, and download medical documents (PDF, CSV, PNG, JSON) via Cloudinary |
+| **Medical Profile** | One-time lock on sensitive fields (blood type, DOB, ID number) to prevent accidental overwrite |
+| **Watch Pairing** | Generates a 6-digit OTP device code for secure Wear OS companion login |
+| **Push Notifications** | Receives alerts when QR is scanned — delivered via Expo Push on phone and FCM on watch |
+| **Public Emergency View** | Unauthenticated screen shown to first responders with critical medical data |
+| **Theming & i18n** | Light / dark mode, Spanish / English / Portuguese — all persisted per device |
+
+---
+
+## 3. Architecture
+
+### Client
+
+```
+React Native (Expo SDK 54)
+│
+├── Expo Router (file-based routing)           → app/ directory maps to URL paths
+├── React Context + custom hooks               → global auth, theme, language state
+├── Singleton module pattern                   → useAssistant() — no Provider needed
+├── makeStyles + useMemo([isDark])             → theme-reactive StyleSheets
+├── SecureStore                                → encrypted JWT + session persistence
+└── Axios with interceptors                    → auth token injection, 401 auto-logout
+```
+
+### Server (`server/`)
+
+```
+Express.js (TypeScript)
+│
+├── JWT authentication (jsonwebtoken + bcryptjs)
+├── express-rate-limit (trust proxy = 1 for Render)
+├── Prisma ORM → PostgreSQL (Supabase / Neon)
+├── Firebase Admin SDK → FCM messaging + Firestore token storage
+├── Cloudinary SDK → clinical file upload/download
+└── expo-server-sdk → Expo push notification delivery
+```
+
+### Data flow
+
+```
+horus-mobile app
+    │
+    ▼
+POST /api/auth/login
+    │
+    ├─► PostgreSQL (user record, medical profile, clinical files)
+    ├─► Firestore horus-64e3b (watch FCM token saved on login)
+    └─► Cloudinary (clinical file storage)
+
+horus-emergency scans QR
+    │
+    ▼
+POST /api/scan/:userId  (horus-emergency → horus-mobile server)
+    │
+    ├─► Expo Push → phone notification
+    ├─► FCM → Firestore horus-64e3b → watch FCM token → watch notification
+    └─► Firestore → saves notification record for in-app display
+```
+
+---
+
+## 4. Tech Stack
+
+### Mobile client
+
+| Layer | Technology | Version |
 |---|---|---|
-| **Framework UI** | React Native | 0.81.5 |
-| **Entorno** | Expo SDK | ~54.0.33 |
-| **Lenguaje** | TypeScript | ~5.9.2 |
-| **UI Runtime** | React | 19.1.0 |
-| **Routing** | Expo Router (file-based) | ~6.0.23 |
-| **HTTP Client** | Axios | ^1.16.1 |
-| **Web** | React Native Web | ^0.21.0 |
+| Framework | React Native | 0.81.5 |
+| Runtime | Expo SDK | ~54.0.33 |
+| Language | TypeScript | ~5.9.2 |
+| UI engine | React | 19.1.0 |
+| Routing | Expo Router (file-based) | ~6.0.23 |
+| HTTP client | Axios | ^1.16.1 |
+| Web support | React Native Web | ^0.21.0 |
 
-### Paradigmas de diseño
+### Mobile client — key packages
 
-- **File-based routing** — las rutas se infieren automáticamente de la estructura de carpetas en `app/`
-- **Context + Hook pattern** — estado global vía React Context, consumido por hooks tipados
-- **Singleton hooks** — `useAssistant` comparte estado entre todas las instancias sin Context extra
-- **Lock-once data** — campos médicos en perfil se bloquean permanentemente al ser llenados
-- **Theme-reactive styles** — `makeStyles()` recibe tokens de color y devuelve `StyleSheet`, regenerado con `useMemo([isDark])`
-- **Cero `any`** — TypeScript estricto en toda la codebase, sin excepciones
+| Package | Purpose |
+|---|---|
+| `expo-secure-store` | Encrypted JWT and session storage (iOS Keychain / Android Keystore) |
+| `expo-notifications` | Expo push token registration and foreground notification handler |
+| `expo-av` | Audio playback for AI voice mode responses |
+| `expo-document-picker` | Clinical file selection |
+| `expo-local-authentication` | Biometric authentication (FaceID / fingerprint) |
+| `expo-location` | GPS coordinates for wearable monitor |
+| `react-native-ble-plx` | Bluetooth Low Energy communication with Horus Bráslet |
+| `react-native-nfc-manager` | NFC tag reading for emergency identification |
+| `react-native-qrcode-svg` | Medical QR ID generation |
+| `react-native-svg` | Custom SVG icons and the animated HealthRing |
+| `expo-linear-gradient` | Gradient accents throughout the UI |
+
+### Embedded server
+
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js / Express.js (TypeScript) |
+| ORM | Prisma with PostgreSQL adapter |
+| Database | PostgreSQL (Supabase / Neon compatible) |
+| Push (phone) | expo-server-sdk |
+| Push (watch) | Firebase Admin SDK — FCM |
+| Realtime tokens | Firebase Admin SDK — Firestore (`horus-64e3b`) |
+| File storage | Cloudinary |
+| Auth | JWT (jsonwebtoken) + bcryptjs |
+| Rate limiting | express-rate-limit (trust proxy enabled for Render) |
+| Deployment | Render (free tier + UptimeRobot keep-alive) |
 
 ---
 
-## 3. Librerías y dependencias
-
-### Navegación y estructura
-
-| Paquete | Uso |
-|---|---|
-| `expo-router` | Routing file-based; gestiona stack de pantallas y tab navigator |
-| `react-native-screens` | Optimización nativa del stack de pantallas |
-| `react-native-safe-area-context` | Insets de pantalla (notch, barra de estado, home indicator) |
-
-### Fuentes y UI
-
-| Paquete | Uso |
-|---|---|
-| `@expo-google-fonts/space-grotesk` | Fuente **display** para títulos y métricas (pesos: 400, 500, 600, 700) |
-| `@expo-google-fonts/dm-sans` | Fuente **sans-serif** para etiquetas y textos de UI (pesos: 400, 500, 700) |
-| `expo-font` | Cargador de fuentes custom antes de renderizar la app |
-| `react-native-svg` | Renderizado vectorial SVG — íconos propios y el HealthRing animado |
-
-### Hardware y sensores
-
-| Paquete | Uso |
-|---|---|
-| `react-native-ble-plx` | Comunicación Bluetooth Low Energy con la manilla Horus Bráslet |
-| `react-native-nfc-manager` | Lectura de tags NFC para identificación de emergencia |
-| `react-native-qrcode-svg` | Generación del QR médico en pantalla |
-| `react-native-view-shot` | Captura del QR como imagen para guardar o compartir |
-
-### Medios y archivos
-
-| Paquete | Uso |
-|---|---|
-| `expo-image-picker` | Selección de foto de perfil desde galería o cámara |
-| `expo-media-library` | Guardar el QR generado en la galería del dispositivo |
-| `expo-file-system` | Manejo de archivos clínicos locales |
-
-### Persistencia
-
-| Paquete | Uso |
-|---|---|
-| `expo-secure-store` | Almacenamiento **cifrado** en iOS/Android (token JWT, sesión, preferencias) |
-| `expo-constants` | Acceso a constantes de la app (IDs, entorno) |
-
-### Red y desarrollo
-
-| Paquete | Uso |
-|---|---|
-| `axios` | Cliente HTTP con interceptores, manejo de errores 401/408/500 y token Bearer |
-| `@expo/ngrok` | Tunnel local para exponer el servidor backend al dispositivo físico |
-| `@expo/metro-runtime` | Runtime de Metro para soporte web |
-
-### Íconos
-
-Los íconos de pantalla se renderizan con **SVG custom** (paths de Lucide Icons) definidos inline en cada componente — sin dependencias de librerías de íconos de terceros. Solo los íconos del navbar usan `@expo/vector-icons` (Ionicons), tipados con `IoniconsName = ComponentProps<typeof Ionicons>['name']`.
-
----
-
-## 4. Estructura de carpetas
+## 5. Project Structure
 
 ```
 horus-mobile/
 │
-├── app/                          # Pantallas — Expo Router (file-based routing)
-│   ├── _layout.tsx               # Root layout: providers, fuentes, RouteGuard
-│   ├── index.tsx                 # Splash / redirect inicial
-│   ├── login.tsx                 # Pantalla de inicio de sesión
-│   ├── register.tsx              # Pantalla de registro (solo datos básicos)
-│   ├── settings.tsx              # Configuración general de la app
-│   ├── emergency.tsx             # Vista pública de emergencia (sin autenticación)
-│   └── (tabs)/                   # Grupo de tabs (layout compartido con FloatingTabBar)
-│       ├── _layout.tsx           # Tab navigator con FloatingTabBar personalizado
-│       ├── dashboard.tsx         # Panel principal de salud
-│       ├── monitor.tsx           # Monitor del dispositivo wearable
-│       ├── qr-medico.tsx         # Generador de ID médico QR
-│       ├── assistant.tsx         # Chat con el asistente de IA
-│       ├── files.tsx             # Gestión de archivos clínicos
-│       └── profile.tsx           # Perfil del usuario (con lock-once en datos médicos)
+├── app/                              # Screens — Expo Router file-based routing
+│   ├── _layout.tsx                   # Root layout: providers, fonts, RouteGuard
+│   ├── index.tsx                     # Splash / initial redirect
+│   ├── login.tsx                     # Login screen
+│   ├── register.tsx                  # Registration (basic info only)
+│   ├── settings.tsx                  # App settings (theme, language, assistant, device)
+│   ├── emergency.tsx                 # Public emergency view (no auth required)
+│   └── (tabs)/
+│       ├── _layout.tsx               # Tab navigator with custom FloatingTabBar
+│       ├── dashboard.tsx             # Main health dashboard
+│       ├── monitor.tsx               # Wearable device monitor
+│       ├── qr-medico.tsx             # Medical QR ID generator
+│       ├── assistant.tsx             # AI chat assistant
+│       ├── files.tsx                 # Clinical file manager
+│       └── profile.tsx               # User medical profile (lock-once fields)
 │
-├── components/                   # Componentes reutilizables
-│   ├── FloatingTabBar.tsx        # Navbar flotante personalizado con i18n
-│   ├── HealthRing.tsx            # Anillo SVG animado de métricas + MetricChips
-│   └── EmotionShape.tsx          # Formas decorativas SVG (login/register)
+├── components/
+│   ├── FloatingTabBar.tsx            # Custom floating tab bar (i18n-aware)
+│   ├── HealthRing.tsx                # Animated SVG health ring + MetricChips
+│   └── EmotionShape.tsx             # Decorative SVG shapes (login / register)
 │
-├── contexts/                     # Estado global React Context
-│   ├── AuthContext.tsx           # Sesión de usuario, login, logout, token JWT
-│   ├── ThemeContext.tsx          # Tema claro/oscuro, persistido en SecureStore
-│   └── LanguageContext.tsx       # i18n: ES/EN/PT — interfaz T con 300+ claves tipadas
+├── contexts/
+│   ├── AuthContext.tsx               # User session, JWT, login/logout, token refresh
+│   ├── ThemeContext.tsx              # Light/dark theme, persisted in SecureStore
+│   └── LanguageContext.tsx           # i18n — ES / EN / PT, 300+ typed keys
 │
-├── hooks/                        # Custom hooks
-│   ├── useApi.ts                 # Fetcher genérico con loading / error / refetch
-│   ├── useAppTheme.ts            # Acceso directo a los tokens de color del tema activo
-│   └── useAssistant.ts           # Singleton: asistente seleccionado y persistido
+├── hooks/
+│   ├── useApi.ts                     # Generic data fetcher with loading/error/refetch
+│   ├── useAppTheme.ts                # Direct access to active theme color tokens
+│   └── useAssistant.ts              # Singleton pattern — selected AI assistant
 │
 ├── services/
-│   └── api.ts                    # Instancia Axios, interceptores, setAuthToken, getErrorMessage
+│   └── api.ts                        # Axios instance, interceptors, auth token helpers
 │
 ├── types/
-│   └── api.ts                    # Interfaces TypeScript de todos los endpoints del backend
+│   └── api.ts                        # TypeScript interfaces for all API contracts
 │
 ├── constants/
-│   ├── theme.ts                  # Tokens LIGHT / DARK (paleta oficial Horus)
-│   ├── colors.ts                 # Paleta extendida AppColors (vibrant + legacy)
-│   └── fonts.ts                  # Constantes FONT.displayBold, FONT.sansMedium, etc.
+│   ├── theme.ts                      # LIGHT / DARK color token palettes
+│   ├── colors.ts                     # Extended AppColors palette
+│   └── fonts.ts                      # FONT.displayBold, FONT.sansMedium, etc.
 │
 ├── utils/
-│   ├── storage.ts                # Abstracción de persistencia (SecureStore en nativo)
-│   └── storage.web.ts            # Implementación web con localStorage
+│   ├── storage.ts                    # SecureStore abstraction (native)
+│   └── storage.web.ts               # localStorage implementation (web)
 │
 ├── assets/
-│   └── assistants/               # Imágenes PNG de Tinto, Oblea y Bocadillo
+│   └── assistants/                   # PNG images for Tinto, Oblea, Bocadillo
 │
-├── server/                       # Backend Node.js (horus-braslet) — proyecto hermano
+├── server/                           # Embedded Express.js backend
+│   └── src/
+│       ├── index.ts                  # Entry point, trust proxy, middleware
+│       ├── routes/                   # auth, profile, dashboard, chat, wearable, files
+│       ├── services/                 # notification.ts (push + FCM), cloudinary
+│       ├── lib/                      # firebase.ts, firestore.ts, prisma
+│       └── middleware/               # requireAuth, error handler
 │
-├── app.json                      # Configuración Expo (nombre, íconos, bundle ID, splash)
-├── package.json                  # Dependencias y scripts
-└── tsconfig.json                 # Configuración TypeScript
+├── app.json                          # Expo config (bundle ID, icons, splash, EAS project)
+├── eas.json                          # EAS Build profiles (preview, production)
+└── server/render.yaml                # Render deployment manifest
 ```
 
 ---
 
-## 5. Archivos principales y su propósito
+## 6. Core Modules
 
-### `app/_layout.tsx`
-**Root de la aplicación.** Responsabilidades:
-- Carga las fuentes custom con `expo-font` antes del primer render
-- Envuelve toda la app en la cadena de providers:
-  `SafeAreaProvider → ThemeProvider → LanguageProvider → AuthProvider`
-- Contiene el componente `RouteGuard` que redirige automáticamente:
-  - Si **no está autenticado** y accede a `(tabs)` o `/` → redirige a `/login`
-  - Si **está autenticado** y accede a `login`, `register` o `/` → redirige a `/(tabs)/dashboard`
-- Define el `Stack` de pantallas con las animaciones de transición
+### RouteGuard (`app/_layout.tsx`)
 
-### `app/(tabs)/_layout.tsx`
-Define el tab navigator con `<FloatingTabBar>` personalizado en lugar del tab bar nativo de React Navigation.
+Wraps the entire navigation tree. Automatically redirects:
+- Unauthenticated user trying to access `(tabs)` → `/login`
+- Authenticated user accessing `/login`, `/register`, or `/` → `/(tabs)/dashboard`
 
-### `services/api.ts`
-Cliente HTTP centralizado:
-- Instancia Axios con `baseURL` desde `EXPO_PUBLIC_API_URL`
-- **Interceptor de request**: loguea `[API] METHOD /ruta` en consola
-- **Interceptor de response**: loguea status; en error 401 invoca el `unauthorizedHandler` para cerrar sesión
-- `setAuthToken(token | null)` — inyecta o elimina `Authorization: Bearer ...` en los headers por defecto
-- `getErrorMessage(error)` — extrae el mensaje más útil de cualquier respuesta de error del servidor (soporta `errors`, `message`, `error`, `detail`)
-
-### `types/api.ts`
-Contratos TypeScript de todos los endpoints:
-
-| Interfaz | Descripción |
-|---|---|
-| `User` | Datos completos del usuario autenticado |
-| `LoginResponse` | Respuesta del POST `/auth/login` |
-| `RegisterPayload` / `RegisterResponse` | POST `/auth/register` |
-| `ProfileData` / `ProfileUpdatePayload` | GET y PUT `/profile` |
-| `DashboardData` | GET `/dashboard/info` |
-| `ChatRequest` / `ChatResponse` | POST `/chat` |
-| `Contact` / `CreateContactPayload` | Contactos de emergencia |
-| `ApiErrorResponse` | Estructura de error estándar del backend |
-
-### `constants/theme.ts`
-Define los tokens de la paleta Horus para ambos modos:
-- **`LIGHT`**: fondo crema `#F9F6ED`, cards blancas, texto oscuro
-- **`DARK`**: fondo casi negro `#1A1510`, cards oscuras, texto crema
-- Los colores de acento (GREEN, YELLOW, BLUE, PINK) **son idénticos en ambos modos**
-
-### `utils/storage.ts` + `utils/storage.web.ts`
-Abstracción de persistencia multiplataforma:
-- **iOS/Android**: `expo-secure-store` (cifrado en el keychain del dispositivo)
-- **Web**: `localStorage`
-- API unificada: `getItem(key)`, `setItem(key, value)`, `deleteItem(key)`
-
----
-
-## 6. Contexts (estado global)
-
-### `AuthContext`
-Gestiona toda la sesión del usuario.
+### AuthContext
 
 ```typescript
 const { user, isAuthenticated, isLoading, login, logout, updateUser } = useAuth();
 ```
 
-| Propiedad / Método | Tipo | Descripción |
-|---|---|---|
-| `user` | `User \| null` | Datos del usuario autenticado |
-| `isAuthenticated` | `boolean` | `true` si hay sesión activa |
-| `isLoading` | `boolean` | `true` mientras se carga la sesión desde storage |
-| `login(email, password)` | `Promise<void>` | Llama `/auth/login`, persiste token, redirige al dashboard |
-| `logout()` | `Promise<void>` | Llama `/auth/logout`, limpia storage y token, redirige a login |
-| `updateUser(partial)` | `void` | Actualiza campos del usuario en memoria y storage sin refetch |
+On mount, restores session from `SecureStore`. On `401` response, the Axios interceptor triggers `unauthorizedHandler` → clears session → redirects to login. On login, silently registers the Expo push token and syncs remote preferences in the background.
 
-**Flujo de sesión persistida:** al montar, lee token y datos del usuario desde `SecureStore`. Si hay sesión, configura el header de Axios. Si el servidor responde `401`, el interceptor dispara `unauthorizedHandler` → limpia sesión → redirige a login.
+### Medical QR ID
 
----
+The QR encodes the user's server UUID. When scanned by `horus-emergency`, that UUID is used to call `GET /api/public/profile/:userId` — no sensitive data is embedded in the QR itself. Privacy toggles control which fields are surfaced to the scanner.
 
-### `ThemeContext`
-Gestiona el tema visual.
+### Watch Pairing (OTP device code)
+
+The mobile app calls `POST /api/auth/device-code/generate` which returns a 6-digit code valid for 2 minutes (bcrypt-hashed, single-use, max 3 attempts). The Wear OS companion inputs this code to authenticate and receive a JWT — after which it registers its FCM token with the server so the watch can receive scan notifications.
+
+### Lock-once Medical Fields
+
+`bloodType`, `dateOfBirth`, `gender`, `identificationType`, and `identificationNumber` can only be set once. Once a value exists in the database, the field renders with reduced opacity and a lock icon — the save handler filters locked fields out of the `PUT /api/profile` payload entirely.
+
+### AI Assistant — singleton pattern
+
+`useAssistant()` shares state across all components via module-level variables, with no Context Provider:
 
 ```typescript
-const { isDark, colors, toggleTheme } = useTheme();
-
-// Acceso simplificado con tokens directos:
-const { BG, CARD, PRIMARY, MUTED, GREEN, isDark, toggleTheme } = useAppTheme();
+let globalId: AssistantId = 'tinto';
+const listeners = new Set<(id: AssistantId) => void>();
 ```
 
-- Por defecto: **tema oscuro**
-- Se persiste bajo la clave `horus_theme`
+All subscribers re-render when the assistant changes from Settings, without triggering unrelated components.
+
+### Voice Mode
+
+The AI assistant includes a voice interaction mode powered by `expo-av`. A race condition between audio playback completion and `stopAll()` is resolved by clearing `sound.current = null` synchronously before async stop/unload operations, so the playback status callback sees null and skips re-triggering the microphone.
 
 ---
 
-### `LanguageContext`
-Sistema de internacionalización completo sin librerías externas.
+## 7. Embedded Backend
+
+The `server/` directory contains a full Express.js REST API that ships alongside the app. It is deployed independently to **Render**.
+
+### Key design decisions
+
+| Decision | Reason |
+|---|---|
+| `app.set('trust proxy', 1)` | Render uses a reverse proxy; required for `express-rate-limit` to read `X-Forwarded-For` correctly |
+| Two Firebase projects | `horus-98edf` — FCM message sending. `horus-64e3b` — Firestore data (notifications, watch tokens). Kept separate to isolate messaging credentials from application data |
+| Watch token in Firestore | Watch FCM tokens are written to `horus-64e3b` Firestore by the server (not by the watch directly) so `horus-emergency` can always read from a single authoritative source |
+| `expo-server-sdk` for phone push | Phone tokens are Expo push tokens (`ExponentPushToken[...]`); watch tokens are raw FCM tokens — handled by separate code paths |
+| Cloudinary for files | Binary file storage offloaded from the database; the DB stores only metadata and Cloudinary public IDs |
+
+### Deployment
+
+```
+Build:   npm install --include=dev && npm run build
+Start:   npm start
+Health:  GET /api/health  →  { ok: true }
+```
+
+UptimeRobot pings `/api/health` every 5 minutes to prevent the free-tier instance from sleeping.
+
+---
+
+## 8. API Reference
+
+All routes require `Authorization: Bearer <token>` unless marked public.
+
+### Auth
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/register` | — | Create a new account |
+| `POST` | `/api/auth/login` | — | Login — returns `accessToken` |
+| `POST` | `/api/auth/logout` | ✓ | Invalidate server-side session |
+| `POST` | `/api/auth/device-code/generate` | ✓ | Generate 6-digit OTP for watch pairing |
+| `POST` | `/api/auth/device-code/verify` | — | Verify OTP — returns watch JWT |
+
+### Profile
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/profile` | ✓ | Full user profile |
+| `PUT` | `/api/profile` | ✓ | Update profile fields |
+| `POST` | `/api/profile/push-token` | ✓ | Register Expo push token (phone) |
+| `POST` | `/api/profile/watch-token` | ✓ | Register FCM token (watch) |
+| `DELETE` | `/api/profile/watch-token` | ✓ | Remove watch FCM token on logout |
+| `GET` | `/api/public/profile/:userId` | — | Public medical data (QR scan) |
+
+### Dashboard & Health
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/dashboard/info` | ✓ | Dashboard summary and last sync timestamp |
+| `POST` | `/api/wearable/readings` | ✓ | Ingest vitals from watch (heart rate, steps, calories, activity, battery) |
+
+### AI Assistant
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/chat` | ✓ | Send message — returns assistant reply |
+
+### Files
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/files` | ✓ | List clinical files |
+| `POST` | `/api/files/upload` | ✓ | Upload file to Cloudinary |
+| `GET` | `/api/files/:id/download` | ✓ | Download file |
+| `DELETE` | `/api/files/:id` | ✓ | Delete file |
+
+### Emergency
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/scan/:userId` | — | Called by horus-emergency after QR scan — logs scan, sends push to phone + watch |
+
+---
+
+## 9. Design System
+
+### Color palette
+
+Horus uses a warm cream / dark-brown palette. Accent colors are **identical in both themes** to maintain consistent health metric association.
+
+| Token | Light | Dark | Usage |
+|---|---|---|---|
+| `BG` | `#F9F6ED` | `#1A1510` | Screen background |
+| `CARD` | `#FFFFFF` | `#252018` | Card / sheet background |
+| `PRIMARY` | `#1A1512` | `#F5EFE6` | Body text, primary elements |
+| `MUTED` | `#8C7F6E` | `#A89880` | Secondary text, icons |
+| `MUTED_BG` | `#F3EFE7` | `#302820` | Input backgrounds, chips |
+| `GREEN` | `#96C979` | `#96C979` | Health positive, success |
+| `YELLOW` | `#FAD957` | `#FAD957` | Active tab indicator, warnings |
+| `BLUE` | `#A5CCF4` | `#A5CCF4` | Info, GPS, connectivity |
+| `PINK` | `#FAB2D3` | `#FAB2D3` | Heart rate, avatar accents |
+| `RED` | `#C0392B` | `#E05050` | Errors, destructive actions |
+
+### Typography
+
+| Constant | Font | Weight | Usage |
+|---|---|---|---|
+| `FONT.displayBold` | Space Grotesk | 700 | Titles, metric values, scores |
+| `FONT.displaySemiBold` | Space Grotesk | 600 | Section headers |
+| `FONT.sansBold` | DM Sans | 700 | Button labels, card titles |
+| `FONT.sansMedium` | DM Sans | 500 | Body text, labels |
+| `FONT.sansRegular` | DM Sans | 400 | Secondary text, captions |
+
+### Style pattern
+
+All screens use the `makeStyles` + `useMemo` pattern to regenerate `StyleSheet` only when the theme changes:
+
+```typescript
+function makeStyles(BG: string, CARD: string, PRIMARY: string, MUTED: string) {
+  return StyleSheet.create({ container: { flex: 1, backgroundColor: BG }, ... });
+}
+
+// Inside component:
+const s = React.useMemo(() => makeStyles(BG, CARD, PRIMARY, MUTED), [isDark]);
+```
+
+### Floating Tab Bar
+
+The tab bar is a fully custom component (`FloatingTabBar.tsx`) that replaces React Navigation's default:
+- Floats over content with `position: 'absolute'`
+- `pointerEvents="box-none"` prevents blocking touches on the screen behind it
+- `overflow: 'hidden'` on the active icon wrapper clips the yellow circular indicator correctly on Android
+- Colors intentionally inverted vs the screen: light theme → dark navbar; dark theme → cream navbar
+
+---
+
+## 10. Internationalization
+
+Built-in i18n with zero external dependencies. All strings live in `contexts/LanguageContext.tsx` under the typed `T` interface.
 
 ```typescript
 const { language, setLanguage, t } = useLanguage();
 
-// Uso — t es un objeto, NO una función:
+// t is an object — direct property access, never a function call:
 <Text>{t.dashTitle}</Text>
-<Text>{t.profileEdit}</Text>
+<Text>{t.navProfile}</Text>
 ```
 
-| Propiedad | Tipo | Descripción |
-|---|---|---|
-| `language` | `'es' \| 'en' \| 'pt'` | Idioma activo |
-| `setLanguage(lang)` | `void` | Cambia y persiste el idioma |
-| `t` | `T` (interfaz tipada) | Objeto con 300+ claves de traducción |
+**Supported languages:**
 
-**Idiomas disponibles:**
-- 🇨🇴 `es` — Español (idioma base del proyecto)
-- 🇺🇸 `en` — English
-- 🇧🇷 `pt` — Português (Brasil)
+| Code | Language |
+|---|---|
+| `es` | Spanish (base language) |
+| `en` | English |
+| `pt` | Portuguese (Brazil) |
 
----
+**Key naming convention:**
 
-## 7. Hooks personalizados
-
-### `useAppTheme()`
-**Archivo:** `hooks/useAppTheme.ts`
-
-Acceso directo a los tokens de color del tema activo. Combina `useTheme()` con la selección de `LIGHT`/`DARK` para que cada pantalla solo llame a un hook.
-
-```typescript
-const {
-  BG, CARD, PRIMARY, MUTED, MUTED_BG,
-  GREEN, YELLOW, BLUE, PINK, RED, RED_BG,
-  isDark, toggleTheme
-} = useAppTheme();
-```
-
----
-
-### `useApi<T>(fn, deps?)`
-**Archivo:** `hooks/useApi.ts`
-
-Hook genérico para llamadas a la API con gestión automática de loading/error/refetch.
-
-```typescript
-const { data, loading, error, refetch } = useApi<DashboardData>(
-  () => apiClient.get<DashboardData>('/dashboard/info').then(r => r.data)
-);
-```
-
-| Retorno | Tipo | Descripción |
-|---|---|---|
-| `data` | `T \| null` | Resultado tipado de la llamada |
-| `loading` | `boolean` | `true` mientras la promesa está pendiente |
-| `error` | `string \| null` | Mensaje de error si falló |
-| `refetch` | `() => void` | Re-ejecuta la llamada manualmente |
-
----
-
-### `useAssistant()`
-**Archivo:** `hooks/useAssistant.ts`
-
-Hook con **patrón singleton**: todas las instancias comparten el mismo estado global mediante un `Set<listener>` a nivel de módulo, sin necesidad de Context ni prop drilling.
-
-```typescript
-const { assistantId, setAssistantId, assistant } = useAssistant();
-// assistant = { name, tagline, image }
-```
-
-**Asistentes disponibles:**
-
-| ID | Nombre | Personalidad |
-|---|---|---|
-| `tinto` | Tinto | Alegre, curioso y valiente |
-| `oblea` | Oblea | Alegre, cercana y positiva |
-| `bocadillo` | Bocadillo | Alegre, curiosa y valiente |
-
-El asistente se persiste en `SecureStore` y cualquier pantalla que use `useAssistant()` se actualiza automáticamente al cambiarlo desde Configuración.
-
----
-
-## 8. Pantallas
-
-### `app/login.tsx`
-Inicio de sesión con email y contraseña. Muestra un banner de éxito si viene del registro (`?registered=1`). Usa `useAuth().login()` para autenticar y redirigir.
-
----
-
-### `app/register.tsx`
-Registro de cuenta nueva. Campos: nombre, apellido, correo, contraseña, confirmación de contraseña y aceptación de términos. Los datos médicos **no se solicitan aquí** — el usuario los completa en su perfil con la lógica lock-once.
-
----
-
-### `app/(tabs)/dashboard.tsx`
-Panel principal. Contiene:
-- Saludo contextual (buenos días / tardes / noches) con el nombre del usuario
-- Strip del asistente activo — toca para ir al chat
-- **HealthRing**: anillo SVG interactivo con las 4 métricas de salud
-- Estado del dispositivo: chip, batería, última sincronización
-- Gráfico de actividad de las últimas 24h (barras)
-- Grid de acciones rápidas: QR, IA, Archivos, Perfil
-- Panel de alertas del sistema
-
----
-
-### `app/(tabs)/monitor.tsx`
-Monitor del wearable en tiempo real:
-- Pastilla de localización GPS en vivo
-- Estado NFC del tag vinculado
-- Grid de chips con info del protocolo (frecuencia de monitoreo, rango, ID del tag)
-- Centro de notificaciones del dispositivo
-- Modal de activación / desactivación del wearable
-
----
-
-### `app/(tabs)/qr-medico.tsx`
-Generador de ID médico de emergencia:
-- QR dinámico con los datos del perfil del usuario
-- Controles de privacidad por toggle: qué información incluir en el QR (tipo de sangre, alergias, medicamentos, condiciones crónicas, contactos de emergencia, notas)
-- Botón de guardar en galería o compartir
-- Guía paso a paso de vinculación con el smartwatch
-
----
-
-### `app/(tabs)/assistant.tsx`
-Chat en tiempo real con el asistente de IA:
-- Historial de mensajes con burbujas diferenciadas (usuario / asistente)
-- Input con envío por Enter o botón
-- Avatar del asistente activo
-- Integración con el endpoint `/chat` del backend
-
----
-
-### `app/(tabs)/files.tsx`
-Gestión de archivos clínicos:
-- Zona de subida visual (borde punteado)
-- Barra de progreso de almacenamiento utilizado
-- Lista de archivos con tipo (PDF/CSV/PNG/JSON), tamaño y acciones: descargar y eliminar
-- Estado vacío con prompt de primer archivo
-
----
-
-### `app/(tabs)/profile.tsx`
-Perfil completo del usuario:
-- Avatar con iniciales, nombre y correo
-- Vista rápida: correo, tipo de sangre, fecha de nacimiento
-- Estado del wearable Horus (NFC, GPS, batería, firmware)
-- Modal **Ver perfil**: datos personales, médicos e identificación
-- Modal **Editar perfil** con lógica lock-once:
-  - `firstName` / `lastName` → siempre editables
-  - `bloodType`, `dateOfBirth`, `gender`, `identificationType`, `identificationNumber` → editables solo si están vacíos; una vez guardados se muestran con candado 🔒 y no permiten cambios
-- Modal de logout con confirmación
-
----
-
-### `app/settings.tsx`
-Configuración completa:
-- **Apariencia**: tema claro/oscuro con segmented control
-- **Idioma**: bottom sheet con ES / EN / PT
-- **Asistente**: carrusel horizontal con los 3 personajes
-- **Notificaciones**: push, alertas de ubicación, alertas de salud
-- **Privacidad**: autenticación biométrica, compartir datos anónimos
-- **Dispositivo**: versión firmware, sincronizar, generar código de vinculación con la manilla (código de 6 dígitos con temporizador de 2 minutos)
-- **Zona de peligro**: eliminar cuenta con confirmación
-
----
-
-### `app/emergency.tsx`
-Pantalla pública accesible sin login, mostrada al escanear el QR médico con cualquier cámara. Muestra los datos médicos críticos del portador del QR.
-
----
-
-## 9. Componentes reutilizables
-
-### `FloatingTabBar`
-**Archivo:** `components/FloatingTabBar.tsx`
-
-Tab bar personalizado que reemplaza el nativo de React Navigation:
-- Flota sobre el contenido con `position: absolute`
-- `pointerEvents="box-none"` en el View wrapper para no bloquear toques en la pantalla
-- Pill amarillo (`#FAD957`) en el ícono activo
-- Etiquetas reactivas al idioma con `useLanguage()` y `React.useMemo([t])`
-- Colores invertidos respecto al tema: en modo claro el navbar es oscuro y viceversa
-
----
-
-### `HealthRing` + `MetricChips`
-**Archivo:** `components/HealthRing.tsx`
-
-Visualización SVG animada de métricas vitales.
-
-**`HealthRing`** — Anillo interactivo:
-- Dibuja 4 arcos SVG de colores (corazón, pasos, calorías, actividad)
-- Toque en segmento → selecciona métrica y agranda su ícono
-- Anima la selección con `Animated`
-- Score de salud centrado
-
-**`MetricChips`** — Grid de 4 cards:
-- Muestra ícono, etiqueta, valor y unidad de cada métrica
-- Resalta la métrica seleccionada con borde coloreado
-
-**Tipos exportados:**
-```typescript
-export type MetricIcon = 'heart' | 'footprints' | 'flame' | 'activity';
-export type HealthMetric = {
-  key: string; label: string; value: string | number;
-  unit: string; icon: MetricIcon; color: keyof typeof RING_COLORS;
-};
-```
-
----
-
-### `EmotionShape`
-**Archivo:** `components/EmotionShape.tsx`
-
-Formas decorativas SVG (corazón, estrella, cruz) usadas en las pantallas de login y registro para reforzar la identidad visual de la marca.
-
----
-
-## 10. Sistema de temas
-
-La paleta "Horus" está basada en tonos cálidos crema/oscuro que se invierten entre modos:
-
-| Token | Modo Claro | Modo Oscuro | Uso |
-|---|---|---|---|
-| `BG` | `#F9F6ED` | `#1A1510` | Fondo de pantalla |
-| `CARD` | `#FFFFFF` | `#252018` | Fondo de cards |
-| `PRIMARY` | `#1A1512` | `#F5EFE6` | Texto principal, elementos destacados |
-| `MUTED` | `#8C7F6E` | `#A89880` | Texto secundario, íconos |
-| `MUTED_BG` | `#F3EFE7` | `#302820` | Fondo de chips, inputs |
-| `GREEN` | `#96C979` | `#96C979` | Salud, éxito — **igual en ambos** |
-| `YELLOW` | `#FAD957` | `#FAD957` | Tab activo, alertas — **igual en ambos** |
-| `BLUE` | `#A5CCF4` | `#A5CCF4` | Información, GPS — **igual en ambos** |
-| `PINK` | `#FAB2D3` | `#FAB2D3` | Corazón, avatar — **igual en ambos** |
-| `RED` | `#C0392B` | `#E05050` | Error, logout |
-| `RED_BG` | `#FDECEA` | `#3D1A1A` | Fondo de alertas destructivas |
-
-Los estilos de cada pantalla se generan con `makeStyles(...tokens)` dentro de `React.useMemo([isDark])`, garantizando regeneración en un solo render al cambiar de tema.
-
-El navbar tiene colores **invertidos** deliberadamente: en modo claro el fondo del navbar es oscuro (`#191512`) y en modo oscuro es crema (`PRIMARY = #F5EFE6`), creando un contraste visual fuerte.
-
----
-
-## 11. Sistema de idiomas (i18n)
-
-### Arquitectura
-Todas las cadenas de texto viven en `contexts/LanguageContext.tsx` bajo la interfaz `T`. No se usa ninguna librería externa de i18n.
-
-### Uso básico
-```typescript
-const { t } = useLanguage();
-
-// t es un objeto — acceso directo, nunca función:
-<Text>{t.dashTitle}</Text>
-<Text>{t.cancel}</Text>
-<Text>{t.registerEmail}</Text>
-```
-
-### Patrón para arrays de opciones traducibles
-Los arrays que dependen del idioma (pickers de género, tipo de ID, meses) se calculan con `useMemo`:
-```typescript
-const GENDERS_T = React.useMemo(() => [
-  { label: t.genderMale,      value: 'MALE'             },
-  { label: t.genderFemale,    value: 'FEMALE'           },
-  { label: t.genderOther,     value: 'OTHER'            },
-  { label: t.genderPreferNot, value: 'PREFER_NOT_TO_SAY'},
-], [t]);
-```
-
-### Organización de claves
-
-| Prefijo | Pantalla / Sección |
+| Prefix | Screen / Section |
 |---|---|
 | `dash*` | Dashboard |
-| `monitor*` | Monitor |
-| `qr*` | QR Médico / ID |
-| `files*` | Archivos |
-| `profile*` | Perfil |
-| `register*` | Registro |
-| `settings*` | Configuración |
-| `nav*` | Navbar (FloatingTabBar) |
+| `monitor*` | Device monitor |
+| `qr*` | Medical QR ID |
+| `files*` | Clinical files |
+| `profile*` | User profile |
+| `settings*` | Settings |
+| `nav*` | Tab bar labels |
+| `register*` | Registration |
 | `login*` | Login |
-| Sin prefijo | Comunes: `cancel`, `save`, `months[]`, `years`, `genderMale`... |
+| *(none)* | Shared: `cancel`, `save`, `months`, `genderMale`, … |
 
 ---
 
-## 12. API y backend
+## 11. Running the App
 
-### Base URL
+### Prerequisites
+
 ```
-EXPO_PUBLIC_API_URL=https://tu-tunnel.ngrok-free.dev/api
-```
-
-El backend es un servidor Node.js/Express separado ubicado en `server/` (proyecto **horus-braslet**).
-
-### Endpoints principales
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| `POST` | `/auth/register` | Registro de usuario |
-| `POST` | `/auth/login` | Login — retorna `accessToken` |
-| `POST` | `/auth/logout` | Invalida la sesión en el servidor |
-| `POST` | `/auth/device-code/generate` | Genera código temporal de vinculación con la manilla |
-| `GET` | `/profile` | Obtiene datos completos del perfil |
-| `PUT` | `/profile` | Actualiza campos del perfil (respeta lock-once del lado cliente) |
-| `GET` | `/dashboard/info` | Datos del dashboard (timestamp de última sincronización) |
-| `POST` | `/chat` | Envía mensaje al asistente IA |
-
-### Autenticación JWT
-1. Login exitoso → servidor retorna `accessToken`
-2. Se almacena cifrado en `SecureStore` vía `setItem('horus_token', token)`
-3. `setAuthToken(token)` lo inyecta en `apiClient.defaults.headers.common['Authorization']`
-4. Todos los requests subsiguientes lo incluyen automáticamente
-5. Si el servidor responde `401` → el interceptor llama al `unauthorizedHandler` → se limpia sesión → redirige a login
-
----
-
-## 13. Cómo correr la aplicación
-
-### Requisitos previos
-```bash
-node >= 18
+Node.js >= 18
 npm >= 9
 ```
 
-### Instalación
+### Install
+
 ```bash
-git clone https://github.com/maryhug/horus-mobile.git
+git clone <repo-url>
 cd horus-mobile
 npm install
 ```
 
----
+### Android (emulator or physical device)
 
-### iOS (simulador o dispositivo físico)
-
-**Simulador** *(requiere macOS + Xcode instalado)*:
 ```bash
-npm run ios
-# equivalente a:
-npx expo start --ios
-```
-
-**Dispositivo físico:**
-1. Instalar **Expo Go** desde la App Store
-2. Ejecutar `npx expo start`
-3. Escanear el QR con la cámara (iOS 16+) o la app Expo Go
-
-> ⚠️ Para usar NFC y BLE en un dispositivo físico se necesita un **build nativo**:
-> ```bash
-> npx expo run:ios
-> ```
-> Expo Go no soporta `react-native-nfc-manager` ni `react-native-ble-plx`.
-
----
-
-### Android (emulador o dispositivo físico)
-
-**Emulador** *(requiere Android Studio con un AVD configurado)*:
-```bash
+# Emulator — requires Android Studio with an AVD
 npm run android
-# equivalente a:
-npx expo start --android
+
+# Physical device via Expo Go (no NFC/BLE support)
+npx expo start
+# Scan QR with Expo Go app
 ```
 
-**Dispositivo físico:**
-1. Instalar **Expo Go** desde Google Play
-2. Ejecutar `npx expo start`
-3. Escanear el QR con la app Expo Go
+### iOS (simulator or physical device)
 
-> ⚠️ Igual que iOS: para NFC y BLE usar `npx expo run:android`
+```bash
+# Simulator — requires macOS + Xcode
+npm run ios
 
----
+# Physical device via Expo Go
+npx expo start
+# Scan QR with iPhone camera or Expo Go app
+```
 
-### Web (navegador)
+> **Note:** NFC (`react-native-nfc-manager`) and BLE (`react-native-ble-plx`) require a native build. They are not available in Expo Go.
+>
+> ```bash
+> npx expo run:android   # or run:ios
+> ```
+
+### Web
+
 ```bash
 npm run web
-# equivalente a:
-npx expo start --web
+# Opens at http://localhost:8081
 ```
 
-La app corre en `http://localhost:8081`. Funciones de hardware (NFC, BLE, SecureStore) no están disponibles y se degradan con la implementación web.
+Hardware features (NFC, BLE, SecureStore) gracefully degrade on web.
 
----
+### Run the backend alongside the app
 
-### Modo LAN (dispositivos en la misma red WiFi)
 ```bash
-npm run start:lan
-```
-Útil cuando el emulador tiene problemas de conexión con el servidor de Metro por NAT o VPN.
-
----
-
-### Correr el backend junto con la app
-
-El servidor Node.js vive en `server/`:
-```bash
-# Terminal 1 — App móvil
+# Terminal 1 — Mobile app
 npx expo start
 
-# Terminal 2 — Servidor backend
-npm run server
-
-# O con tunnel ngrok (expone el servidor a internet):
-npm run server:tunnel
+# Terminal 2 — Backend server
+cd server
+npm run dev
 ```
-
-Una vez que ngrok genere la URL, actualiza el `.env` con ella.
 
 ---
 
-## 14. Variables de entorno
+## 12. Environment Variables
 
-Crea un archivo `.env` en la raíz del proyecto:
+Create `.env` in the project root:
 
 ```env
-# URL del backend — sin trailing slash, incluye /api
-EXPO_PUBLIC_API_URL=https://tu-servidor.ngrok-free.dev/api
+# Backend URL — no trailing slash, include /api
+EXPO_PUBLIC_API_URL=https://horus-mobile.onrender.com/api
 ```
 
-> Las variables con prefijo `EXPO_PUBLIC_` son accesibles en el bundle del cliente. Sin ese prefijo, solo las lee el servidor.
+Variables prefixed with `EXPO_PUBLIC_` are bundled into the client at build time. The server reads its own environment variables from `server/.env` (or from Render's environment in production).
 
-Si no se define la variable, `services/api.ts` usa el valor hardcodeado del servidor de desarrollo por defecto.
+**Server environment variables** (set in Render dashboard or `server/.env`):
+
+```env
+DATABASE_URL=postgresql://...
+JWT_SECRET=...
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+FIREBASE_FCM_JSON={"type":"service_account",...}      # horus-98edf credentials
+FIREBASE_FIRESTORE_JSON={"type":"service_account",...} # horus-64e3b credentials
+```
 
 ---
 
-## 15. Notas de desarrollo
+## 13. Building for Production
 
-### Patrón de estilos (todas las pantallas)
-```typescript
-// 1. makeStyles recibe los tokens de color del tema
-function makeStyles(BG: string, CARD: string, PRIMARY: string, ...) {
-  return StyleSheet.create({ ... });
-}
+Horus Mobile uses **EAS Build** (Expo Application Services) for production APK/IPA generation.
 
-// 2. Se genera dentro del componente, solo se regenera al cambiar el tema
-const s = React.useMemo(
-  () => makeStyles(BG, CARD, PRIMARY, ...),
-  [isDark]
-);
+### Android APK (preview)
+
+```bash
+eas build --platform android --profile preview
 ```
 
-### TypeScript estricto — cero `any`
-- Nombres de íconos Ionicons: `type IoniconsName = ComponentProps<typeof Ionicons>['name']`
-- Rutas de navegación: `type Href` de `expo-router`
-- Width porcentual en estilos: `as DimensionValue`
-- Payloads de API: interfaces de `types/api.ts` (e.g. `ProfileUpdatePayload`)
-- `HealthMetric.icon`: `type MetricIcon = 'heart' | 'footprints' | 'flame' | 'activity'`
+### Android AAB (production — Google Play)
 
-### Lógica lock-once de campos médicos
-Los campos médicos en perfil (`bloodType`, `dateOfBirth`, `gender`, `identificationType`, `identificationNumber`) siguen estas reglas:
-
-```typescript
-// Se calculan al cargar el perfil
-const medicalLocked = React.useMemo(() => ({
-  bloodType:            !!profile?.bloodType,
-  dob:                  !!profile?.dateOfBirth,
-  gender:               !!profile?.gender,
-  identificationType:   !!profile?.identificationType,
-  identificationNumber: !!profile?.identificationNumber,
-}), [profile]);
-
-// En handleSave — solo se envían los campos NO bloqueados
-if (!medicalLocked.bloodType && draft.bloodType)
-  payload.bloodType = draft.bloodType;
+```bash
+eas build --platform android --profile production
 ```
 
-Una vez que un campo tiene valor en la base de datos, se muestra con `opacity: 0.55` + ícono de candado 🔒 y no puede modificarse desde la app.
+The `EXPO_PUBLIC_API_URL` variable is read from the local `.env` file at build time and baked into the bundle. Update it to the Render production URL before building.
 
-### Singleton de asistente
-`useAssistant` no usa Context. En su lugar usa variables de módulo compartidas:
-```typescript
-let globalId: AssistantId = 'tinto';
-const listeners = new Set<(id: AssistantId) => void>();
+### Server deployment (Render)
 
-function broadcast(id: AssistantId) {
-  globalId = id;
-  listeners.forEach(fn => fn(id)); // notifica a todos los componentes suscritos
-}
+The backend deploys automatically from the `server/` directory via `server/render.yaml`:
+
 ```
-Esto evita re-renders de componentes no relacionados y funciona sin Provider.
+Build command:  npm install --include=dev && npm run build
+Start command:  npm start
+Health check:   GET /api/health
+```
+
+`--include=dev` is required because TypeScript and type packages live in `devDependencies` but are needed to compile the server.
