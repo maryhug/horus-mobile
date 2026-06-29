@@ -195,7 +195,7 @@ export function HealthRing({
               {score}
             </Text>
             <Text style={{ fontSize: 11, color: MUTED, fontFamily: FONT.sansMedium, marginTop: 4 }}>
-              tu puntaje de salud  ⓘ
+              tu puntaje de salud
             </Text>
           </View>
         </View>

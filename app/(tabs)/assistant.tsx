@@ -62,27 +62,27 @@ function MdText({ text, color }: { text: string; color: string }) {
       {text.split('\n').map((line, i) => {
         if (!line.trim()) return <View key={i} style={{ height: 5 }} />;
         const h3 = line.match(/^###\s+(.+)$/);
-        if (h3) return <Text key={i} style={[base, { fontWeight: '700', fontSize: 15, marginTop: 4 }]}><InlineMd text={h3[1]} style={[base, { fontWeight: '700', fontSize: 15 }]} /></Text>;
+        if (h3) return <Text selectable key={i} style={[base, { fontWeight: '700', fontSize: 15, marginTop: 4 }]}><InlineMd text={h3[1]} style={[base, { fontWeight: '700', fontSize: 15 }]} /></Text>;
         const h2 = line.match(/^##\s+(.+)$/);
-        if (h2) return <Text key={i} style={[base, { fontWeight: '700', fontSize: 16, marginTop: 6 }]}><InlineMd text={h2[1]} style={[base, { fontWeight: '700', fontSize: 16 }]} /></Text>;
+        if (h2) return <Text selectable key={i} style={[base, { fontWeight: '700', fontSize: 16, marginTop: 6 }]}><InlineMd text={h2[1]} style={[base, { fontWeight: '700', fontSize: 16 }]} /></Text>;
         const h1 = line.match(/^#\s+(.+)$/);
-        if (h1) return <Text key={i} style={[base, { fontWeight: '700', fontSize: 17, marginTop: 8 }]}><InlineMd text={h1[1]} style={[base, { fontWeight: '700', fontSize: 17 }]} /></Text>;
+        if (h1) return <Text selectable key={i} style={[base, { fontWeight: '700', fontSize: 17, marginTop: 8 }]}><InlineMd text={h1[1]} style={[base, { fontWeight: '700', fontSize: 17 }]} /></Text>;
         const bullet = line.match(/^[\s]*[-•]\s(.+)$/);
         if (bullet) return (
           <View key={i} style={{ flexDirection: 'row', gap: 6 }}>
-            <Text style={base}>•</Text>
-            <Text style={[base, { flex: 1 }]}><InlineMd text={bullet[1]} style={base} /></Text>
+            <Text selectable style={base}>•</Text>
+            <Text selectable style={[base, { flex: 1 }]}><InlineMd text={bullet[1]} style={base} /></Text>
           </View>
         );
         const numbered = line.match(/^[\s]*(\d+\.)\s(.+)$/);
         if (numbered) return (
           <View key={i} style={{ flexDirection: 'row', gap: 6 }}>
-            <Text style={base}>{numbered[1]}</Text>
-            <Text style={[base, { flex: 1 }]}><InlineMd text={numbered[2]} style={base} /></Text>
+            <Text selectable style={base}>{numbered[1]}</Text>
+            <Text selectable style={[base, { flex: 1 }]}><InlineMd text={numbered[2]} style={base} /></Text>
           </View>
         );
         return (
-          <Text key={i} style={base}><InlineMd text={line} style={base} /></Text>
+          <Text selectable key={i} style={base}><InlineMd text={line} style={base} /></Text>
         );
       })}
     </View>
@@ -442,7 +442,7 @@ export default function AssistantScreen() {
           data={messages}
           keyExtractor={m => m.id}
           style={s.flex}
-          contentContainerStyle={[s.listContent, isEmpty && s.listEmpty, { paddingBottom: BASE_BOTTOM + 70 }]}
+          contentContainerStyle={[s.listContent, isEmpty && s.listEmpty, { paddingBottom: inputBottom + 70 }]}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={scrollToBottom}
           ListHeaderComponent={isEmpty ? (
@@ -472,12 +472,16 @@ export default function AssistantScreen() {
 
                 {/* 2. Recuadro para texto y documentos */}
                 {(!!m.text || m.media?.type === 'pdf' || m.media?.type === 'docx') && (
-                  <View style={[
-                    s.bubble,
-                    isUser          && s.bubbleUser,
-                    m.role === 'bot'   && s.bubbleBot,
-                    m.role === 'error' && s.bubbleError,
-                  ]}>
+                  <TouchableOpacity
+                    style={[
+                      s.bubble,
+                      isUser          && s.bubbleUser,
+                      m.role === 'bot'   && s.bubbleBot,
+                      m.role === 'error' && s.bubbleError,
+                    ]}
+                    onLongPress={() => Keyboard.dismiss()}
+                    activeOpacity={1}
+                  >
                     {(m.media?.type === 'pdf' || m.media?.type === 'docx') && (
                       <View style={s.docCard}>
                         <Ionicons
@@ -495,16 +499,16 @@ export default function AssistantScreen() {
                         </View>
                       </View>
                     )}
-                    
+
                     {/* Text content */}
                     {isUser ? (
-                      m.text ? <Text style={[s.bubbleText, s.bubbleTextUser]}>{m.text}</Text> : null
+                      m.text ? <Text selectable style={[s.bubbleText, s.bubbleTextUser]}>{m.text}</Text> : null
                     ) : isStreaming ? (
                       <StreamText text={m.text} color={PRIMARY} onDone={() => setStreamingId(null)} />
                     ) : (
                       m.text ? <MdText text={m.text} color={PRIMARY} /> : null
                     )}
-                  </View>
+                  </TouchableOpacity>
                 )}
               </View>
             );

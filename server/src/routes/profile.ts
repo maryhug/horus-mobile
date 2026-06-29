@@ -259,6 +259,18 @@ router.post('/watch-token', requireAuth, async (req: AuthRequest, res: Response)
   }
 });
 
+// DELETE /api/profile/watch-token  — logout: remove watch FCM token
+router.delete('/watch-token', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { clearWatchToken } = await import('../services/notification');
+    await clearWatchToken(req.userId!);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Watch token clear error:', error);
+    res.status(500).json({ message: 'Error al limpiar watch token' });
+  }
+});
+
 // GET /api/profile/medical — allergies + conditions + medications + medicalProfile
 router.get('/medical', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {

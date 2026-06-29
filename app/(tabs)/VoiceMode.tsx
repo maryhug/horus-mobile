@@ -208,9 +208,11 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
       try { await recording.current.stopAndUnloadAsync(); } catch { }
       recording.current = null;
     }
-    if (sound.current) {
-      try { await sound.current.stopAsync(); await sound.current.unloadAsync(); } catch { }
-      sound.current = null;
+    // Clear ref BEFORE async ops so the playback callback sees null and skips startListening
+    const s = sound.current;
+    sound.current = null;
+    if (s) {
+      try { await s.stopAsync(); await s.unloadAsync(); } catch { }
     }
     setVoiceState('idle');
     setTranscript('');
@@ -340,8 +342,9 @@ export default function VoiceMode({ visible, sessionId, voiceId, onClose, onSess
 
       s.setOnPlaybackStatusUpdate(async (status) => {
         if (!status.isLoaded || !status.didJustFinish) return;
-        await s.unloadAsync();
+        if (!sound.current) return; // already stopped by stopAll
         sound.current = null;
+        await s.unloadAsync();
         FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => { });
         setTranscript('');
         sendingRef.current = false;

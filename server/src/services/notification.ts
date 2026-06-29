@@ -10,6 +10,11 @@ export async function saveWatchToken(userId: string, fcmToken: string): Promise<
   await db.collection('user_tokens').doc(userId).set({ watchFcmToken: fcmToken }, { merge: true });
 }
 
+export async function clearWatchToken(userId: string): Promise<void> {
+  const { FieldValue } = await import('firebase-admin/firestore');
+  await db.collection('user_tokens').doc(userId).set({ watchFcmToken: FieldValue.delete() }, { merge: true });
+}
+
 async function getWatchToken(userId: string): Promise<string | null> {
   const doc = await db.collection('user_tokens').doc(userId).get();
   return doc.exists ? (doc.data()?.watchFcmToken ?? null) : null;
