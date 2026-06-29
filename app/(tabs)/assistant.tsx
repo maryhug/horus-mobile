@@ -184,7 +184,7 @@ export default function AssistantScreen() {
   const [ending,       setEnding]       = useState(false);
   const [showAttach,   setShowAttach]   = useState(false);
   const [streamingId,  setStreamingId]  = useState<string | null>(null);
-  const [kbVisible,    setKbVisible]    = useState(false);
+  const [kbHeight,     setKbHeight]     = useState(0);
   const [pendingMedia, setPendingMedia] = useState<{ base64: string; mimeType: string; info: MediaInfo } | null>(null);
   const [viewImageUri, setViewImageUri] = useState<string | null>(null);
   const [voiceModeOn,  setVoiceModeOn]  = useState(false);
@@ -195,15 +195,15 @@ export default function AssistantScreen() {
   const initLock   = useRef(false);
   const pickingRef = useRef(false);
 
-  // ── Keyboard tracking (para ajustar padding) ──
+  // ── Keyboard tracking (para ajustar padding manualmente) ──
   useEffect(() => {
-    const onShow = () => {
+    const onShow = (e: any) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setKbVisible(true);
+      setKbHeight(e.endCoordinates.height);
     };
     const onHide = () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setKbVisible(false);
+      setKbHeight(0);
     };
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -411,10 +411,7 @@ export default function AssistantScreen() {
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={s.container}>
-      <KeyboardAvoidingView 
-        style={s.flex} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={[s.flex, { paddingBottom: kbHeight }]}>
         <View style={s.flex}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={s.header}>
@@ -526,7 +523,7 @@ export default function AssistantScreen() {
         />
 
         {/* ── Input bar ─────────── */}
-        <View style={[s.inputArea, { paddingBottom: kbVisible ? 10 : BASE_BOTTOM }]}>
+        <View style={[s.inputArea, { paddingBottom: kbHeight > 0 ? (Platform.OS === 'ios' ? 10 : 20) : BASE_BOTTOM }]}>
 
           {/* Preview del adjunto pendiente */}
           {pendingMedia && (
@@ -579,7 +576,7 @@ export default function AssistantScreen() {
         </View>
 
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* ── Attach modal ─────────────────────────────────────────────────── */}
       <Modal visible={showAttach} transparent animationType="none" onRequestClose={() => setShowAttach(false)}>
