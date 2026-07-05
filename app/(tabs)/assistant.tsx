@@ -390,7 +390,13 @@ export default function AssistantScreen() {
       });
       if (result.canceled || !result.assets?.[0]) return;
       const file = result.assets[0];
-      const mime = file.mimeType ?? 'application/pdf';
+      let mime = file.mimeType ?? 'application/pdf';
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        mime = 'application/pdf';
+      } else if (file.name.toLowerCase().endsWith('.docx')) {
+        mime = DOCX_MIME;
+      }
+      
       const base64 = await FileSystem.readAsStringAsync(file.uri, {
         encoding: 'base64' as any,
       });

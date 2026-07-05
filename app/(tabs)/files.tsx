@@ -196,11 +196,16 @@ export default function FilesScreen() {
     setUploading(true);
 
     try {
+      let mime = pendingFile.mimeType || 'application/octet-stream';
+      if (pendingFile.name.toLowerCase().endsWith('.pdf')) {
+        mime = 'application/pdf';
+      }
+
       const formData = new FormData();
       formData.append('file', {
         uri:  pendingFile.uri,
         name: pendingFile.name,
-        type: pendingFile.mimeType || 'application/octet-stream',
+        type: mime,
       } as any);
 
       const res = await apiClient.post<{
